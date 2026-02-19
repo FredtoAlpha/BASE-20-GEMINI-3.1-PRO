@@ -1,0 +1,525 @@
+<script>
+/**
+ * ===================================================================
+ * PERFORMANCE OPTIMIZER - Phase 11 (Real Phase 4 Roadmap)
+ * ===================================================================
+ *
+ * Système centralisé d'optimisation performance :
+ * 1. Debounce updateCharts (32 appels → debounced)
+ * 2. Cache DOM refs (1184 accès → cached)
+ * 3. Batch DOM operations (documentFragment)
+ *
+ * Gain attendu : 6.0/10 → 7.5/10 performance
+ * ===================================================================
+ */
+
+// ===================================================================
+// 1. DEBOUNCE UTILITY (Universal)
+// ===================================================================
+
+/**
+ * Crée une fonction debounced qui retarde l'exécution jusqu'à ce que
+ * le délai soit écoulé sans nouveaux appels
+ * @param {Function} func - Fonction à debouncer
+ * @param {number} wait - Délai en ms (défaut: 150ms)
+ * @param {boolean} immediate - Exécuter immédiatement au premier appel
+ * @returns {Function} Fonction debouncée
+ */
+function debounce(func, wait = 150, immediate = false) {
+  let timeout;
+  let callCount = 0;
+
+  const debounced = function(...args) {
+    const context = this;
+    callCount++;
+
+    const later = function() {
+      timeout = null;
+      if (!immediate) {
+        const count = callCount;
+        callCount = 0;
+        console.log(`⚡ Debounce: Exécution après ${count} appels groupés`);
+        func.apply(context, args);
+      }
+    };
+
+    const callNow = immediate && !timeout;
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+
+    if (callNow) {
+      func.apply(context, args);
+    }
+  };
+
+  // Méthode pour forcer l'exécution immédiate
+  debounced.flush = function() {
+    if (timeout) {
+      clearTimeout(timeout);
+      const context = this;
+      const count = callCount;
+      callCount = 0;
+      console.log(`⚡ Debounce: Flush forcé après ${count} appels`);
+      func.apply(context);
+    }
+  };
+
+  // Méthode pour annuler
+  debounced.cancel = function() {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+      callCount = 0;
+    }
+  };
+
+  return debounced;
+}
+
+/**
+ * Throttle: limite l'exécution à une fois par période
+ * @param {Function} func - Fonction à throttler
+ * @param {number} limit - Période minimale entre exécutions (ms)
+ * @returns {Function} Fonction throttled
+ */
+function throttle(func, limit = 100) {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+}
+
+// ===================================================================
+// 2. DOM CACHE SYSTEM
+// ===================================================================
+
+/**
+ * Cache centralisé pour références DOM
+ * Réduit 1184+ accès DOM répétés
+ */
+class DOMCache {
+  constructor() {
+    this.cache = new Map();
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      invalidations: 0
+    };
+  }
+
+  /**
+   * Récupère un élément du cache ou du DOM
+   * @param {string} selector - Sélecteur CSS ou ID
+   * @param {boolean} forceRefresh - Forcer le refresh
+   * @returns {Element|null}
+   */
+  get(selector, forceRefresh = false) {
+    if (!forceRefresh && this.cache.has(selector)) {
+      const element = this.cache.get(selector);
+      // Vérifier que l'élément existe toujours dans le DOM
+      if (element && element.isConnected) {
+        this.stats.hits++;
+        return element;
+      }
+      // L'élément a été supprimé, invalider le cache
+      this.cache.delete(selector);
+    }
+
+    this.stats.misses++;
+    const element = document.querySelector(selector);
+    if (element) {
+      this.cache.set(selector, element);
+    }
+    return element;
+  }
+
+  /**
+   * Récupère tous les éléments matchant le sélecteur
+   * @param {string} selector - Sélecteur CSS
+   * @param {boolean} forceRefresh - Forcer le refresh
+   * @returns {NodeList}
+   */
+  getAll(selector, forceRefresh = false) {
+    const cacheKey = `all:${selector}`;
+
+    if (!forceRefresh && this.cache.has(cacheKey)) {
+      const elements = this.cache.get(cacheKey);
+      // Vérifier que les éléments existent toujours
+      if (elements && elements.length > 0 && elements[0].isConnected) {
+        this.stats.hits++;
+        return elements;
+      }
+      this.cache.delete(cacheKey);
+    }
+
+    this.stats.misses++;
+    const elements = document.querySelectorAll(selector);
+    this.cache.set(cacheKey, elements);
+    return elements;
+  }
+
+  /**
+   * Invalide le cache pour un sélecteur ou tout le cache
+   * @param {string} selector - Sélecteur à invalider (optionnel)
+   */
+  invalidate(selector = null) {
+    if (selector) {
+      this.cache.delete(selector);
+      this.cache.delete(`all:${selector}`);
+    } else {
+      this.cache.clear();
+    }
+    this.stats.invalidations++;
+  }
+
+  /**
+   * Pré-charge des éléments fréquemment utilisés
+   * @param {Array<string>} selectors - Liste de sélecteurs
+   */
+  preload(selectors) {
+    console.log(`🎯 DOMCache: Pré-chargement de ${selectors.length} sélecteurs`);
+    selectors.forEach(selector => this.get(selector));
+  }
+
+  /**
+   * Affiche les statistiques du cache
+   */
+  getStats() {
+    const total = this.stats.hits + this.stats.misses;
+    const hitRate = total > 0 ? (this.stats.hits / total * 100).toFixed(1) : 0;
+    return {
+      ...this.stats,
+      total,
+      hitRate: `${hitRate}%`,
+      cacheSize: this.cache.size
+    };
+  }
+
+  /**
+   * Log les stats dans la console
+   */
+  logStats() {
+    const stats = this.getStats();
+    console.log('📊 DOMCache Stats:', stats);
+  }
+}
+
+// Instance globale du cache DOM
+window.DOM = window.DOM || new DOMCache();
+
+// ===================================================================
+// 3. BATCH DOM OPERATIONS
+// ===================================================================
+
+/**
+ * Gestionnaire de batch DOM operations avec documentFragment
+ */
+class DOMBatcher {
+  constructor() {
+    this.pendingOperations = [];
+    this.batchTimeout = null;
+    this.stats = {
+      batches: 0,
+      operations: 0,
+      avgBatchSize: 0
+    };
+  }
+
+  /**
+   * Ajoute une opération au batch
+   * @param {Function} operation - Opération à exécuter
+   * @param {number} delay - Délai avant exécution (ms)
+   */
+  queue(operation, delay = 16) {
+    this.pendingOperations.push(operation);
+
+    // Programmer l'exécution du batch
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+    }
+
+    this.batchTimeout = setTimeout(() => {
+      this.flush();
+    }, delay);
+  }
+
+  /**
+   * Exécute toutes les opérations en attente
+   */
+  flush() {
+    if (this.pendingOperations.length === 0) return;
+
+    const batchSize = this.pendingOperations.length;
+    console.log(`⚡ DOMBatcher: Exécution de ${batchSize} opérations groupées`);
+
+    // Utiliser requestAnimationFrame pour synchroniser avec le repaint
+    requestAnimationFrame(() => {
+      // Créer un fragment pour minimiser les reflows
+      const fragment = document.createDocumentFragment();
+
+      // Exécuter toutes les opérations
+      this.pendingOperations.forEach(op => {
+        try {
+          op(fragment);
+        } catch (error) {
+          console.error('❌ Erreur dans batch operation:', error);
+        }
+      });
+
+      // Mettre à jour les stats
+      this.stats.batches++;
+      this.stats.operations += batchSize;
+      this.stats.avgBatchSize = this.stats.operations / this.stats.batches;
+
+      // Vider la queue
+      this.pendingOperations = [];
+      this.batchTimeout = null;
+    });
+  }
+
+  /**
+   * Crée et retourne un documentFragment optimisé
+   * @param {Array<Element>} elements - Éléments à ajouter
+   * @returns {DocumentFragment}
+   */
+  createFragment(elements) {
+    const fragment = document.createDocumentFragment();
+    elements.forEach(el => fragment.appendChild(el));
+    return fragment;
+  }
+
+  /**
+   * Remplace le contenu d'un élément avec batch
+   * @param {Element} container - Conteneur cible
+   * @param {Array<Element>} newElements - Nouveaux éléments
+   */
+  replaceContent(container, newElements) {
+    this.queue(() => {
+      // Vider le conteneur
+      container.innerHTML = '';
+      // Ajouter tous les éléments via fragment
+      const fragment = this.createFragment(newElements);
+      container.appendChild(fragment);
+    });
+  }
+
+  /**
+   * Ajoute plusieurs éléments avec batch
+   * @param {Element} container - Conteneur cible
+   * @param {Array<Element>} elements - Éléments à ajouter
+   */
+  appendMany(container, elements) {
+    this.queue(() => {
+      const fragment = this.createFragment(elements);
+      container.appendChild(fragment);
+    });
+  }
+
+  /**
+   * Affiche les statistiques
+   */
+  logStats() {
+    console.log('📊 DOMBatcher Stats:', this.stats);
+  }
+}
+
+// Instance globale du batcher
+window.DOMBatcher = window.DOMBatcher || new DOMBatcher();
+
+// ===================================================================
+// 4. DEBOUNCED updateCharts (CRITIQUE)
+// ===================================================================
+
+/**
+ * Wrapper debounced pour updateCharts
+ * Réduit 32 appels multiples en appels groupés
+ */
+(function initUpdateChartsOptimization() {
+  // Sauvegarder la fonction originale
+  const originalUpdateCharts = window.updateCharts;
+
+  if (!originalUpdateCharts) {
+    console.warn('⚠️ updateCharts non trouvée, optimisation skippée');
+    return;
+  }
+
+  // Créer une version debouncée (150ms = bon équilibre réactivité/perf)
+  const debouncedUpdateCharts = debounce(originalUpdateCharts, 150, false);
+
+  // Compteur d'appels pour stats
+  let callCount = 0;
+  let lastLogTime = Date.now();
+
+  // Wrapper avec stats
+  window.updateCharts = function(...args) {
+    callCount++;
+
+    // Log stats toutes les 5 secondes
+    const now = Date.now();
+    if (now - lastLogTime > 5000) {
+      console.log(`⚡ updateCharts: ${callCount} appels dans les 5 dernières secondes`);
+      callCount = 0;
+      lastLogTime = now;
+    }
+
+    // Appeler la version debouncée
+    return debouncedUpdateCharts.apply(this, args);
+  };
+
+  // Exposer la version non-debouncée pour les cas d'urgence
+  window.updateCharts.immediate = originalUpdateCharts;
+  window.updateCharts.flush = debouncedUpdateCharts.flush;
+  window.updateCharts.cancel = debouncedUpdateCharts.cancel;
+
+  console.log('✅ updateCharts optimisée avec debounce (150ms)');
+})();
+
+// ===================================================================
+// 5. PRÉ-CHARGEMENT DES ÉLÉMENTS DOM CRITIQUES
+// ===================================================================
+
+/**
+ * Pré-charge les éléments DOM les plus fréquemment utilisés
+ */
+function preloadCriticalDOMElements() {
+  const criticalSelectors = [
+    // Graphiques
+    '#chartCommunication',
+    '#chartDistribution',
+    '#chartLV2',
+    '#chartOptions',
+
+    // Containers
+    '.class-columns-container',
+    '#globalStats',
+    '#statsPanel',
+
+    // Colonnes de classes
+    '.class-column',
+
+    // Zones de drag & drop
+    '.dropzone',
+
+    // Modales communes
+    '#configModal',
+    '#helpModal',
+
+    // Boutons d'action
+    '#optimizeButton',
+    '#saveButton',
+    '#loadButton'
+  ];
+
+  console.log('🎯 Pré-chargement des éléments DOM critiques...');
+  window.DOM.preload(criticalSelectors);
+
+  // Log stats après pré-chargement
+  setTimeout(() => {
+    window.DOM.logStats();
+  }, 100);
+}
+
+// Pré-charger au démarrage
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', preloadCriticalDOMElements);
+} else {
+  preloadCriticalDOMElements();
+}
+
+// ===================================================================
+// 6. MONITORING ET DEBUG
+// ===================================================================
+
+/**
+ * Active le mode debug pour surveiller les performances
+ */
+window.PerformanceDebug = {
+  enabled: false,
+
+  toggle() {
+    this.enabled = !this.enabled;
+    console.log(`🔍 Performance Debug: ${this.enabled ? 'ACTIVÉ' : 'DÉSACTIVÉ'}`);
+  },
+
+  logAllStats() {
+    console.group('📊 Performance Optimizer Stats');
+    window.DOM.logStats();
+    window.DOMBatcher.logStats();
+    console.groupEnd();
+  },
+
+  resetStats() {
+    window.DOM.stats = { hits: 0, misses: 0, invalidations: 0 };
+    window.DOMBatcher.stats = { batches: 0, operations: 0, avgBatchSize: 0 };
+    console.log('✅ Stats réinitialisées');
+  }
+};
+
+// Exposer les outils globalement pour debug
+window.debounce = debounce;
+window.throttle = throttle;
+
+console.log(`
+╔════════════════════════════════════════════════════════════╗
+║  ⚡ PERFORMANCE OPTIMIZER - Phase 11 Initialisé           ║
+╠════════════════════════════════════════════════════════════╣
+║  ✅ Debounce updateCharts (150ms)                         ║
+║  ✅ DOMCache système activé                               ║
+║  ✅ DOMBatcher pour batch operations                      ║
+║  ✅ Pré-chargement éléments critiques                     ║
+╠════════════════════════════════════════════════════════════╣
+║  📊 Debug: PerformanceDebug.toggle()                      ║
+║  📊 Stats:  PerformanceDebug.logAllStats()                ║
+║  🔄 Reset:  PerformanceDebug.resetStats()                 ║
+╚════════════════════════════════════════════════════════════╝
+`);
+
+// ===================================================================
+// 7. HELPERS POUR MIGRATION PROGRESSIVE
+// ===================================================================
+
+/**
+ * Helpers pour faciliter la migration du code existant
+ */
+window.PerformanceHelpers = {
+  /**
+   * Remplace document.querySelector avec cache
+   */
+  $(selector) {
+    return window.DOM.get(selector);
+  },
+
+  /**
+   * Remplace document.querySelectorAll avec cache
+   */
+  $$(selector) {
+    return window.DOM.getAll(selector);
+  },
+
+  /**
+   * Invalide le cache après modifications DOM
+   */
+  invalidateCache(selector = null) {
+    window.DOM.invalidate(selector);
+  },
+
+  /**
+   * Crée un batch d'opérations DOM
+   */
+  batchDOM(operations, delay = 16) {
+    operations.forEach(op => window.DOMBatcher.queue(op, delay));
+  }
+};
+
+// Exposer $ et $$ globalement (optionnel, pour compatibilité jQuery-like)
+if (!window.$) {
+  window.$ = window.PerformanceHelpers.$;
+  window.$$ = window.PerformanceHelpers.$$;
+  console.log('✅ Helpers $ et $$ exposés globalement');
+}
+
+</script>

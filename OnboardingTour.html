@@ -1,0 +1,449 @@
+<script>
+// Module de tutoriel officiel InterfaceV2
+// Utilise Shepherd.js (déjà chargé dans <head> via CDN)
+// Fournit:
+//   OnboardingTour.start()    -> lance le tutoriel
+//   OnboardingTour.autoStart() -> lance 1 seule fois pour les nouveaux
+
+(function () {
+
+  // Gère la mise en surbrillance
+  function highlight(selector) {
+    // On nettoie d'abord les précédents
+    document.querySelectorAll('.tour-highlight').forEach(el => {
+      el.classList.remove('tour-highlight');
+    });
+
+    if (!selector) return;
+    const el = document.querySelector(selector);
+    if (el) {
+      el.classList.add('tour-highlight');
+    }
+  }
+
+  function clearHighlight() {
+    document.querySelectorAll('.tour-highlight').forEach(el => {
+      el.classList.remove('tour-highlight');
+    });
+  }
+
+  function createTour() {
+    if (!window.Shepherd) {
+      console.error("Shepherd.js introuvable");
+      alert("Le tutoriel est momentanément indisponible.");
+      return null;
+    }
+
+    const tour = new Shepherd.Tour({
+      defaultStepOptions: {
+        classes: 'shepherd-bubble',
+        scrollTo: false,
+        canClickTarget: false,
+        cancelIcon: { enabled: true },
+      },
+      useModalOverlay: true
+    });
+    
+    // Ajouter le thème CSS pro lisible pour vidéoprojection + halo
+    const style = document.createElement('style');
+    style.textContent = `
+/* Halo visuel temporaire sur la cible */
+.tour-highlight {
+  position: relative;
+  z-index: 999998 !important;
+  outline: 3px solid #1e40af;
+  outline-offset: 2px;
+  border-radius: 10px;
+  box-shadow:
+    0 0 20px rgba(30,64,175,0.6),
+    0 0 4px rgba(30,64,175,0.9);
+  transition: box-shadow .12s linear, outline-color .12s linear;
+}
+
+/* Conteneur global du step */
+.shepherd-element {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 999999 !important;
+  max-width: 600px;
+  width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,0.4),
+    0 2px 4px rgba(0,0,0,0.4);
+  border: 1px solid rgba(0,0,0,0.08);
+  padding: 24px 24px 20px 24px;
+  color: #0f172a;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", Roboto, sans-serif;
+}
+
+/* Zone de contenu texte */
+.shepherd-content {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Texte principal */
+.shepherd-text {
+  max-height: none !important;
+  overflow: visible !important;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #0f172a;
+}
+
+/* Petit sous-titre d'étape */
+.shepherd-text .step-meta {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+/* Titre */
+.shepherd-text .step-title {
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+/* Corps descriptif */
+.shepherd-text .step-body {
+  font-size: 18px;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+/* Footer boutons */
+.shepherd-footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* Bouton principal */
+.shepherd-button {
+  appearance: none;
+  border-radius: 10px;
+  border: 1px solid #1e40af;
+  background: #1e40af;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.3;
+  font-weight: 500;
+  padding: 10px 16px;
+  cursor: pointer;
+  box-shadow:
+    0 10px 24px rgba(30,64,175,0.4),
+    0 1px 2px rgba(0,0,0,0.6);
+  transition: all .12s linear;
+}
+.shepherd-button:hover {
+  filter: brightness(1.08);
+}
+
+/* Bouton secondaire */
+.shepherd-button-secondary {
+  background: transparent !important;
+  color: #475569 !important;
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  box-shadow: none !important;
+}
+.shepherd-button-secondary:hover {
+  background: rgba(0,0,0,0.03) !important;
+}
+
+/* On vire le header décoratif */
+.shepherd-header {
+  display: none !important;
+}
+    `;
+    document.head.appendChild(style);
+
+    const TOTAL = 10;
+    const nav = (step) => [
+      ...(step > 1 ? [{ text: 'Precedent', action: tour.back, classes: 'shepherd-button shepherd-button-secondary' }] : []),
+      ...(step < TOTAL ? [{ text: 'Suivant', action: tour.next, classes: 'shepherd-button' }] : []),
+      ...(step === TOTAL ? [{ text: 'Terminer', action: () => { clearHighlight(); tour.complete(); }, classes: 'shepherd-button' }] : []),
+      { text: 'Passer le tour', action: () => { clearHighlight(); tour.cancel(); }, classes: 'shepherd-button shepherd-button-secondary' }
+    ];
+
+    // Etape 1 : Bienvenue
+    tour.addStep({
+      id: 'intro',
+      text: `
+        <div class="step-meta">Etape 1 / ${TOTAL} - Bienvenue</div>
+        <div class="step-title">Bienvenue dans l'outil de repartition</div>
+        <div class="step-body">
+          Cet outil permet de <strong>construire des classes equilibrees</strong> :
+          meme nombre de filles et garcons, scores repartis, options respectees.
+          <br><br>
+          Ce tour rapide vous montre l'essentiel en ${TOTAL} etapes.
+        </div>
+      `,
+      when: { show: () => clearHighlight() },
+      buttons: nav(1)
+    });
+
+    // Etape 2 : Le plateau de travail
+    tour.addStep({
+      id: 'board',
+      text: `
+        <div class="step-meta">Etape 2 / ${TOTAL} - Le plateau</div>
+        <div class="step-title">Vos classes, cote a cote</div>
+        <div class="step-body">
+          Chaque <strong>colonne</strong> represente une classe.
+          <br>
+          Chaque <strong>carte</strong> represente un eleve.
+          <br><br>
+          L'en-tete affiche le nombre total, le nombre de filles et de garcons.
+          Vous pouvez trier par Nom, LV2, Option ou Score.
+        </div>
+      `,
+      when: { show: () => highlight('[data-tour="classes-container"]') },
+      buttons: nav(2)
+    });
+
+    // Etape 3 : Lire une carte eleve
+    tour.addStep({
+      id: 'carte',
+      text: `
+        <div class="step-meta">Etape 3 / ${TOTAL} - Les cartes</div>
+        <div class="step-title">Comprendre une carte eleve</div>
+        <div class="step-body">
+          Chaque carte montre :
+          <br>
+          <strong>Nom et prenom</strong> avec un fond rose (fille) ou bleu (garcon).
+          <br><br>
+          Les <strong>badges</strong> indiquent les contraintes :
+          <br>
+          <span style="background:#ef4444;color:white;padding:1px 6px;border-radius:4px;font-size:12px;font-weight:bold">D3</span> = groupe a separer
+          &nbsp;
+          <span style="background:#eab308;color:white;padding:1px 6px;border-radius:4px;font-size:12px;font-weight:bold">A2</span> = groupe a garder ensemble
+          <br><br>
+          Les <strong>scores</strong> (COM, TRA, PART, ABS) vont de 1 (rouge) a 4 (vert).
+          <br>
+          Survolez un badge pour voir sa signification.
+        </div>
+      `,
+      when: { show: () => {
+        const card = document.querySelector('.student-card');
+        if (card) card.classList.add('tour-highlight');
+      }},
+      buttons: nav(3)
+    });
+
+    // Etape 4 : Echanger des eleves
+    tour.addStep({
+      id: 'swap',
+      text: `
+        <div class="step-meta">Etape 4 / ${TOTAL} - Echanger</div>
+        <div class="step-title">Echanger deux eleves</div>
+        <div class="step-body">
+          C'est <strong>le geste principal</strong> de l'outil.
+          <br><br>
+          1. Cliquez sur <strong>Echanger</strong> (ou appuyez sur <kbd style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px">S</kbd>)
+          <br>
+          2. Cliquez sur un <strong>premier eleve</strong>
+          <br>
+          3. Cliquez sur un <strong>deuxieme eleve</strong> d'une autre classe
+          <br><br>
+          Un <strong>apercu</strong> vous montre l'impact avant de confirmer.
+          <br>
+          Si l'echange est impossible (contrainte), un message explique pourquoi.
+        </div>
+      `,
+      when: { show: () => highlight('[data-tour="swap-btn"]') },
+      buttons: nav(4)
+    });
+
+    // Etape 5 : La jauge d'harmonie
+    tour.addStep({
+      id: 'harmonie',
+      text: `
+        <div class="step-meta">Etape 5 / ${TOTAL} - Equilibre</div>
+        <div class="step-title">La jauge d'harmonie</div>
+        <div class="step-body">
+          Cette barre affiche en permanence le <strong>score d'equilibre</strong>
+          de vos classes (0 a 100%).
+          <br><br>
+          Elle combine : parite filles/garcons, repartition des scores,
+          distribution des LV2 et respect des contraintes.
+          <br><br>
+          <span style="color:#10b981;font-weight:bold">Vert (>80%)</span> = bien equilibre
+          <br>
+          <span style="color:#f59e0b;font-weight:bold">Jaune (60-80%)</span> = a ameliorer
+          <br>
+          <span style="color:#ef4444;font-weight:bold">Rouge (<60%)</span> = desequilibre important
+        </div>
+      `,
+      when: { show: () => highlight('#harmonieBar') },
+      buttons: nav(5)
+    });
+
+    // Etape 6 : Les contraintes
+    tour.addStep({
+      id: 'contraintes',
+      text: `
+        <div class="step-meta">Etape 6 / ${TOTAL} - Regles</div>
+        <div class="step-title">Les regles automatiques</div>
+        <div class="step-body">
+          L'outil verifie automatiquement les regles :
+          <br><br>
+          <strong>FIXE</strong> : l'eleve ne bouge pas (decision de la direction)
+          <br>
+          <strong>Separation (D)</strong> : ces eleves ne doivent pas etre dans la meme classe
+          <br>
+          <strong>Association (A)</strong> : ces eleves doivent rester ensemble
+          <br>
+          <strong>PERMUT</strong> : l'eleve doit changer de classe
+          <br><br>
+          Si un echange viole une regle, il est refuse avec une explication claire.
+        </div>
+      `,
+      when: { show: () => clearHighlight() },
+      buttons: nav(6)
+    });
+
+    // Etape 7 : Regler l'affichage
+    tour.addStep({
+      id: 'regler',
+      text: `
+        <div class="step-meta">Etape 7 / ${TOTAL} - Affichage</div>
+        <div class="step-title">Adapter l'affichage</div>
+        <div class="step-body">
+          <strong>Regler</strong> permet d'ajuster la lisibilite :
+          taille des noms, contraste, fond clair/sombre.
+          <br><br>
+          Utilisez les <strong>presets</strong> :
+          Mode Projection (videoprojecteur), Mode Impression, Mode Accessibilite.
+          <br><br>
+          Vous pouvez aussi <strong>filtrer</strong> les eleves par type
+          (ESP, ITA, ALL, FIXE, Disso, Asso) pour voir un sous-groupe.
+        </div>
+      `,
+      when: { show: () => highlight('[data-tour="regler-btn"]') },
+      buttons: nav(7)
+    });
+
+    // Etape 8 : Comparer les classes
+    tour.addStep({
+      id: 'comparer',
+      text: `
+        <div class="step-meta">Etape 8 / ${TOTAL} - Statistiques</div>
+        <div class="step-title">Verifier l'equilibre en detail</div>
+        <div class="step-body">
+          <strong>Comparer</strong> ouvre un panneau de statistiques detaillees :
+          graphiques de parite, scores moyens par classe, distribution des LV2.
+          <br><br>
+          C'est votre <strong>argumentaire objectif</strong> en reunion :
+          "les classes sont equilibrees, voici les chiffres".
+          <br><br>
+          Raccourci : touche <kbd style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px">T</kbd>
+        </div>
+      `,
+      when: { show: () => highlight('[data-tour="comparer-btn"]') },
+      buttons: nav(8)
+    });
+
+    // Etape 9 : Mode Reunion
+    tour.addStep({
+      id: 'reunion',
+      text: `
+        <div class="step-meta">Etape 9 / ${TOTAL} - Reunion</div>
+        <div class="step-title">Mode Reunion</div>
+        <div class="step-body">
+          En reunion avec videoprojecteur, activez le <strong>Mode Reunion</strong>
+          (bouton dans la barre d'harmonie, ou touche <kbd style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px">R</kbd>).
+          <br><br>
+          Il active automatiquement : echanges, contraste eleve,
+          noms agrandis, et masque les controles admin.
+        </div>
+      `,
+      when: { show: () => highlight('[data-tour="reunion-btn"]') },
+      buttons: nav(9)
+    });
+
+    // Etape 10 : Finaliser et sauvegarder
+    tour.addStep({
+      id: 'finaliser',
+      text: `
+        <div class="step-meta">Etape 10 / ${TOTAL} - Validation</div>
+        <div class="step-title">Sauvegarder et finaliser</div>
+        <div class="step-body">
+          <strong>Brouillon</strong> : sauvegarde votre travail en cours
+          (une auto-sauvegarde existe aussi).
+          <br><br>
+          <strong>Finaliser</strong> : fige la repartition comme version officielle.
+          <br><br>
+          Vous pouvez aussi <strong>Annuler / Retablir</strong> chaque action
+          avec Ctrl+Z / Ctrl+Y.
+          <br><br>
+          <em>Bon courage pour la repartition !</em>
+        </div>
+      `,
+      when: { show: () => highlight('[data-tour="finalize-btn"]') },
+      buttons: nav(10)
+    });
+
+    // Important : quand le tour se ferme, retirer les halos
+    tour.on('cancel', clearHighlight);
+    tour.on('complete', clearHighlight);
+
+    return tour;
+  }
+
+  function start() {
+    // Annule un éventuel tour en cours pour éviter les doublons
+    if (window.__activeTour && typeof window.__activeTour.cancel === 'function') {
+      try { window.__activeTour.cancel(); } catch(e) {}
+    }
+
+    const tour = createTour();
+    if (!tour) return;
+    window.__activeTour = tour;
+    tour.start();
+  }
+
+  function autoStart() {
+    // On ne lance automatiquement qu'une seule fois par navigateur
+    try {
+      const already = localStorage.getItem('hasSeenTutorialV3');
+      if (already) return;
+      localStorage.setItem('hasSeenTutorialV3', '1');
+    } catch(e) {
+      // si localStorage KO (mode bloqué), on ne crash pas
+    }
+    start();
+  }
+
+  // exposer globalement
+  window.OnboardingTour = {
+    start,
+    autoStart
+  };
+
+  // on fournit aussi showTutorial pour le reste du code (menus, raccourcis)
+  window.showTutorial = function () {
+    start();
+  };
+
+})();
+</script>

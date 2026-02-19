@@ -1,0 +1,3265 @@
+<script>
+(function() {
+  'use strict';
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🛡️ DOM ENVIRONMENT GUARD
+  // ═══════════════════════════════════════════════════════════════════
+  if (typeof document === 'undefined') {
+    console.warn('[OptimizationPanel] Skipping client-side code in server context');
+    return;
+  }
+  // ═══════════════════════════════════════════════════════════════════
+
+/**
+ * ===================================================================
+ * HELPERS STREAMING (MODE DIRECT LIVE)
+ * ===================================================================
+ */
+
+/**
+ * Helper Promesse pour google.script.run
+ */
+function gs(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(err => { 
+        console.error('❌ Erreur:', fn, err); 
+        reject(err); 
+      })
+      [fn](...args);
+  });
+}
+
+/**
+ * Laisse le thread UI respirer pour que le DOM/Sheets se mette à jour
+ */
+const tick = (ms = 80) => new Promise(r => setTimeout(r, ms));
+
+/**
+ * Met à jour le statut dans l'UI
+ */
+function setStreamingStatus(msg, phase = '') {
+  console.log(msg);
+  
+  const statusEl = document.getElementById('live-status');
+  if (statusEl) statusEl.textContent = msg;
+  
+  const logsEl = document.getElementById('live-logs');
+  if (logsEl) {
+    const logLine = document.createElement('div');
+    logLine.className = 'text-xs text-gray-600 py-1';
+    logLine.textContent = `${new Date().toLocaleTimeString()} - ${msg}`;
+    logsEl.appendChild(logLine);
+    logsEl.scrollTop = logsEl.scrollHeight;
+  }
+  
+  const btn = document.getElementById('btnRunOptimization');
+  if (btn && phase) {
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>${phase}`;
+  }
+}
+
+/**
+ * Affiche un snapshot des classes CACHE
+ */
+function renderLiveSnapshot(snap) {
+  const wrap = document.getElementById('live-view');
+  const cards = document.getElementById('live-cards');
+  if (!snap || !snap.classes) { 
+    if (wrap) wrap.classList.add('hidden'); 
+    return; 
+  }
+  if (wrap) wrap.classList.remove('hidden');
+
+  const order = Object.keys(snap.classes).sort((a,b) => a.localeCompare(b, 'fr', {numeric:true}));
+  const esc = typeof escapeHtml === 'function' ? escapeHtml : (s => String(s ?? ''));
+  const html = order.map(cls => {
+    const c = snap.classes[cls];
+    const lv2 = Object.keys(c.LV2 || {}).map(k => `${esc(k)}=${c.LV2[k]}`).join(', ') || '—';
+    const opt = Object.keys(c.OPT || {}).map(k => `${esc(k)}=${c.OPT[k]}`).join(', ') || '—';
+    const rows = (c.rows || []).map(r =>
+      `<div class="text-[11px] truncate">• ${esc(r.nom)} ${esc(r.prenom)} — <span class="opacity-70">LV2:${esc(r.lv2)||'—'} OPT:${esc(r.opt)||'—'} A:${esc(r.a)||'—'} D:${esc(r.d)||'—'}</span></div>`
+    ).join('');
+
+    return `
+      <div class="border rounded p-2 shadow-sm bg-white">
+        <div class="text-sm font-semibold">${esc(cls)} <span class="text-xs font-normal opacity-60">(${c.total} élèves, ${c.F}F/${c.M}M)</span></div>
+        <div class="text-xs text-gray-600">LV2: ${lv2} | OPT: ${opt}</div>
+        ${rows ? `<div class="mt-1 space-y-0.5 text-gray-700">${rows}</div>` : ''}
+      </div>`;
+  }).join('');
+  
+  if (cards) cards.innerHTML = html;
+}
+
+/**
+ * Rafraîchit le snapshot live depuis le serveur
+ */
+async function refreshLiveSnapshot(ctx) {
+  try {
+    const snap = await gs('getCacheSnapshotStream');  // SANS paramètres
+    renderLiveSnapshot(snap);
+  } catch (e) {
+    console.warn('Erreur refresh snapshot:', e);
+  }
+}
+
+/**
+ * PANNEAU D'OPTIMISATION AUTOMATIQUE
+ * 
+ * Module complet pour piloter l'optimisation V14 avec interface utilisateur
+ * S'appuie sur AppState, AppConfig et OptimizationAlgorithm
+ */
+
+const OptimizationPanel = {
+  // État du panneau
+  isOpen: false,
+  currentConfig: null,
+  initialState: null,
+  _running: false, // Empêche les doubles lancements
+
+  // --- Helpers options/classes ---
+  normalizeCell(v) {
+    if (v === null || v === undefined) return '';
+    return String(v).trim();
+  },
+
+  isLV2Tag(tag) {
+    const t = (tag || '').toString().toUpperCase();
+    return /^(ITA|ALL|ESP|CHI|PT|ALLEMAND|ESPAGNOL|ITALIEN|CHINOIS|PORTUGAIS)$/.test(t);
+  },
+
+  getClassNamesFromState() {
+    // Utiliser STATE.rules pour obtenir les vrais noms de classes du mode actuel
+    if (typeof STATE !== 'undefined' && STATE && STATE.rules && typeof STATE.rules === 'object') {
+      const classNames = Object.keys(STATE.rules);
+      if (classNames.length > 0) {
+        console.log('🔍 Classes from STATE.rules:', classNames);
+        return classNames.sort();
+      }
+    }
+
+    // Fallback: essayer de deviner depuis le nombre d'élèves
+    console.warn('⚠️ STATE.rules not available, using fallback class names');
+    const total = this.getTotalStudents();
+    const n = Math.max(2, Math.min(10, Math.ceil(total / 28) || 4));
+    return Array.from({ length: n }, (_, i) => `Classe ${i + 1}`);
+  },
+
+  /**
+   * Aplatit STATE.students en un tableau d'élèves, quelle que soit la structure
+   * (dictionnaire plat id->élève, ou structure imbriquée par classe).
+   * @returns {Array<Object>} Tableau plat de tous les élèves
+   */
+  flattenStudents() {
+    const students = STATE.students || {};
+    const flatten = (entry) => {
+      if (!entry) return [];
+      if (Array.isArray(entry)) return entry;
+      if (typeof entry === 'object') {
+        const values = Object.values(entry);
+        if (values.length === 0) return [];
+        const looksLikeStudents = values.every(v =>
+          v && typeof v === 'object' && (v.id || v.nom || v.prenom)
+        );
+        if (looksLikeStudents) return values;
+        return values.flatMap(flatten);
+      }
+      return [];
+    };
+    return flatten(students);
+  },
+
+  /**
+   * Ouvrir le panneau d'optimisation
+   */
+  async open() {
+    console.log('🎯 Ouverture de l\'assistant d\'optimisation...');
+
+    // ✅ CORRECTION: S'assurer que les données sont chargées AVANT d'ouvrir le panneau
+    const hasData = typeof STATE !== 'undefined' && STATE.students && Object.keys(STATE.students).length > 0;
+    const hasMode = typeof STATE !== 'undefined' && STATE.currentMode;
+
+    console.log('📊 État actuel:', {
+      hasData,
+      hasMode,
+      currentMode: STATE?.currentMode,
+      studentsCount: STATE?.students ? Object.keys(STATE.students).length : 0
+    });
+
+    // Si un mode est sélectionné mais les données ne sont pas chargées, les charger d'abord
+    if (!hasData && hasMode) {
+      console.log(`🔄 Chargement des données ${STATE.currentMode}...`);
+      if (typeof showSpinner === 'function') showSpinner();
+
+      try {
+        // Appeler loadDataForMode pour charger les données
+        if (typeof loadDataForMode === 'function') {
+          const success = await loadDataForMode(STATE.currentMode);
+          if (!success) {
+            console.error('❌ Échec du chargement des données');
+            if (typeof hideSpinner === 'function') hideSpinner();
+            if (typeof toast === 'function') {
+              toast(`❌ Impossible de charger les données ${STATE.currentMode}`, 'error');
+            }
+            return;
+          }
+          console.log(`✅ Données ${STATE.currentMode} chargées avec succès`);
+        } else {
+          console.error('❌ loadDataForMode non disponible');
+          if (typeof hideSpinner === 'function') hideSpinner();
+          if (typeof toast === 'function') {
+            toast('❌ Fonction de chargement non disponible', 'error');
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement:', error);
+        if (typeof hideSpinner === 'function') hideSpinner();
+        if (typeof toast === 'function') {
+          toast('❌ Erreur lors du chargement des données', 'error');
+        }
+        return;
+      }
+
+      if (typeof hideSpinner === 'function') hideSpinner();
+    }
+
+    this.isOpen = true;
+
+    // Sauvegarder l'état initial si des données sont chargées
+    if (typeof STATE !== 'undefined' && STATE.students && Object.keys(STATE.students).length > 0) {
+      this.initialState = this.exportCurrentState();
+      console.log('💾 État initial sauvegardé:', Object.keys(STATE.students).length, 'élèves');
+    } else {
+      this.initialState = null;
+      console.log('⚠️ Aucune donnée à sauvegarder');
+    }
+
+    // Créer le panneau s'il n'existe pas
+    if (!document.getElementById('optimizationPanel')) {
+      this.createPanel();
+    }
+
+    // Charger la configuration (ATTENDRE que ce soit terminé avant de continuer)
+    await this.loadConfiguration();
+
+    // Initialiser le wizard à la phase 1
+    this.currentPhase = 'structure';
+    this.validatedPhases = [];
+    setTimeout(() => this.goToPhase('structure'), 100);
+
+    // Afficher le panneau
+    document.getElementById('optimizationPanel').classList.remove('translate-x-full');
+    document.getElementById('optimizationOverlay').classList.remove('hidden');
+
+    console.log('✅ Panneau d\'optimisation ouvert');
+  },
+  
+  /**
+   * Fermer le panneau
+   */
+  close() {
+    this.isOpen = false;
+    document.getElementById('optimizationPanel').classList.add('translate-x-full');
+    document.getElementById('optimizationOverlay').classList.add('hidden');
+    
+    // ⚠️ Si l'optimisation est en attente d'application
+    // Relancer l'auto-save après 30 secondes (l'utilisateur peut être parti)
+    if (this.optimizationPendingApplication) {
+      console.log('⏸️ Auto-save reste suspendu (optimisation en attente d\'application)');
+      console.log('   → Relance automatique dans 30 secondes si aucune action');
+      
+      setTimeout(function() {
+        if (OptimizationPanel.optimizationPendingApplication) {
+          OptimizationPanel.optimizationPendingApplication = false;
+          console.log('⏰ 30 secondes écoulées sans action, relance de l\'auto-save...');
+          if (typeof startAutoSave === 'function') {
+            startAutoSave();
+            console.log('✅ Auto-save relancé automatiquement');
+          } else if (typeof startCacheAutoSave === 'function') {
+            startCacheAutoSave();
+            console.log('✅ Cache auto-save relancé automatiquement');
+          }
+        }
+      }, 30000); // 30 secondes
+    }
+  },
+  
+  /**
+   * Créer le panneau HTML
+   */
+  createPanel() {
+    const panel = document.createElement('div');
+    panel.id = 'optimizationPanel';
+    panel.className = 'fixed top-[80px] right-0 h-[calc(100%-80px)] w-[900px] bg-white shadow-2xl z-[100] transform translate-x-full transition-transform duration-300 flex';
+    
+    panel.innerHTML = `
+      <!-- Navigation Latérale (Gauche - 250px) -->
+      <div class="w-64 bg-gradient-to-b from-gray-50 to-gray-100 border-r border-gray-200 flex flex-col">
+        <!-- Header Navigation -->
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-center w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg">
+            <i class="fas fa-magic text-2xl text-white"></i>
+          </div>
+          <h3 class="text-lg font-bold text-center text-gray-800">Assistant d'Optimisation</h3>
+          <p class="text-xs text-center text-gray-600 mt-1">Guidé en 4 étapes</p>
+        </div>
+        
+        <!-- Liste des Phases -->
+        <div class="flex-1 p-4 space-y-2 overflow-y-auto">
+          <!-- Phase 1: Structure -->
+          <button onclick="OptimizationPanel.goToPhase('structure')" 
+                  data-phase="structure"
+                  class="wizard-phase-btn w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md group">
+            <div class="flex items-center gap-3">
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center phase-icon">
+                <i class="fas fa-sitemap text-lg"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm phase-title">Phase 1: Structure</div>
+                <div class="text-xs text-gray-600 truncate">Effectifs & classes</div>
+              </div>
+              <i class="fas fa-chevron-right text-gray-400 group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </button>
+          
+          <!-- Phase 2: Options -->
+          <button onclick="OptimizationPanel.goToPhase('options')" 
+                  data-phase="options"
+                  class="wizard-phase-btn w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md group">
+            <div class="flex items-center gap-3">
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center phase-icon">
+                <i class="fas fa-graduation-cap text-lg"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm phase-title">Phase 2: Options</div>
+                <div class="text-xs text-gray-600 truncate">Quotas LV2/Options</div>
+              </div>
+              <i class="fas fa-chevron-right text-gray-400 group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </button>
+          
+          <!-- Phase 3: Contraintes -->
+          <button onclick="OptimizationPanel.goToPhase('constraints')" 
+                  data-phase="constraints"
+                  class="wizard-phase-btn w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md group">
+            <div class="flex items-center gap-3">
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center phase-icon">
+                <i class="fas fa-shield-alt text-lg"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm phase-title">Phase 3: Contraintes</div>
+                <div class="text-xs text-gray-600 truncate">Règles de répartition</div>
+              </div>
+              <i class="fas fa-chevron-right text-gray-400 group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </button>
+          
+          <!-- Phase 4: Lancement -->
+          <button onclick="OptimizationPanel.goToPhase('launch')" 
+                  data-phase="launch"
+                  class="wizard-phase-btn w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md group">
+            <div class="flex items-center gap-3">
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center phase-icon">
+                <i class="fas fa-rocket text-lg"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm phase-title">Phase 4: Lancement</div>
+                <div class="text-xs text-gray-600 truncate">Scores & résultats</div>
+              </div>
+              <i class="fas fa-chevron-right text-gray-400 group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </button>
+          
+          <!-- Mode Direct Live (juste sous Phase 4) -->
+          <div class="mt-3 px-4">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+              <div class="flex items-center gap-2 mb-3">
+                <i class="fas fa-broadcast-tower text-blue-600 text-base"></i>
+                <span class="font-semibold text-sm text-blue-800">Mode Direct Live</span>
+              </div>
+              <div id="live-status" class="text-sm text-blue-700 mb-2 font-medium">
+                Prêt
+              </div>
+              <div id="live-logs" class="max-h-96 overflow-y-auto bg-white p-3 rounded text-sm border border-blue-100 font-mono mb-3"></div>
+              <button onclick="OptimizationPanel.applyResults()" class="w-full px-4 py-3 text-base bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl hidden" id="btnApplyResults">
+                <i class="fas fa-check-circle mr-2 text-lg"></i>APPLIQUER LES RÉSULTATS
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Footer Navigation -->
+        <div class="mt-auto p-4 border-t border-gray-200">
+          <button onclick="OptimizationPanel.close()" class="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-colors">
+            <i class="fas fa-times mr-2"></i>Fermer
+          </button>
+        </div>
+      </div>
+      
+      <!-- Contenu Principal (Droite - 650px) -->
+      <div class="flex-1 flex flex-col bg-white">
+        <!-- Header Contextuel -->
+        <div class="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 border-b border-gray-200">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1">
+              <h2 id="phaseTitle" class="text-2xl font-bold text-gray-800 mb-1">Phase 1: Structure & Effectifs</h2>
+              <p id="phaseDescription" class="text-sm text-gray-600">Définissez le nombre de classes et la répartition cible</p>
+            </div>
+            <button onclick="OptimizationPanel.close()" class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/50 transition-colors">
+              <i class="fas fa-times text-xl text-gray-600"></i>
+            </button>
+          </div>
+          
+          <!-- Barre de progression -->
+          <div class="flex items-center gap-3 mb-3">
+            <div class="flex-1 h-2 bg-white/50 rounded-full overflow-hidden">
+              <div id="progressBar" class="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full transition-all duration-500" style="width: 25%"></div>
+            </div>
+            <span id="progressText" class="text-sm font-medium text-gray-700">1/4</span>
+          </div>
+          
+          <!-- Navigation compacte -->
+          <div class="flex items-center justify-between gap-2">
+            <button onclick="OptimizationPanel.previousPhase()" id="btnPreviousTop" class="px-4 py-1.5 text-sm text-gray-700 bg-white/70 hover:bg-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-300" disabled>
+              <i class="fas fa-arrow-left mr-1.5"></i>Précédent
+            </button>
+            
+            <button onclick="OptimizationPanel.runOptimizationStreaming()" class="px-4 py-1.5 text-sm text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg font-medium transition-colors hidden" id="btnRunOptimization">
+              <i class="fas fa-rocket mr-1.5"></i>Lancer l'optimisation
+            </button>
+            
+            <button onclick="OptimizationPanel.nextPhase()" id="btnNextTop" class="px-4 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              Suivant<i class="fas fa-arrow-right ml-1.5"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Zone de Contenu Scrollable -->
+        <div id="optimizationContent" class="flex-1 overflow-y-auto p-6">
+          <!-- Structure Tab -->
+          <div id="tab-structure" class="tab-content active">
+            <h3 class="text-lg font-bold mb-4">📊 Structure & Effectifs</h3>
+
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">
+                <i class="fas fa-users mr-2"></i>Total élèves chargés
+              </label>
+              <input type="number" id="totalEleves" class="w-full px-3 py-2 border rounded text-lg font-bold" disabled>
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">
+                <i class="fas fa-door-open mr-2"></i>Nombre de classes
+              </label>
+              <input type="number" id="nbClasses" class="w-full px-3 py-2 border rounded" min="2" max="10" value="5"
+                     onchange="OptimizationPanel.calculateTargetDistribution(); OptimizationPanel.updateAveragePerClass()">
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">
+                <i class="fas fa-calculator mr-2"></i>Effectif moyen par classe
+              </label>
+              <input type="text" id="effectifMoyen" class="w-full px-3 py-2 border rounded text-lg font-bold bg-gray-50" disabled>
+            </div>
+
+            <div class="mb-4">
+              <button onclick="OptimizationPanel.calculateTargetDistribution()" class="btn btn-secondary w-full">
+                <i class="fas fa-calculator mr-2"></i>Calculer la répartition cible
+              </button>
+            </div>
+
+            <div id="targetDistributionDisplay" class="bg-green-50 p-4 rounded mb-4 hidden">
+              <h4 class="font-bold mb-2">🎯 Effectifs cibles par classe</h4>
+              <div id="targetsList" class="space-y-1 text-sm"></div>
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">
+                <i class="fas fa-cog mr-2"></i>Mode de travail
+              </label>
+              <select id="modeSelected" class="w-full px-3 py-2 border rounded">
+                <option value="TEST">TEST (brouillon)</option>
+                <option value="CACHE">CACHE (optimisation)</option>
+                <option value="FIN">FIN (finalisé)</option>
+                <option value="PROD">PROD (production)</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- Options/LV2 Tab -->
+          <div id="tab-options" class="tab-content hidden">
+            <h3 class="text-lg font-bold mb-4">🎓 Configuration Options & LV2</h3>
+
+            <div class="bg-blue-50 p-3 rounded mb-4 text-sm text-blue-700">
+              <i class="fas fa-info-circle mr-2"></i>Détectez les options puis distribuez-les automatiquement
+            </div>
+
+            <!-- Détection automatique des options -->
+            <div class="mb-4">
+              <button onclick="OptimizationPanel.detectOptions()" class="btn btn-primary w-full">
+                <i class="fas fa-search mr-2"></i>1. Détecter automatiquement les options/LV2
+              </button>
+            </div>
+
+            <!-- ✅ NOUVEAU : Statistiques Options/LV2 détectées -->
+            <div id="optionsStatsDisplay" class="mb-4 hidden">
+              <h4 class="font-bold mb-2 text-sm">📊 Options/LV2 détectées :</h4>
+              <div id="optionsStatsBadges" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- 🆕 DOUBLES CONTRAINTES (LV2 + OPT) -->
+            <div id="doubleConstraintsDisplay" class="mb-4 hidden">
+              <h4 class="font-bold mb-2 text-sm">🔥 Doubles contraintes (LV2 + Option) :</h4>
+              <div id="doubleConstraintsBadges" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- 🆕 COMPTEUR DE QUOTAS RESTANTS -->
+            <div id="remainingQuotasDisplay" class="mb-4 hidden">
+              <h4 class="font-bold mb-2 text-sm">📊 Quotas restants à placer :</h4>
+              <div id="remainingQuotasBadges" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Distribution automatique des quotas -->
+            <div class="mb-4" id="autoDistributeSection" style="display:none;">
+              <button onclick="OptimizationPanel.autoDistributeQuotas()" class="btn btn-success w-full">
+                <i class="fas fa-magic mr-2"></i>2. Distribution automatique des quotas
+              </button>
+            </div>
+
+            <!-- Liste des options détectées -->
+            <div id="optionsDetected" class="mb-4 hidden">
+              <h4 class="font-bold mb-2">📋 Options/LV2 détectées :</h4>
+              <div id="optionsList" class="flex flex-wrap gap-2 mb-4"></div>
+            </div>
+
+            <!-- Configuration par classe -->
+            <div id="classOptionsConfig">
+              <h4 class="font-bold mb-3">🏫 Configuration par classe</h4>
+              <div id="classOptionsTable"></div>
+            </div>
+          </div>
+          
+          <!-- Constraints Tab -->
+          <div id="tab-constraints" class="tab-content hidden">
+            <h3 class="text-lg font-bold mb-4">🛡️ Contraintes Réglementaires</h3>
+
+            <!-- CONTRAINTES DURES (non négociables) -->
+            <div class="mb-2">
+              <span class="inline-block px-2 py-1 text-xs font-bold text-white bg-red-600 rounded">BLOQUANT</span>
+              <span class="text-xs text-gray-500 ml-2">Le moteur refuse tout swap qui viole ces règles</span>
+            </div>
+
+            <div class="space-y-3 mb-6">
+              <!-- Dissociations -->
+              <div class="bg-red-50 p-4 rounded border-l-4 border-red-500">
+                <div class="flex justify-between items-center mb-2">
+                  <label class="font-bold">
+                    <i class="fas fa-ban text-red-600 mr-2"></i>Séparer les dissociations (D)
+                  </label>
+                  <label class="switch">
+                    <input type="checkbox" id="constraintDisso" checked>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <p class="text-xs text-gray-600">Deux élèves avec le même code D ne peuvent jamais être dans la même classe</p>
+              </div>
+
+              <!-- Associations -->
+              <div class="bg-green-50 p-4 rounded border-l-4 border-green-500">
+                <div class="flex justify-between items-center mb-2">
+                  <label class="font-bold">
+                    <i class="fas fa-users text-green-600 mr-2"></i>Regrouper les associations (A)
+                  </label>
+                  <label class="switch">
+                    <input type="checkbox" id="constraintAsso" checked>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <p class="text-xs text-gray-600">Les élèves avec le même code A sont toujours dans la même classe</p>
+              </div>
+
+              <!-- LV2 / OPT (info, pas configurable) -->
+              <div class="bg-gray-50 p-4 rounded border-l-4 border-gray-400">
+                <div class="flex items-center mb-2">
+                  <label class="font-bold">
+                    <i class="fas fa-lock text-gray-500 mr-2"></i>LV2 & Options (quotas)
+                  </label>
+                </div>
+                <p class="text-xs text-gray-600">Chaque élève reste dans une classe compatible avec sa LV2 et son option. Configurable en Phase 2.</p>
+              </div>
+            </div>
+
+            <!-- OBJECTIFS SOUPLES (optimisation) -->
+            <div class="mb-2">
+              <span class="inline-block px-2 py-1 text-xs font-bold text-white bg-blue-500 rounded">OPTIMISATION</span>
+              <span class="text-xs text-gray-500 ml-2">Le moteur cherche le meilleur compromis (ajustable en Phase 4)</span>
+            </div>
+
+            <div class="space-y-2">
+              <div class="bg-blue-50 p-3 rounded border-l-4 border-blue-300 text-sm">
+                <i class="fas fa-chart-bar text-blue-500 mr-2"></i><strong>Scores COM/TRA/PART/ABS</strong> — Équilibre des profils comportementaux entre classes
+              </div>
+              <div class="bg-purple-50 p-3 rounded border-l-4 border-purple-300 text-sm">
+                <i class="fas fa-venus-mars text-purple-500 mr-2"></i><strong>Parité F/M</strong> — Répartition proportionnelle filles/garçons
+              </div>
+              <div class="bg-orange-50 p-3 rounded border-l-4 border-orange-300 text-sm">
+                <i class="fas fa-users text-orange-500 mr-2"></i><strong>Effectifs</strong> — Taille équitable des classes
+              </div>
+            </div>
+          </div>
+          
+          <!-- Scores Tab -->
+          <div id="tab-scores" class="tab-content hidden">
+            <h3 class="text-lg font-bold mb-4">⚖️ Critères de Score</h3>
+
+            <div class="bg-blue-50 p-3 rounded mb-4 text-sm text-blue-700">
+              <i class="fas fa-info-circle mr-2"></i>Choisissez un preset ou ajustez manuellement
+            </div>
+
+            <!-- PRESETS MÉTIER -->
+            <div class="flex gap-2 mb-6">
+              <button onclick="OptimizationPanel.applyPreset('equilibre')" class="flex-1 px-3 py-2 text-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-emerald-700 transition-colors" title="COM=1.0 TRA=0.8 PART=0.5 ABS=0.3 — Le plus polyvalent">
+                <i class="fas fa-balance-scale mr-1"></i>Equilibre
+              </button>
+              <button onclick="OptimizationPanel.applyPreset('comportement')" class="flex-1 px-3 py-2 text-sm bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-lg font-medium hover:from-red-600 hover:to-orange-700 transition-colors" title="COM=1.0 TRA=0.4 PART=0.6 ABS=0.2 — Priorité gestion de classe">
+                <i class="fas fa-exclamation-triangle mr-1"></i>Comportement
+              </button>
+              <button onclick="OptimizationPanel.applyPreset('scolaire')" class="flex-1 px-3 py-2 text-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-indigo-700 transition-colors" title="COM=0.5 TRA=1.0 PART=0.7 ABS=0.4 — Priorité niveau académique">
+                <i class="fas fa-graduation-cap mr-1"></i>Scolaire
+              </button>
+            </div>
+            
+            <!-- COM -->
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-2">
+                <label class="font-bold text-red-600">
+                  <i class="fas fa-exclamation-triangle mr-2"></i>Comportement (COM)
+                </label>
+                <span id="poidsCOM" class="font-bold text-lg">1.0</span>
+              </div>
+              <input type="range" id="sliderCOM" class="w-full" min="0" max="1" step="0.1" value="1.0" 
+                     oninput="OptimizationPanel.updateWeight('COM', this.value)">
+              <p class="text-xs text-gray-600 mt-1">Équilibrer les élèves à problèmes</p>
+            </div>
+            
+            <!-- TRA -->
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-2">
+                <label class="font-bold text-orange-600">
+                  <i class="fas fa-book mr-2"></i>Travail (TRA)
+                </label>
+                <span id="poidsTRA" class="font-bold text-lg">0.7</span>
+              </div>
+              <input type="range" id="sliderTRA" class="w-full" min="0" max="1" step="0.1" value="0.7"
+                     oninput="OptimizationPanel.updateWeight('TRA', this.value)">
+              <p class="text-xs text-gray-600 mt-1">Équilibrer le niveau scolaire</p>
+            </div>
+            
+            <!-- PART -->
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-2">
+                <label class="font-bold text-blue-600">
+                  <i class="fas fa-hand-paper mr-2"></i>Participation (PART)
+                </label>
+                <span id="poidsPART" class="font-bold text-lg">0.4</span>
+              </div>
+              <input type="range" id="sliderPART" class="w-full" min="0" max="1" step="0.1" value="0.4"
+                     oninput="OptimizationPanel.updateWeight('PART', this.value)">
+              <p class="text-xs text-gray-600 mt-1">Équilibrer l'engagement</p>
+            </div>
+            
+            <!-- ABS -->
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-2">
+                <label class="font-bold text-gray-600">
+                  <i class="fas fa-calendar-times mr-2"></i>Absences (ABS)
+                </label>
+                <span id="poidsABS" class="font-bold text-lg">0.2</span>
+              </div>
+              <input type="range" id="sliderABS" class="w-full" min="0" max="1" step="0.1" value="0.2"
+                     oninput="OptimizationPanel.updateWeight('ABS', this.value)">
+              <p class="text-xs text-gray-600 mt-1">Équilibrer l'assiduité</p>
+            </div>
+            
+            <!-- Max Swaps -->
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-2">
+                <label class="font-bold">
+                  <i class="fas fa-exchange-alt mr-2"></i>Nombre max de permutations
+                </label>
+                <span id="maxSwaps" class="font-bold text-lg">30</span>
+              </div>
+              <input type="range" id="sliderMaxSwaps" class="w-full" min="10" max="100" step="5" value="30"
+                     oninput="OptimizationPanel.updateMaxSwaps(this.value)">
+              <p class="text-xs text-gray-600 mt-1">Plus élevé = meilleur résultat mais plus lent</p>
+            </div>
+            
+            <!-- Durée maximale -->
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-2">
+                <label class="font-bold text-indigo-600">
+                  <i class="fas fa-clock mr-2"></i>Durée maximale (secondes)
+                </label>
+                <span id="runtimeSec" class="font-bold text-lg">180</span>
+              </div>
+              <input type="range" id="sliderRuntime" class="w-full" min="30" max="600" step="30" value="180"
+                     oninput="OptimizationPanel.updateRuntime(this.value)">
+              <p class="text-xs text-gray-600 mt-1">Durée max de l'optimisation</p>
+            </div>
+            
+            <!-- Tolérance parité -->
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-2">
+                <label class="font-bold text-pink-600">
+                  <i class="fas fa-balance-scale mr-2"></i>Tolérance parité (F/M)
+                </label>
+                <span id="parityTolerance" class="font-bold text-lg">2</span>
+              </div>
+              <input type="range" id="sliderParity" class="w-full" min="0" max="5" step="1" value="2"
+                     oninput="OptimizationPanel.updateParity(this.value)">
+              <p class="text-xs text-gray-600 mt-1">Écart maximum autorisé entre filles et garçons</p>
+            </div>
+          </div>
+          
+          <!-- Results Tab -->
+          <div id="tab-results" class="tab-content hidden">
+            <h3 class="text-lg font-bold mb-4">📊 Résultats de l'Optimisation</h3>
+            
+            <!-- Résultats -->
+            <div id="resultsContent">
+              <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-chart-line text-4xl mb-4"></i>
+                <p>Lancez l'optimisation pour voir les résultats détaillés</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        </div>
+      </div>
+    `;
+    
+    // Créer l'overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'optimizationOverlay';
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-[99] hidden';
+    overlay.onclick = () => this.close();
+    
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+  },
+  
+  /**
+   * Exporter l'état actuel
+   */
+  exportCurrentState() {
+    return {
+      students: STATE.students ? JSON.parse(JSON.stringify(STATE.students)) : {},
+      rules: STATE.rules ? JSON.parse(JSON.stringify(STATE.rules)) : {},
+      history: STATE.history ? [...STATE.history] : []
+    };
+  },
+  
+  /**
+   * Importer un état
+   */
+  importState(state) {
+    if (state && STATE) {
+      STATE.students = state.students || {};
+      STATE.rules = state.rules || {};
+      STATE.history = state.history || [];
+    }
+  },
+  
+  /**
+   * Obtenir le nombre total d'élèves
+   */
+  getTotalStudents() {
+    if (typeof STATE === 'undefined' || !STATE || !STATE.students) {
+      console.warn('⚠️ STATE.students non disponible');
+      return 0;
+    }
+
+    const students = STATE.students;
+
+    // STATE.students est un dictionnaire plat {id: eleve}
+    // Créé dans loadDataForMode() depuis result.data
+    if (typeof students === 'object' && !Array.isArray(students)) {
+      const count = Object.keys(students).length;
+      console.log('📊 Total élèves:', count);
+      return count;
+    }
+
+    // Fallback si STATE.students est un array (cas non standard)
+    if (Array.isArray(students)) {
+      console.log('📊 Total élèves (array):', students.length);
+      return students.length;
+    }
+
+    console.warn('⚠️ Format inattendu pour STATE.students');
+    return 0;
+  },
+  
+  /**
+   * Vérifier si des données sont chargées
+   */
+  hasData() {
+    return this.getTotalStudents() > 0;
+  },
+  
+  /**
+   * Charger la configuration depuis le backend
+   */
+  async loadConfiguration() {
+    try {
+      // Vérifier si des données sont chargées
+      if (!this.hasData()) {
+        const container = document.getElementById('tab-structure');
+        if (container) {
+          container.innerHTML = `
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-exclamation-triangle text-yellow-400 text-2xl"></i>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-yellow-800">Aucune donnée chargée</h3>
+                  <div class="mt-2 text-sm text-yellow-700">
+                    <p>Veuillez d'abord charger des données depuis le modal de démarrage :</p>
+                    <ul class="list-disc list-inside mt-2">
+                      <li>SOURCES (données brutes)</li>
+                      <li>TEST (commencer une répartition)</li>
+                      <li>CACHE (reprendre un brouillon)</li>
+                      <li>FIN (classes finalisées)</li>
+                      <li>PREVIOUS (année précédente)</li>
+                    </ul>
+                    <button onclick="(typeof openStartupModal==='function' && openStartupModal()); OptimizationPanel.close();" class="mt-4 btn btn-primary">
+                      <i class="fas fa-database mr-2"></i>Charger des données
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        return;
+      }
+      
+      // Afficher un spinner
+      this.showLoading('Chargement de la configuration...');
+      
+      // ✅ NOUVEAU : Charger depuis _OPTI_CONFIG
+      const optiConfig = await new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .getOptiConfigForUI();
+      });
+      
+      if (optiConfig.success) {
+        const c = optiConfig.config;
+        
+        // Pré-remplir les champs de base
+        const totalEleves = this.getTotalStudents();
+        document.getElementById('totalEleves').value = totalEleves;
+        
+        // ✅ Pré-remplir le mode de travail
+        if (document.getElementById('modeSelected')) {
+          document.getElementById('modeSelected').value = c.mode || 'TEST';
+        }
+        
+        // ✅ Pré-remplir les poids
+        if (c.weights) {
+          if (document.getElementById('sliderCOM')) {
+            document.getElementById('sliderCOM').value = c.weights.com || 0.4;
+            document.getElementById('poidsCOM').textContent = (c.weights.com || 0.4).toFixed(1);
+          }
+          if (document.getElementById('sliderTRA')) {
+            document.getElementById('sliderTRA').value = c.weights.tra || 0.1;
+            document.getElementById('poidsTRA').textContent = (c.weights.tra || 0.1).toFixed(1);
+          }
+          if (document.getElementById('sliderPART')) {
+            document.getElementById('sliderPART').value = c.weights.part || 0.1;
+            document.getElementById('poidsPART').textContent = (c.weights.part || 0.1).toFixed(1);
+          }
+          if (document.getElementById('sliderABS')) {
+            document.getElementById('sliderABS').value = c.weights.abs || 0.1;
+            document.getElementById('poidsABS').textContent = (c.weights.abs || 0.1).toFixed(1);
+          }
+        }
+        
+        // ✅ Pré-remplir maxSwaps
+        if (document.getElementById('sliderMaxSwaps')) {
+          document.getElementById('sliderMaxSwaps').value = c.maxSwaps || 30;
+          document.getElementById('maxSwaps').textContent = c.maxSwaps || 30;
+        }
+        
+        // ✅ Pré-remplir runtimeSec
+        if (document.getElementById('sliderRuntime')) {
+          document.getElementById('sliderRuntime').value = c.runtimeSec || 180;
+          document.getElementById('runtimeSec').textContent = c.runtimeSec || 180;
+        }
+        
+        // ✅ Pré-remplir parityTolerance
+        if (document.getElementById('sliderParity')) {
+          document.getElementById('sliderParity').value = c.parityTolerance || 2;
+          document.getElementById('parityTolerance').textContent = c.parityTolerance || 2;
+        }
+        
+        // Stocker targets et quotas
+        this.currentConfig = {
+          targets: c.targets || {},
+          quotas: c.quotas || {}
+        };
+
+        // ✅ NOUVEAU : Calculer automatiquement la répartition cible
+        this.calculateTargetDistribution();
+
+        console.log('✅ Configuration chargée depuis _OPTI_CONFIG:', c);
+      }
+      
+      this.hideLoading();
+      
+    } catch (error) {
+      console.error('Erreur chargement configuration:', error);
+      if (typeof toast === 'function') {
+        toast('Erreur lors du chargement de la configuration', 'error');
+      }
+      this.hideLoading();
+    }
+  },
+  
+  /**
+   * Afficher les options disponibles
+   */
+  displayOptions(structure) {
+    const container = document.getElementById('optionsStructure');
+    if (!structure || !structure.classes) {
+      container.innerHTML = '<p class="text-sm text-gray-500">Aucune option définie</p>';
+      return;
+    }
+    
+    const optionsSet = new Set();
+    structure.classes.forEach(classe => {
+      if (classe.options) {
+        classe.options.forEach(opt => optionsSet.add(opt));
+      }
+    });
+    
+    if (optionsSet.size === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-500">Aucune option définie</p>';
+      return;
+    }
+    
+    container.innerHTML = Array.from(optionsSet).map(opt =>
+      `<span class="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm mr-2 mb-2">${escapeHtml(opt)}</span>`
+    ).join('');
+  },
+  
+  /**
+   * Configuration des phases du wizard
+   */
+  PHASES: {
+    structure: { id: 1, title: 'Phase 1: Structure & Effectifs', description: 'Définissez le nombre de classes et la répartition cible', next: 'options', prev: null },
+    options: { id: 2, title: 'Phase 2: Options & LV2', description: 'Configurez les quotas d\'options par classe', next: 'constraints', prev: 'structure' },
+    constraints: { id: 3, title: 'Phase 3: Contraintes', description: 'Activez les règles de répartition', next: 'launch', prev: 'options' },
+    launch: { id: 4, title: 'Phase 4: Lancement & Résultats', description: 'Ajustez les paramètres et lancez l\'optimisation', next: null, prev: 'constraints' }
+  },
+  
+  currentPhase: 'structure',
+  validatedPhases: [],
+  
+  /**
+   * Aller à une phase spécifique
+   */
+  goToPhase(phaseName) {
+    this.currentPhase = phaseName;
+    const phase = this.PHASES[phaseName];
+    
+    // Mettre à jour le header
+    document.getElementById('phaseTitle').textContent = phase.title;
+    document.getElementById('phaseDescription').textContent = phase.description;
+    
+    // Mettre à jour la barre de progression
+    const progress = (phase.id / 4) * 100;
+    document.getElementById('progressBar').style.width = `${progress}%`;
+    document.getElementById('progressText').textContent = `${phase.id}/4`;
+    
+    // Mettre à jour les boutons de navigation (header)
+    const btnPrev = document.getElementById('btnPreviousTop');
+    const btnNext = document.getElementById('btnNextTop');
+    const btnRun = document.getElementById('btnRunOptimization');
+    
+    if (btnPrev) btnPrev.disabled = !phase.prev;
+    if (btnNext) btnNext.disabled = !phase.next && phaseName !== 'launch';
+    
+    // Afficher/masquer le bouton de lancement
+    if (phaseName === 'launch') {
+      btnRun && btnRun.classList.remove('hidden');
+      btnNext && btnNext.classList.add('hidden');
+    } else {
+      btnRun && btnRun.classList.add('hidden');
+      btnNext && btnNext.classList.remove('hidden');
+    }
+    
+    // Mettre à jour l'état visuel des phases dans la sidebar
+    document.querySelectorAll('.wizard-phase-btn').forEach(btn => {
+      const btnPhase = btn.dataset.phase;
+      const icon = btn.querySelector('.phase-icon');
+      const iconI = icon.querySelector('i');
+      
+      // Réinitialiser les classes
+      btn.classList.remove('border-blue-500', 'bg-blue-50', 'border-green-500', 'bg-green-50', 'border-gray-300');
+      icon.classList.remove('border-blue-500', 'border-green-500', 'border-gray-300', 'bg-blue-100', 'bg-green-100');
+      iconI.classList.remove('text-blue-600', 'text-green-600', 'text-gray-400');
+      
+      if (btnPhase === phaseName) {
+        // Phase active
+        btn.classList.add('border-blue-500', 'bg-blue-50');
+        icon.classList.add('border-blue-500', 'bg-blue-100');
+        iconI.classList.add('text-blue-600');
+      } else if (this.validatedPhases.includes(btnPhase)) {
+        // Phase validée
+        btn.classList.add('border-green-500', 'bg-green-50');
+        icon.classList.add('border-green-500', 'bg-green-100');
+        iconI.className = 'fas fa-check text-green-600';
+      } else {
+        // Phase à venir
+        btn.classList.add('border-gray-300');
+        icon.classList.add('border-gray-300');
+        iconI.classList.add('text-gray-400');
+      }
+    });
+
+    // Hook spécifique pour la phase "structure" : mettre à jour le total élèves et l'effectif moyen
+    if (phaseName === 'structure') {
+      setTimeout(() => {
+        const totalEleves = this.getTotalStudents();
+        const totalElevesInput = document.getElementById('totalEleves');
+        if (totalElevesInput) {
+          totalElevesInput.value = totalEleves;
+          console.log('📊 Total élèves mis à jour:', totalEleves);
+        }
+        // Mettre à jour l'effectif moyen
+        this.updateAveragePerClass();
+      }, 100);
+    }
+
+    // Afficher le contenu correspondant
+    this.switchTab(phaseName === 'launch' ? 'scores' : phaseName);
+  },
+  
+  /**
+   * Phase suivante
+   */
+  nextPhase() {
+    const phase = this.PHASES[this.currentPhase];
+    if (phase.next) {
+      // Valider la phase actuelle avant de passer à la suivante
+      if (!this.validatedPhases.includes(this.currentPhase)) {
+        this.validatedPhases.push(this.currentPhase);
+      }
+      this.goToPhase(phase.next);
+    }
+  },
+  
+  /**
+   * Phase précédente
+   */
+  previousPhase() {
+    const phase = this.PHASES[this.currentPhase];
+    if (phase.prev) {
+      this.goToPhase(phase.prev);
+    }
+  },
+  
+  /**
+   * Changer d'onglet (legacy - gardé pour compatibilité)
+   */
+  switchTab(tabName) {
+    // Mapper les anciens noms aux nouveaux
+    const tabMap = {
+      'structure': 'structure',
+      'options': 'options',
+      'constraints': 'constraints',
+      'scores': 'scores',
+      'results': 'results',
+      'launch': 'scores' // Phase 4 affiche d'abord les scores
+    };
+    
+    const actualTab = tabMap[tabName] || tabName;
+    
+    // Désactiver tous les onglets
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+    
+    // Activer l'onglet sélectionné
+    const tabElement = document.getElementById(`tab-${actualTab}`);
+    if (tabElement) {
+      tabElement.classList.remove('hidden');
+    }
+  },
+  
+  /**
+   * Mettre à jour le poids d'un critère
+   */
+  updateWeight(criterion, value) {
+    document.getElementById(`poids${criterion}`).textContent = parseFloat(value).toFixed(1);
+  },
+
+  /**
+   * Appliquer un preset métier sur les sliders de score
+   */
+  applyPreset(preset) {
+    const presets = {
+      equilibre:     { COM: 1.0, TRA: 0.8, PART: 0.5, ABS: 0.3 },
+      comportement:  { COM: 1.0, TRA: 0.4, PART: 0.6, ABS: 0.2 },
+      scolaire:      { COM: 0.5, TRA: 1.0, PART: 0.7, ABS: 0.4 }
+    };
+    const values = presets[preset];
+    if (!values) return;
+    ['COM', 'TRA', 'PART', 'ABS'].forEach(k => {
+      const slider = document.getElementById('slider' + k);
+      if (slider) { slider.value = values[k]; }
+      this.updateWeight(k, values[k]);
+    });
+    if (typeof toast === 'function') {
+      const labels = { equilibre: 'Equilibre', comportement: 'Comportement', scolaire: 'Scolaire' };
+      toast('Preset "' + (labels[preset] || preset) + '" appliqué', 'success');
+    }
+  },
+  
+  /**
+   * Mettre à jour le nombre max de swaps
+   */
+  updateMaxSwaps(value) {
+    document.getElementById('maxSwaps').textContent = value;
+  },
+  
+  /**
+   * Mettre à jour la durée maximale
+   */
+  updateRuntime(value) {
+    document.getElementById('runtimeSec').textContent = value;
+  },
+  
+  /**
+   * Mettre à jour la tolérance parité
+   */
+  updateParity(value) {
+    document.getElementById('parityTolerance').textContent = value;
+  },
+  
+  /**
+   * Détecter automatiquement les options/LV2
+   */
+  detectOptions() {
+    if (!this.hasData()) {
+      if (typeof toast === 'function') {
+        toast('⚠️ Veuillez d\'abord charger des données', 'warning');
+      }
+      return;
+    }
+
+    const lv2Set = new Set();
+    const optSet = new Set();
+
+    const allStudents = this.flattenStudents();
+
+    // ✅ NOUVEAU : Compter les élèves par option/LV2
+    const lv2Counts = {};
+    const optCounts = {};
+    const doubleCounts = {}; // 🆕 Comptage des doubles contraintes
+
+    allStudents.forEach((student) => {
+      if (!student || typeof student !== 'object') return;
+
+      // Try both cases to be safe
+      const lv2 = this.normalizeCell(student.lv2 || student.LV2);
+      const opt = this.normalizeCell(student.opt || student.OPT);
+
+      if (lv2) {
+        const lv2Upper = lv2.toUpperCase();
+        lv2Set.add(lv2Upper);
+        lv2Counts[lv2Upper] = (lv2Counts[lv2Upper] || 0) + 1;
+        console.log('✅ Found LV2:', lv2);
+      }
+      if (opt) {
+        const optUpper = opt.toUpperCase();
+        optSet.add(optUpper);
+        optCounts[optUpper] = (optCounts[optUpper] || 0) + 1;
+        console.log('✅ Found OPT:', opt);
+      }
+
+      // 🆕 DÉTECTER LES DOUBLES CONTRAINTES (LV2 + OPT)
+      if (lv2 && opt) {
+        const lv2Upper = lv2.toUpperCase();
+        const optUpper = opt.toUpperCase();
+        const combinedKey = `${lv2Upper}+${optUpper}`;
+        doubleCounts[combinedKey] = (doubleCounts[combinedKey] || 0) + 1;
+        console.log('🔥 DOUBLE CONTRAINTE DÉTECTÉE:', combinedKey);
+      }
+    });
+
+    this.detectedLV2 = Array.from(lv2Set).filter(Boolean).sort();
+    this.detectedOPT = Array.from(optSet).filter(Boolean).sort();
+    this.detectedOptions = [...this.detectedLV2, ...this.detectedOPT];
+
+    // ✅ Sauvegarder les comptages
+    this.lv2Counts = lv2Counts;
+    this.optCounts = optCounts;
+    this.doubleCounts = doubleCounts; // 🆕 Sauvegarder les doubles contraintes
+
+    console.log('📊 Final detection results:', {
+      LV2: this.detectedLV2,
+      OPT: this.detectedOPT,
+      total: this.detectedOptions.length,
+      '🔥 DOUBLES CONTRAINTES': this.doubleCounts
+    });
+
+    const optionsList = document.getElementById('optionsList');
+    const pills = (arr, cls) => arr.map((opt) =>
+      `<span class="inline-block ${cls} px-3 py-1 rounded-full text-sm font-semibold">${escapeHtml(opt)}</span>`
+    ).join(' ');
+
+    optionsList.innerHTML = [
+      this.detectedLV2.length ? `<div class="mb-2"><strong>LV2 :</strong> ${pills(this.detectedLV2, 'bg-blue-100 text-blue-800')}</div>` : '',
+      this.detectedOPT.length ? `<div><strong>Options :</strong> ${pills(this.detectedOPT, 'bg-purple-100 text-purple-800')}</div>` : ''
+    ].join('') || '<span class="text-sm text-gray-500">Aucune LV2/OPT détectée</span>';
+
+    document.getElementById('optionsDetected').classList.remove('hidden');
+
+    // ✅ NOUVEAU : Afficher les statistiques avec badges
+    this.displayOptionsStats();
+
+    // ✅ Afficher le bouton de distribution automatique
+    const autoDistributeSection = document.getElementById('autoDistributeSection');
+    if (autoDistributeSection) {
+      autoDistributeSection.style.display = 'block';
+    }
+
+    this.createClassOptionsTable();
+
+    if (typeof toast === 'function') {
+      const doubleCount = Object.keys(this.doubleCounts || {}).length;
+      const doubleMsg = doubleCount > 0 ? `, 🔥 ${doubleCount} double(s) contrainte(s)` : '';
+      toast(`✅ ${this.detectedOptions.length} option(s) détectée(s) (LV2: ${this.detectedLV2.length}, OPT: ${this.detectedOPT.length}${doubleMsg})`, 'success');
+    }
+  },
+
+  /**
+   * ✅ NOUVEAU : Afficher les statistiques Options/LV2 avec badges
+   * Format : [LAT: 18 élèves] [ITA: 6 élèves] [CHAV: 10 élèves]
+   */
+  displayOptionsStats() {
+    const statsDisplay = document.getElementById('optionsStatsDisplay');
+    const badgesContainer = document.getElementById('optionsStatsBadges');
+
+    if (!statsDisplay || !badgesContainer) return;
+
+    // Combiner LV2 et OPT avec leurs comptages
+    const allStats = [];
+
+    // Ajouter les LV2
+    this.detectedLV2.forEach(lv2 => {
+      const count = this.lv2Counts[lv2] || 0;
+      allStats.push({ name: lv2, count: count, type: 'LV2' });
+    });
+
+    // Ajouter les OPT
+    this.detectedOPT.forEach(opt => {
+      const count = this.optCounts[opt] || 0;
+      allStats.push({ name: opt, count: count, type: 'OPT' });
+    });
+
+    // Trier par nombre d'élèves (décroissant)
+    allStats.sort((a, b) => b.count - a.count);
+
+    // Générer les badges
+    const badges = allStats.map(stat => {
+      const colorClass = stat.type === 'LV2'
+        ? 'bg-blue-100 text-blue-800 border-blue-300'
+        : 'bg-purple-100 text-purple-800 border-purple-300';
+
+      return `<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold border ${colorClass}">
+        ${escapeHtml(stat.name)}: ${stat.count} élève${stat.count > 1 ? 's' : ''}
+      </span>`;
+    }).join('');
+
+    if (badges) {
+      badgesContainer.innerHTML = badges;
+      statsDisplay.classList.remove('hidden');
+    } else {
+      statsDisplay.classList.add('hidden');
+    }
+
+    // 🆕 AFFICHER LES DOUBLES CONTRAINTES
+    this.displayDoubleConstraints();
+  },
+
+  /**
+   * 🆕 NOUVEAU : Afficher les doubles contraintes (LV2 + OPT)
+   * Exemple : [ITA+LATIN: 10 élèves] [ESP+CHAV: 5 élèves]
+   */
+  displayDoubleConstraints() {
+    const doubleDisplay = document.getElementById('doubleConstraintsDisplay');
+    const doubleBadgesContainer = document.getElementById('doubleConstraintsBadges');
+
+    if (!doubleDisplay || !doubleBadgesContainer) return;
+
+    // Vérifier si on a des doubles contraintes
+    if (!this.doubleCounts || Object.keys(this.doubleCounts).length === 0) {
+      doubleDisplay.classList.add('hidden');
+      return;
+    }
+
+    // Convertir en tableau et trier par nombre d'élèves (décroissant)
+    const doubleStats = Object.entries(this.doubleCounts)
+      .map(([combo, count]) => ({ combo, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Générer les badges pour les doubles contraintes
+    const doubleBadges = doubleStats.map(stat => {
+      return `<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold border bg-orange-100 text-orange-800 border-orange-300">
+        🔥 ${escapeHtml(stat.combo)}: ${stat.count} élève${stat.count > 1 ? 's' : ''}
+      </span>`;
+    }).join('');
+
+    if (doubleBadges) {
+      doubleBadgesContainer.innerHTML = doubleBadges;
+      doubleDisplay.classList.remove('hidden');
+
+      // 🆕 Afficher aussi dans la console pour debug
+      console.log('🔥 DOUBLES CONTRAINTES DÉTECTÉES:', doubleStats);
+    } else {
+      doubleDisplay.classList.add('hidden');
+    }
+  },
+
+  /**
+   * 🆕 NOUVEAU : Afficher les compteurs de quotas restants
+   * Calcule combien d'élèves restent à placer pour chaque option
+   */
+  updateRemainingQuotas() {
+    const remainingDisplay = document.getElementById('remainingQuotasDisplay');
+    const remainingBadgesContainer = document.getElementById('remainingQuotasBadges');
+
+    if (!remainingDisplay || !remainingBadgesContainer) return;
+
+    // Calculer les totaux placés par option
+    const placedCounts = {};
+
+    // Parcourir toutes les classes et leurs quotas
+    if (this.classOptionsConfig) {
+      Object.values(this.classOptionsConfig).forEach(classConfig => {
+        if (classConfig && typeof classConfig === 'object') {
+          Object.entries(classConfig).forEach(([option, quota]) => {
+            if (typeof quota === 'number') {
+              placedCounts[option] = (placedCounts[option] || 0) + quota;
+            }
+          });
+        }
+      });
+    }
+
+    // Combiner LV2 et OPT
+    const allOptions = [...(this.detectedLV2 || []), ...(this.detectedOPT || [])];
+
+    if (allOptions.length === 0) {
+      remainingDisplay.classList.add('hidden');
+      return;
+    }
+
+    // Calculer les restants pour chaque option
+    const remainingStats = allOptions.map(option => {
+      const total = (this.lv2Counts && this.lv2Counts[option]) ||
+                    (this.optCounts && this.optCounts[option]) || 0;
+      const placed = placedCounts[option] || 0;
+      const remaining = total - placed;
+
+      // Déterminer le type (LV2 ou OPT)
+      const isLV2 = this.detectedLV2 && this.detectedLV2.includes(option);
+
+      return {
+        option,
+        total,
+        placed,
+        remaining,
+        isLV2,
+        percentPlaced: total > 0 ? (placed / total) * 100 : 0
+      };
+    }).filter(stat => stat.total > 0); // Filtrer les options sans élèves
+
+    // Trier par nombre restant (ceux qui ont le plus besoin d'être placés en premier)
+    remainingStats.sort((a, b) => b.remaining - a.remaining);
+
+    // Générer les badges avec codes couleur
+    const badges = remainingStats.map(stat => {
+      let colorClass, icon;
+
+      if (stat.remaining < 0) {
+        // ❌ DÉPASSEMENT - Rouge
+        colorClass = 'bg-red-100 text-red-800 border-red-400';
+        icon = '❌';
+      } else if (stat.remaining === 0) {
+        // ✅ COMPLET - Vert foncé
+        colorClass = 'bg-green-100 text-green-800 border-green-400';
+        icon = '✅';
+      } else if (stat.percentPlaced >= 80) {
+        // ⚠️ PRESQUE COMPLET - Orange
+        colorClass = 'bg-orange-100 text-orange-800 border-orange-400';
+        icon = '⚠️';
+      } else if (stat.percentPlaced >= 50) {
+        // 🔵 EN COURS - Bleu
+        colorClass = 'bg-blue-100 text-blue-800 border-blue-400';
+        icon = '🔵';
+      } else {
+        // ⭕ DISPONIBLE - Gris
+        colorClass = 'bg-gray-100 text-gray-800 border-gray-400';
+        icon = '⭕';
+      }
+
+      const remainingText = stat.remaining < 0
+        ? `DÉPASSEMENT de ${Math.abs(stat.remaining)}`
+        : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`;
+
+      return `<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold border ${colorClass}" title="${stat.placed} placé(s) sur ${stat.total}">
+        ${icon} ${escapeHtml(stat.option)}: ${remainingText} <span class="text-xs ml-1">(${stat.placed}/${stat.total})</span>
+      </span>`;
+    }).join('');
+
+    if (badges) {
+      remainingBadgesContainer.innerHTML = badges;
+      remainingDisplay.classList.remove('hidden');
+
+      // Log pour debug
+      console.log('📊 QUOTAS RESTANTS:', remainingStats);
+    } else {
+      remainingDisplay.classList.add('hidden');
+    }
+  },
+
+  /**
+   * ✅ NOUVEAU : Calculer la répartition cible des effectifs par classe
+   * Exemple: 121 élèves sur 5 classes → [25, 25, 24, 24, 23]
+   */
+  calculateTargetDistribution() {
+    const totalEleves = this.getTotalStudents();
+    const nbClasses = parseInt(document.getElementById('nbClasses')?.value || 5);
+
+    if (!totalEleves || totalEleves === 0) {
+      if (typeof toast === 'function') {
+        toast('⚠️ Aucun élève chargé. Veuillez d\'abord charger des données.', 'warning');
+      }
+      return null;
+    }
+
+    // Calculer la distribution équitable
+    const avg = Math.floor(totalEleves / nbClasses);
+    const remainder = totalEleves - (avg * nbClasses);
+
+    const distribution = [];
+    const classes = this.getClassNamesFromState();
+
+    for (let i = 0; i < nbClasses; i++) {
+      const className = classes[i] || `Classe ${i + 1}`;
+      const target = i < remainder ? avg + 1 : avg;
+      distribution.push({ name: className, target });
+    }
+
+    // Sauvegarder dans l'état
+    this.targetsByClass = {};
+    distribution.forEach(item => {
+      this.targetsByClass[item.name] = item.target;
+    });
+
+    console.log('🎯 Répartition cible calculée:', this.targetsByClass);
+
+    // Afficher dans l'UI
+    const targetsList = document.getElementById('targetsList');
+    if (targetsList) {
+      targetsList.innerHTML = distribution.map(item =>
+        `<div class="flex justify-between items-center">
+          <span class="font-semibold">${escapeHtml(item.name)}</span>
+          <span class="px-3 py-1 bg-green-600 text-white rounded-full text-xs">${item.target} élèves</span>
+        </div>`
+      ).join('');
+    }
+
+    const display = document.getElementById('targetDistributionDisplay');
+    if (display) {
+      display.classList.remove('hidden');
+    }
+
+    if (typeof toast === 'function') {
+      toast(`✅ Répartition calculée : ${totalEleves} élèves sur ${nbClasses} classes`, 'success');
+    }
+
+    // Mettre à jour l'effectif moyen en même temps
+    this.updateAveragePerClass();
+
+    return this.targetsByClass;
+  },
+
+  /**
+   * Mettre à jour l'affichage de l'effectif moyen par classe
+   */
+  updateAveragePerClass() {
+    const totalEleves = this.getTotalStudents();
+    const nbClasses = parseInt(document.getElementById('nbClasses')?.value || 5);
+    const effectifMoyenInput = document.getElementById('effectifMoyen');
+
+    if (!effectifMoyenInput) return;
+
+    if (!totalEleves || totalEleves === 0) {
+      effectifMoyenInput.value = '-';
+      return;
+    }
+
+    const moyenne = (totalEleves / nbClasses).toFixed(1);
+    effectifMoyenInput.value = `${moyenne} élèves/classe (${totalEleves} élèves ÷ ${nbClasses} classes)`;
+
+    console.log(`📊 Effectif moyen calculé: ${moyenne} élèves par classe`);
+  },
+
+  /**
+   * ✅ NOUVEAU : Distribution automatique des quotas d'options/LV2
+   * Répartit équitablement chaque option sur les classes disponibles
+   */
+  autoDistributeQuotas() {
+    if (!this.detectedOptions || this.detectedOptions.length === 0) {
+      if (typeof toast === 'function') {
+        toast('⚠️ Veuillez d\'abord détecter les options', 'warning');
+      }
+      return;
+    }
+
+    // Compter le nombre d'élèves par option
+    const optionCounts = {};
+
+    const allStudents = this.flattenStudents();
+    allStudents.forEach((s) => {
+      if (!s) return;
+      const lv2 = this.normalizeCell(s.lv2 || s.LV2).toUpperCase();
+      const opt = this.normalizeCell(s.opt || s.OPT).toUpperCase();
+      if (lv2) optionCounts[lv2] = (optionCounts[lv2] || 0) + 1;
+      if (opt) optionCounts[opt] = (optionCounts[opt] || 0) + 1;
+    });
+
+    // Obtenir les classes
+    const classes = this.getClassNamesFromState();
+    const nbClasses = classes.length;
+
+    console.log('📊 Distribution automatique:', { optionCounts, classes });
+
+    // Initialiser la configuration
+    if (!this.classOptionsConfig) {
+      this.classOptionsConfig = {};
+    }
+
+    classes.forEach((cls) => {
+      this.classOptionsConfig[cls] = {};
+    });
+
+    // Distribuer chaque option équitablement
+    Object.keys(optionCounts).forEach((option) => {
+      const total = optionCounts[option];
+      const avg = Math.floor(total / nbClasses);
+      const remainder = total - (avg * nbClasses);
+
+      let assigned = 0;
+
+      for (let i = 0; i < nbClasses; i++) {
+        const className = classes[i];
+        const quota = i < remainder ? avg + 1 : avg;
+
+        if (quota > 0) {
+          this.classOptionsConfig[className][option] = quota;
+          assigned += quota;
+        }
+      }
+
+      console.log(`  ✅ ${option}: ${assigned}/${total} répartis (${avg}±1 par classe)`);
+    });
+
+    // Recréer le tableau avec les nouveaux quotas
+    this.createClassOptionsTable();
+
+    if (typeof toast === 'function') {
+      toast(`✅ Distribution automatique effectuée pour ${Object.keys(optionCounts).length} options`, 'success');
+    }
+
+    console.log('📊 Configuration finale:', this.classOptionsConfig);
+  },
+
+  /**
+   * Créer le tableau de configuration par classe (QUOTAS)
+   * ✅ VERSION AUTONOME PIPELINE OPTI : Configuration des quotas par classe
+   */
+  createClassOptionsTable() {
+    const table = document.getElementById('classOptionsTable');
+
+    const classes = (typeof this.getClassNamesFromState === 'function')
+      ? this.getClassNamesFromState()
+      : Array.from({ length: 4 }, (_, i) => `Classe ${i + 1}`);
+
+    if ((!this.detectedLV2 || this.detectedLV2.length === 0) && (!this.detectedOPT || this.detectedOPT.length === 0)) {
+      table.innerHTML = '<p class="text-sm text-gray-500">Aucune LV2/OPT détectée. Cliquez sur "Détecter automatiquement" ci-dessus.</p>';
+      return;
+    }
+
+    // ✅ NOUVELLE STRUCTURE : Quotas par classe (pas de listes)
+    if (!this.classOptionsConfig) {
+      this.classOptionsConfig = {};
+    }
+
+    // Initialiser les quotas pour chaque classe
+    classes.forEach((cls) => {
+      if (!this.classOptionsConfig[cls] || Array.isArray(this.classOptionsConfig[cls])) {
+        this.classOptionsConfig[cls] = {};
+      }
+    });
+
+    // Compter le nombre total d'élèves par option
+    const optionCounts = {};
+
+    const allStudents = this.flattenStudents();
+    allStudents.forEach((s) => {
+      if (!s) return;
+      const lv2 = this.normalizeCell(s.lv2 || s.LV2).toUpperCase();
+      const opt = this.normalizeCell(s.opt || s.OPT).toUpperCase();
+      if (lv2) optionCounts[lv2] = (optionCounts[lv2] || 0) + 1;
+      if (opt) optionCounts[opt] = (optionCounts[opt] || 0) + 1;
+    });
+
+    // ✅ NOUVELLE UI : Inputs number pour les quotas
+    const section = (title, opts, clsName) => `
+      <div class="mt-3">
+        <h6 class="font-semibold mb-2 text-sm">${title}</h6>
+        <div class="space-y-2">
+          ${opts.map((option) => {
+            const currentValue = this.classOptionsConfig[clsName][option] || 0;
+            const totalNeeded = optionCounts[option] || 0;
+            return `
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-sm font-medium min-w-[60px]">${escapeHtml(option)}</label>
+                <div class="flex items-center gap-2 flex-1">
+                  <input type="number"
+                         class="w-20 px-2 py-1 border rounded text-sm"
+                         min="0"
+                         max="${totalNeeded}"
+                         value="${currentValue}"
+                         onchange="OptimizationPanel.setClassQuota('${escapeHtml(clsName)}', '${escapeHtml(option)}', parseInt(this.value) || 0)"
+                         placeholder="0">
+                  <span class="text-xs text-gray-500">/ ${totalNeeded} élèves</span>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+
+    let html = `
+      <div class="bg-yellow-50 p-3 rounded mb-4">
+        <p class="text-sm"><i class="fas fa-info-circle mr-2"></i><strong>Quotas :</strong> Indiquez combien d'élèves de chaque option/LV2 doivent être placés dans chaque classe.</p>
+        <p class="text-xs text-gray-600 mt-1">Exemple : ITA=6 dans 6°1 signifie "placer 6 élèves ITA dans la classe 6°1"</p>
+      </div>
+      <div class="space-y-3">`;
+
+    classes.forEach((clsName) => {
+      html += `
+        <div class="border rounded p-3 bg-white">
+          <h5 class="font-bold mb-2">${escapeHtml(clsName)}</h5>
+          ${this.detectedLV2?.length ? section('📚 LV2', this.detectedLV2, clsName) : ''}
+          ${this.detectedOPT?.length ? section('🎓 Options', this.detectedOPT, clsName) : ''}
+        </div>`;
+    });
+    html += '</div>';
+    table.innerHTML = html;
+
+    // 🆕 Mettre à jour les compteurs de quotas restants
+    this.updateRemainingQuotas();
+  },
+
+  /**
+   * Définir un quota pour une option dans une classe
+   */
+  setClassQuota(clsName, option, quota) {
+    if (!this.classOptionsConfig) {
+      this.classOptionsConfig = {};
+    }
+    if (!this.classOptionsConfig[clsName]) {
+      this.classOptionsConfig[clsName] = {};
+    }
+
+    if (quota > 0) {
+      this.classOptionsConfig[clsName][option] = quota;
+    } else {
+      delete this.classOptionsConfig[clsName][option];
+    }
+
+    console.log(`✅ Quota défini: ${clsName} → ${option} = ${quota}`);
+
+    // 🆕 Mettre à jour les compteurs de quotas restants en temps réel
+    this.updateRemainingQuotas();
+  },
+
+  toggleClassOptionCat(clsName, cat, option, isChecked) {
+    if (!this.classOptionsConfig) {
+      this.classOptionsConfig = {};
+    }
+    if (!this.classOptionsConfig[clsName] || Array.isArray(this.classOptionsConfig[clsName])) {
+      this.classOptionsConfig[clsName] = { LV2: [], OPT: [] };
+    }
+
+    const normalizedOption = this.normalizeCell(option).toUpperCase();
+    const arr = Array.isArray(this.classOptionsConfig[clsName][cat])
+      ? this.classOptionsConfig[clsName][cat]
+      : [];
+
+    if (isChecked) {
+      if (!arr.includes(normalizedOption)) {
+        arr.push(normalizedOption);
+      }
+    } else {
+      this.classOptionsConfig[clsName][cat] = arr.filter((opt) => opt !== normalizedOption);
+      return;
+    }
+
+    this.classOptionsConfig[clsName][cat] = arr;
+  },
+  
+  /**
+   * Valider la configuration des quotas
+   * ✅ VERSION AUTONOME : Vérifier que les quotas correspondent au nombre d'élèves
+   */
+  validateOptions() {
+    if (!this.classOptionsConfig) {
+      if (typeof toast === 'function') {
+        toast('⚠️ Veuillez d\'abord détecter les options', 'warning');
+      }
+      return false;
+    }
+
+    // Compter le total d'élèves par option
+    const optionCounts = {};
+
+    const allStudents = this.flattenStudents();
+    allStudents.forEach((s) => {
+      if (!s) return;
+      const lv2 = this.normalizeCell(s.lv2 || s.LV2).toUpperCase();
+      const opt = this.normalizeCell(s.opt || s.OPT).toUpperCase();
+      if (lv2) optionCounts[lv2] = (optionCounts[lv2] || 0) + 1;
+      if (opt) optionCounts[opt] = (optionCounts[opt] || 0) + 1;
+    });
+
+    // Calculer les quotas par option
+    const quotaSums = {};
+    Object.values(this.classOptionsConfig).forEach((config) => {
+      if (!config || typeof config !== 'object') return;
+      Object.keys(config).forEach((option) => {
+        const quota = config[option] || 0;
+        quotaSums[option] = (quotaSums[option] || 0) + quota;
+      });
+    });
+
+    // Vérifier que les quotas correspondent
+    const errors = [];
+    Object.keys(optionCounts).forEach((option) => {
+      const needed = optionCounts[option];
+      const assigned = quotaSums[option] || 0;
+      if (assigned !== needed) {
+        errors.push(`${option}: ${assigned}/${needed} places assignées`);
+      }
+    });
+
+    if (errors.length > 0) {
+      if (typeof toast === 'function') {
+        toast(`⚠️ Quotas incorrects : ${errors.join(', ')}`, 'warning');
+      }
+      console.warn('❌ Erreurs quotas:', errors);
+      return false;
+    }
+
+    console.log('✅ Quotas validés:', quotaSums);
+
+    if (typeof toast === 'function') {
+      toast('✅ Configuration des quotas validée', 'success');
+    }
+
+    this.switchTab('constraints');
+    return true;
+  },
+  
+  /**
+   * Valider la structure
+   */
+  validateStructure() {
+    const nbClasses = parseInt(document.getElementById('nbClasses').value);
+    const capacite = parseInt(document.getElementById('capaciteClasse').value);
+    const totalEleves = this.getTotalStudents();
+    
+    const capaciteTotale = nbClasses * capacite;
+    
+    if (totalEleves > capaciteTotale) {
+      if (typeof toast === 'function') {
+        toast(`⚠️ Capacité insuffisante ! ${totalEleves} élèves pour ${capaciteTotale} places`, 'warning');
+      }
+      return false;
+    }
+    
+    if (typeof toast === 'function') {
+      toast('✅ Structure validée', 'success');
+    }
+    this.switchTab('options');
+    return true;
+  },
+  
+  /**
+   * Lancer l'optimisation en mode STREAMING (phase par phase)
+   * EFFET LIVE: Les onglets CACHE se remplissent en direct !
+   */
+  async runOptimizationStreaming() {
+    // Vérifier si des données sont chargées
+    if (!this.hasData()) {
+      if (typeof toast === 'function') {
+        toast('⚠️ Aucune donnée chargée. Veuillez d\'abord charger des données.', 'warning');
+      }
+      return;
+    }
+    
+    // Empêcher les doubles lancements
+    if (this._running) {
+      console.warn('⚠️ Optimisation déjà en cours');
+      return;
+    }
+    
+    this._running = true;
+    const startTime = Date.now();
+    
+    // ✅ CORRECTION CRITIQUE : Suspendre l'auto-save pendant l'optimisation
+    console.log('⏸️ Suspension de l\'auto-save pendant l\'optimisation...');
+    let autoSaveWasStopped = false;
+    if (typeof stopAutoSave === 'function') {
+      stopAutoSave();
+      autoSaveWasStopped = true;
+      console.log('✅ Auto-save suspendu');
+    } else if (typeof stopCacheAutoSave === 'function') {
+      stopCacheAutoSave();
+      autoSaveWasStopped = true;
+      console.log('✅ Cache auto-save suspendu');
+    } else {
+      console.warn('⚠️ Aucune fonction d\'arrêt auto-save trouvée');
+    }
+    
+    try {
+      // Désactiver le bouton
+      const btn = document.getElementById('btnRunOptimization');
+      if (btn) btn.disabled = true;
+      
+      // ===== ÉTAPE CRITIQUE : SYNCHRONISATION _STRUCTURE + _OPTI_CONFIG =====
+      console.log('🔄 Synchronisation de la configuration...');
+      setStreamingStatus('🔄 Synchronisation de la configuration...', 'Préparation...');
+      
+      const config = {
+        mode: document.getElementById('modeSelected') ? document.getElementById('modeSelected').value : 'TEST',
+        weights: {
+          com: parseFloat(document.getElementById('sliderCOM')?.value || 0.4),
+          tra: parseFloat(document.getElementById('sliderTRA')?.value || 0.1),
+          part: parseFloat(document.getElementById('sliderPART')?.value || 0.1),
+          abs: parseFloat(document.getElementById('sliderABS')?.value || 0.1),
+          parity: 0.3  // Fixe pour l'instant
+        },
+        maxSwaps: parseInt(document.getElementById('sliderMaxSwaps')?.value || 30),
+        runtimeSec: parseInt(document.getElementById('sliderRuntime')?.value || 180),
+        parityTolerance: parseInt(document.getElementById('sliderParity')?.value || 2),
+        // ✅ NOUVEAU : Utiliser les targets calculés automatiquement
+        targets: this.targetsByClass || this.currentConfig?.targets || {},
+        quotas: this.classOptionsConfig || {}
+      };
+
+      console.log('📊 Configuration à synchroniser:', {
+        targets: config.targets,
+        quotas: config.quotas,
+        nbQuotas: Object.keys(config.quotas).length,
+        nbTargets: Object.keys(config.targets).length
+      });
+      
+      // ===== 1. ÉCRIRE DANS _STRUCTURE (SOURCE DE VÉRITÉ UNIQUE) =====
+      console.log('📝 Écriture dans _STRUCTURE (référence)...');
+      setStreamingStatus('📝 Mise à jour de _STRUCTURE...', 'Synchronisation...');
+      
+      // ✅ ENVOI DES QUOTAS COMPLETS (avec valeurs)
+      // Format: { "6°1": { "ITA": 6, "CHAV": 10 } }
+      console.log('📊 Quotas à synchroniser dans _STRUCTURE:', config.quotas);
+
+      const structureWriteResult = await gs('setStructureOptionsFromUI', config.quotas);
+      if (!structureWriteResult.success) {
+        const errorMsg = '❌ Échec de la mise à jour de _STRUCTURE : ' + (structureWriteResult.error || 'Erreur inconnue');
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+      console.log('✅ _STRUCTURE mise à jour:', structureWriteResult.message);
+      
+      // ===== 2. ÉCRIRE DANS _OPTI_CONFIG (HISTORIQUE/BACKUP) =====
+      console.log('💾 Sauvegarde dans _OPTI_CONFIG (historique)...');
+      setStreamingStatus('💾 Sauvegarde dans _OPTI_CONFIG...', 'Synchronisation...');
+      
+      const optiSaveResult = await gs('saveOptiConfigFromUI', config);
+      if (!optiSaveResult.success) {
+        // Non bloquant, mais on log l'erreur
+        console.warn('⚠️ Échec de la sauvegarde dans _OPTI_CONFIG (non bloquant):', optiSaveResult.error);
+      } else {
+        console.log('✅ _OPTI_CONFIG sauvegardé');
+      }
+      
+      // ===== 3. CONFIRMATION =====
+      console.log('✅ Synchronisation terminée : _STRUCTURE et _OPTI_CONFIG sont alignés');
+      setStreamingStatus('✅ Configuration synchronisée', 'Prêt...');
+      
+      // Récupérer le mode depuis l'UI
+      const mode = config.mode;
+      const opts = { mode };
+      
+      console.log('🎬 Démarrage optimisation streaming, mode:', mode);
+      setStreamingStatus('🎬 Démarrage optimisation...', 'Initialisation...');
+      
+      // Nettoyer les logs précédents
+      const logsEl = document.getElementById('live-logs');
+      if (logsEl) logsEl.innerHTML = '';
+      
+      // Basculer sur l'onglet résultats
+      this.switchTab('results');
+      
+      // Construire le contexte pour les snapshots
+      const ctx = { mode, niveaux: [], quotas: {} };
+      
+      // ===== ÉTAPE 0: Ouvrir/vider/activer les onglets CACHE =====
+      setStreamingStatus('📂 Ouverture des onglets CACHE…', 'Préparation...');
+      const openInfo = await gs('openCacheTabsStream');  // SANS paramètres
+      console.log('✅ CACHE open:', openInfo);
+      if (!openInfo.ok) throw new Error(openInfo.error || 'Erreur ouverture CACHE');
+      
+      // Récupérer les niveaux depuis openInfo
+      if (openInfo.opened) {
+        ctx.niveaux = openInfo.opened.map(n => n.replace(/CACHE$/, ''));
+      }
+      
+      await tick(200);
+      await refreshLiveSnapshot(ctx);
+      
+      // ===== ÉTAPE 1: Phase 1 - Options & LV2 =====
+      setStreamingStatus('📌 Phase 1/4 — Options & LV2…', 'Phase 1/4...');
+      const p1 = await gs('phase1Stream');  // SANS paramètres
+      console.log('✅ Phase 1:', p1);
+      if (!p1.ok) throw new Error(p1.error || 'Erreur Phase 1');
+      if (p1.counts) {
+        console.log('  📊 Compteurs:', p1.counts);
+        setStreamingStatus(`✅ Phase 1: ITA=${p1.counts.ITA || 0}, CHAV=${p1.counts.CHAV || 0}`, 'Phase 1/4...');
+      }
+      await tick(200);
+      await refreshLiveSnapshot(ctx);
+      
+      // ===== ÉTAPE 2: Phase 2 - DISSO/ASSO =====
+      setStreamingStatus('📌 Phase 2/4 — Codes DISSO/ASSO…', 'Phase 2/4...');
+      const p2 = await gs('phase2Stream');  // SANS paramètres
+      console.log('✅ Phase 2:', p2);
+      if (!p2.ok) throw new Error(p2.error || 'Erreur Phase 2');
+      if (p2.disso !== undefined || p2.asso !== undefined) {
+        setStreamingStatus(`✅ Phase 2: ${p2.disso || 0} DISSO, ${p2.asso || 0} ASSO`, 'Phase 2/4...');
+      }
+      await tick(200);
+      await refreshLiveSnapshot(ctx);
+      
+      // ===== ÉTAPE 3: Phase 3 - Effectifs & Parité =====
+      setStreamingStatus('📌 Phase 3/4 — Effectifs & Parité…', 'Phase 3/4...');
+      const p3 = await gs('phase3Stream');  // SANS paramètres
+      console.log('✅ Phase 3:', p3);
+      if (!p3.ok) throw new Error(p3.error || 'Erreur Phase 3');
+      setStreamingStatus('✅ Phase 3: Effectifs équilibrés', 'Phase 3/4...');
+      await tick(200);
+      await refreshLiveSnapshot(ctx);
+      
+      // ===== ÉTAPE 4: Phase 4 - Swaps =====
+      setStreamingStatus('📌 Phase 4/4 — Swaps…', 'Phase 4/4...');
+      const p4 = await gs('phase4Stream');  // SANS paramètres
+      console.log('✅ Phase 4:', p4);
+      if (!p4.ok) throw new Error(p4.error || 'Erreur Phase 4');
+      if (p4.swaps !== undefined) {
+        console.log(`  🔄 Swaps appliqués: ${p4.swaps}`);
+        setStreamingStatus(`✅ Phase 4: ${p4.swaps} swaps appliqués`, 'Phase 4/4...');
+      }
+      await tick(200);
+      await refreshLiveSnapshot(ctx);
+      
+      // ===== ÉTAPE 5: Audit final =====
+      setStreamingStatus('🔎 Audit final…', 'Audit...');
+      const auditResult = await gs('auditStream');  // SANS paramètres
+      console.log('✅ Audit:', auditResult);
+      if (!auditResult.ok) throw new Error(auditResult.error || 'Erreur Audit');
+
+      await tick(200);
+      await refreshLiveSnapshot(ctx);
+
+      if (auditResult.audit) {
+        console.log('🔍 Audit final par classe:');
+        console.table(Object.entries(auditResult.audit).map(([cls, a]) => ({
+          classe: cls,
+          total: a.total,
+          F: a.F,
+          M: a.M,
+          lv2: Object.keys(a.LV2 || {}).map(k => `${k}=${a.LV2[k]}`).join(', ') || '—',
+          opt: Object.keys(a.OPT || {}).map(k => `${k}=${a.OPT[k]}`).join(', ') || '—'
+        })));
+      }
+
+      // ✅ NOUVEAU : Log moyennes scores
+      if (auditResult.scores) {
+        console.log('📊 Moyennes scores par classe:');
+        console.table(Object.entries(auditResult.scores).map(([cls, s]) => ({
+          classe: cls,
+          COM: s.COM,
+          TRA: s.TRA,
+          PART: s.PART,
+          ABS: s.ABS,
+          count: s.count
+        })));
+      }
+      
+      await tick(100);
+      
+      // ===== SUCCÈS =====
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`✅ OPTIMISATION TERMINÉE EN ${duration}s`);
+      
+      setStreamingStatus(`✅ Terminé en ${duration}s !`, '');
+      
+      // Toast de succès
+      if (typeof toast === 'function') {
+        toast(`✅ Optimisation réussie ! ${p4.swaps || 0} swaps en ${duration}s`, 'success');
+      }
+      
+      // Réactiver le bouton
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-broadcast-tower mr-2"></i>Lancer l\'optimisation (Live)';
+      }
+      
+      // Afficher les résultats avec les moyennes scores
+      this.displayStreamingResults({
+        p1,
+        p2,
+        p3,
+        p4,
+        audit: auditResult.audit,
+        scores: auditResult.scores,
+        duration
+      });
+      
+      // Afficher le bouton Appliquer
+      document.getElementById('btnApplyResults')?.classList.remove('hidden');
+      
+    } catch (error) {
+      console.error('❌ ERREUR pendant le streaming:', error);
+      setStreamingStatus(`❌ Erreur: ${error.message || error}`, '');
+      
+      if (typeof toast === 'function') {
+        toast(`❌ Erreur: ${error.message || error}`, 'error');
+      }
+      
+      // Réactiver le bouton
+      const btn = document.getElementById('btnRunOptimization');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-broadcast-tower mr-2"></i>Lancer l\'optimisation (Live)';
+      }
+    } finally {
+      this._running = false;
+      
+      // ⏸️ SUSPENSION DE L'AUTO-SAVE : Ne pas relancer automatiquement
+      // L'auto-save reste suspendu tant que l'utilisateur n'a pas cliqué sur "Appliquer" ou "Annuler"
+      // Cela évite que l'auto-save écrase les onglets CACHE créés par l'optimisation
+      if (autoSaveWasStopped) {
+        this.optimizationPendingApplication = true;
+        console.log('⏸️ Auto-save SUSPENDU en attente d\'application des résultats');
+        console.log('   → Cliquez sur "Appliquer" pour valider et relancer l\'auto-save');
+        console.log('   → Cliquez sur "Annuler" pour restaurer et relancer l\'auto-save');
+      }
+    }
+  },
+  
+  /**
+   * Lancer l'optimisation (ANCIEN MODE - Conservé pour compatibilité)
+   */
+  async runOptimization() {
+    // Vérifier si des données sont chargées
+    if (!this.hasData()) {
+      if (typeof toast === 'function') {
+        toast('⚠️ Veuillez d\'abord charger des données', 'warning');
+      }
+      this.switchTab('structure');
+      return;
+    }
+
+    if (this._running) {
+      return;
+    }
+    this._running = true;
+
+    const btn = document.getElementById('btnRunOptimization');
+    let failureHandled = false;
+    
+    // ✅ CORRECTION CRITIQUE : Suspendre l'auto-save pendant l'optimisation
+    console.log('⏸️ Suspension de l\'auto-save pendant l\'optimisation...');
+    let autoSaveWasStopped = false;
+    if (typeof stopAutoSave === 'function') {
+      stopAutoSave();
+      autoSaveWasStopped = true;
+      console.log('✅ Auto-save suspendu');
+    } else if (typeof stopCacheAutoSave === 'function') {
+      stopCacheAutoSave();
+      autoSaveWasStopped = true;
+      console.log('✅ Cache auto-save suspendu');
+    } else {
+      console.warn('⚠️ Aucune fonction d\'arrêt auto-save trouvée');
+    }
+
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Optimisation en cours...';
+      }
+
+      // Basculer sur l'onglet résultats
+      this.switchTab('results');
+
+      // Préparer les paramètres
+      const poidsOverride = {
+        tetesDeClasse: 3.0,
+        niveau1: 2.5,
+        distribution: 1.5,
+        com1: parseFloat(document.getElementById('sliderCOM').value),
+        tra4: parseFloat(document.getElementById('sliderTRA').value),
+        part4: parseFloat(document.getElementById('sliderPART').value),
+        garantieTete: 1000
+      };
+
+      const maxSwapsToUse = parseInt(document.getElementById('sliderMaxSwaps').value);
+
+      // Afficher le statut
+      document.getElementById('resultsContent').innerHTML = `
+        <div class="text-center py-8">
+          <i class="fas fa-spinner fa-spin text-4xl text-purple-600 mb-4"></i>
+          <p class="text-lg font-bold">Optimisation en cours...</p>
+          <p class="text-sm text-gray-600 mt-2">Analyse de ${this.getTotalStudents()} élèves</p>
+          <p class="text-sm text-gray-600">Maximum ${maxSwapsToUse} permutations</p>
+        </div>
+      `;
+
+      // Récupérer le mode de travail actuel depuis AppState
+      const workMode = (typeof AppState !== 'undefined' && AppState.selectedMode)
+        ? AppState.selectedMode
+        : 'TEST';
+
+      console.log('Mode de travail sélectionné:', workMode);
+
+      // Préparer les options pour l'orchestrateur V14I
+      const optimizationOptions = {
+        sourceFamily: workMode,                // TEST, FIN, CACHE, etc.
+        writeTarget: "CACHE",                  // Toujours écrire en CACHE
+        openTabsEachPhase: true,               // Ouverture automatique des onglets CACHE
+        parityTarget: "strict",                // ou "tolerance=2"
+        quotasFromInterface: true,             // Lire quotas/options/LV2 depuis _STRUCTURE
+        maxSwaps: maxSwapsToUse,               // Nombre max de swaps depuis le slider
+        weights: poidsOverride                 // Poids des critères
+      };
+
+      // ✅ Vérifier qu'au moins une option est configurée
+      const hasAnyOption = this.classOptionsConfig && Object.values(this.classOptionsConfig).some((quotas) => {
+        return quotas && Object.keys(quotas).length > 0;
+      });
+
+      if (!hasAnyOption) {
+        if (typeof toast === 'function') {
+          toast('⚠️ Configurez au moins une option/LV2 pour une classe.', 'warning');
+        }
+        this.switchTab('options');
+        return;
+      }
+
+      console.log('📤 Envoi des quotas vers le serveur:', JSON.stringify(this.classOptionsConfig));
+      console.log('🔍 Détail quotas:', this.classOptionsConfig);
+
+      // ✅ VÉRIFICATION CRITIQUE : Vérifier que setStructureOptionsFromUI existe
+      let structureConfigured = false;
+      try {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Timeout: setStructureOptionsFromUI n\'a pas répondu en 10s'));
+          }, 10000);
+
+          try {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run
+                .withSuccessHandler((result) => {
+                  clearTimeout(timeout);
+                  console.log('✅ setStructureOptionsFromUI succès:', result);
+                  if (result && result.success) {
+                    console.log('✅✅ Options ÉCRITES dans _STRUCTURE:', result.message);
+                    structureConfigured = true;
+                  } else {
+                    console.error('❌ setStructureOptionsFromUI a échoué:', result);
+                  }
+                  resolve();
+                })
+                .withFailureHandler((error) => {
+                  clearTimeout(timeout);
+                  console.error('❌ setStructureOptionsFromUI échec:', error);
+                  reject(error);
+                })
+                .setStructureOptionsFromUI(this.classOptionsConfig);
+            } else {
+              clearTimeout(timeout);
+              console.warn('⚠️ google.script.run non disponible (environnement dev?)');
+              resolve();
+            }
+          } catch (err) {
+            clearTimeout(timeout);
+            console.error('❌ Exception setStructureOptionsFromUI:', err);
+            reject(err);
+          }
+        });
+      } catch (error) {
+        console.error('💥 ERREUR CRITIQUE setStructureOptionsFromUI:', error);
+        if (typeof toast === 'function') {
+          toast('❌ Erreur lors de la configuration des options dans _STRUCTURE', 'error');
+        }
+        console.error('Configuration options échouée, arrêt de l\'optimisation');
+        return;
+      }
+
+      if (!structureConfigured) {
+        console.error('⚠️⚠️ WARNING: Les options n\'ont PAS été écrites dans _STRUCTURE !');
+        console.error('⚠️⚠️ Phase 1I verra des stats à 0 !');
+        if (confirm('Les options n\'ont pas pu être configurées dans _STRUCTURE.\nContinuer quand même l\'optimisation (non recommandé) ?')) {
+          console.warn('Continuation forcée malgré l\'échec de configuration');
+        } else {
+          console.log('Optimisation annulée par l\'utilisateur');
+          return;
+        }
+      }
+
+      optimizationOptions.optionsByClass = this.classOptionsConfig;
+      optimizationOptions.quotasFromInterface = true;
+
+      console.log('Options optimisation V14I:', optimizationOptions);
+
+      // Appeler l'orchestrateur V14I (Google Apps Script)
+      const self = this;
+      await new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            // ===================================================================
+            // 🔒 GESTION DU VERROU : PIPELINE OCCUPÉ
+            // ===================================================================
+            // Si le pipeline est verrouillé (une autre optimisation est en cours),
+            // afficher un message clair et réactiver le bouton
+            if (result && result.locked === true) {
+              console.warn('🔒 Pipeline verrouillé:', result.message || result.error);
+              
+              // Afficher un toast d'attente
+              if (typeof toast === 'function') {
+                toast(
+                  '⏳ Une optimisation est déjà en cours. Veuillez patienter et réessayer dans quelques instants.',
+                  'warning',
+                  5000
+                );
+              } else {
+                alert('⏳ Une optimisation est déjà en cours.\n\nUn autre utilisateur a lancé l\'optimisation.\nVeuillez patienter et réessayer dans quelques instants.');
+              }
+              
+              // Réactiver le bouton
+              if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-redo mr-2"></i>Recalculer';
+              }
+              
+              resolve();
+              return;
+            }
+            
+            // ✅ NORMALISER LA RÉPONSE (contrat serveur → contrat UI)
+            const toNumber = (value) => (typeof value === 'number' ? value : parseFloat(value));
+            const secsRaw = toNumber(result?.durationSec ?? result?.duration);
+            const secs = Number.isFinite(secsRaw) ? secsRaw : 0;
+            const nbSwaps = toNumber(result?.nbSwaps ?? result?.swaps) || 0;
+            const warnings = Array.isArray(result?.warnings)
+              ? result.warnings.map((w) => String(w))
+              : [];
+
+            const normalized = {
+              success: (result?.success !== undefined) ? !!result.success
+                     : (result?.ok !== undefined)      ? !!result.ok
+                     : true, // par défaut: succès si pas d'indicateur contraire
+              nbSwaps,
+              tempsTotalMs: toNumber(result?.tempsTotalMs ?? result?.durationMs) || Math.round(secs * 1000),
+              classesFinales: result?.classesFinales ?? result?.classes ?? null,
+              statsFinales:   result?.statsFinales   ?? result?.stats   ?? null,
+              message:        result?.message ?? result?.error ?? '',
+              warnings,
+              writeSuffix:    result?.writeSuffix ?? 'CACHE',
+              sourceSuffix:   result?.sourceSuffix ?? (workMode || 'TEST')
+            };
+
+            console.log('✅ Réponse normalisée:', normalized);
+
+            // ✅ Afficher les stats CACHE détaillées
+            if (result && result.cacheSheets && Array.isArray(result.cacheSheets)) {
+              console.log('📂 Onglets CACHE créés:', result.cacheSheets);
+            }
+
+            if (result && result.cacheStats && Array.isArray(result.cacheStats)) {
+              console.log('📊 Stats CACHE détaillées:');
+              console.table(result.cacheStats);
+            }
+
+            if (result && result.openedInfo) {
+              console.log('🔓 Onglets activés:', result.openedInfo);
+            }
+
+            if (result && result.quotasLus) {
+              console.log('📋 Quotas lus depuis _STRUCTURE:', result.quotasLus);
+            }
+
+            // ✅ Afficher l'audit de conformité par classe
+            if (result && result.cacheAudit) {
+              console.log('🔎 Audit final par classe:');
+              console.table(Object.entries(result.cacheAudit).map(([cls, a]) => ({
+                classe: cls,
+                total: a.total,
+                F: a.F,
+                M: a.M,
+                parityDelta: Math.abs(a.F - a.M),
+                fixe: a.FIXE,
+                permut: a.PERMUT,
+                libre: a.LIBRE,
+                lv2: Object.keys(a.LV2).map(k => `${k}=${a.LV2[k]}`).join(', '),
+                opt: Object.keys(a.OPT).map(k => `${k}=${a.OPT[k]}`).join(', ')
+              })));
+
+              // Afficher les violations s'il y en a
+              Object.entries(result.cacheAudit).forEach(([cls, a]) => {
+                if (a.violations.LV2.length > 0) {
+                  console.warn(`❌ ${cls} - Violations LV2 (${a.violations.LV2.length}):`, a.violations.LV2);
+                }
+                if (a.violations.OPT.length > 0) {
+                  console.warn(`❌ ${cls} - Violations OPT (${a.violations.OPT.length}):`, a.violations.OPT);
+                }
+                if (a.violations.D.length > 0) {
+                  console.warn(`❌ ${cls} - Violations D (${a.violations.D.length}):`, a.violations.D);
+                }
+                if (a.violations.A.length > 0) {
+                  console.warn(`❌ ${cls} - Violations A (${a.violations.A.length}):`, a.violations.A);
+                }
+                if (a.violations.QUOTAS && a.violations.QUOTAS.length > 0) {
+                  console.warn(`❌ ${cls} - Violations QUOTAS (${a.violations.QUOTAS.length}):`, a.violations.QUOTAS);
+                }
+              });
+            }
+
+            // ✅ Stocker le résultat complet pour affichage détaillé
+            window.lastOptimizationResult = result;
+
+            // Afficher les résultats avec l'objet normalisé
+            self.displayResults(normalized);
+
+            // Réactiver le bouton
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fas fa-redo mr-2"></i>Recalculer';
+            }
+
+            // Afficher le bouton Appliquer
+            document.getElementById('btnApplyResults')?.classList.remove('hidden');
+
+            // ✅ FORCER LE BASCULEMENT EN MODE CACHE CÔTÉ CLIENT
+            if (typeof AppState !== 'undefined') {
+              AppState.currentMode = 'CACHE';
+              AppState.selectedMode = 'CACHE'; // Alias pour compatibilité
+              console.log('✅ Mode basculé sur CACHE (résultats optimisation)');
+            }
+
+            // ✅ RECHARGER L'INTERFACE POUR AFFICHER LES ONGLETS CACHE (avec délai pour laisser Google Sheets se synchroniser)
+            if (typeof loadData === 'function') {
+              console.log('🔄 Rechargement des données depuis CACHE...');
+              setTimeout(function() {
+                loadData({ mode: 'CACHE', force: true });
+              }, 500); // Délai de 500ms pour laisser temps à Google Sheets
+            }
+
+            if (typeof toast === 'function') {
+              const statusIcon = normalized.success ? '✅' : '⚠️';
+              const cacheCount = (result && result.cacheSheets) ? result.cacheSheets.length : 0;
+              toast(`${statusIcon} Optimisation terminée ! ${normalized.nbSwaps} swaps appliqués`, normalized.success ? 'success' : 'warning');
+              toast(`📂 ${cacheCount} onglets CACHE ont été créés/mis à jour`, 'info');
+            }
+
+            // Afficher les warnings si présents
+            if (normalized.warnings && normalized.warnings.length > 0) {
+              console.warn('Warnings optimisation:', normalized.warnings);
+              if (typeof toast === 'function') {
+                normalized.warnings.forEach(w => toast('⚠️ ' + w, 'warning'));
+              }
+            }
+
+            resolve();
+          })
+          .withFailureHandler(function(error) {
+            failureHandled = true;
+            const msg = (error && error.message) ? error.message : ('' + error);
+            console.error('Erreur optimisation:', msg);
+
+            // ✅ Détection d'erreur de sérialisation
+            const hint = /Object/gi.test(msg) ? ' (objet non sérialisable ?)' : '';
+
+            if (typeof toast === 'function') {
+              toast('❌ Erreur lors de l\'optimisation: ' + msg + hint, 'error');
+            }
+
+            // ✅ Optionnel : recharger quand même en CACHE pour voir si les feuilles sont là
+            if (typeof loadData === 'function') {
+              console.log('⚠️ Échec détecté, rechargement CACHE pour vérification…');
+              loadData({ mode: 'CACHE', force: true });
+            }
+
+            // Réactiver le bouton
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fas fa-play mr-2"></i>Lancer l\'optimisation';
+            }
+
+            reject(error);
+          })
+          .runOptimizationV14FullI(optimizationOptions);
+      });
+
+    } catch (error) {
+      console.error('Erreur optimisation:', error);
+      if (!failureHandled && typeof toast === 'function') {
+        toast('❌ Erreur lors de l\'optimisation', 'error');
+      }
+    } finally {
+      this._running = false;
+      if (btn) {
+        btn.disabled = false;
+        if (btn.innerHTML.includes('Optimisation en cours')) {
+          btn.innerHTML = '<i class="fas fa-play mr-2"></i>Lancer l\'optimisation';
+        }
+      }
+      
+      // ⏸️ SUSPENSION DE L'AUTO-SAVE : Ne pas relancer automatiquement
+      // L'auto-save reste suspendu tant que l'utilisateur n'a pas cliqué sur "Appliquer" ou "Annuler"
+      // Cela évite que l'auto-save écrase les onglets CACHE créés par l'optimisation
+      if (autoSaveWasStopped) {
+        this.optimizationPendingApplication = true;
+        console.log('⏸️ Auto-save SUSPENDU en attente d\'application des résultats');
+        console.log('   → Cliquez sur "Appliquer" pour valider et relancer l\'auto-save');
+        console.log('   → Cliquez sur "Annuler" pour restaurer et relancer l\'auto-save');
+      }
+    }
+  },
+  
+  /**
+   * Récupérer le mode sélectionné (TEST ou PROD)
+   */
+  getSelectedMode() {
+    // ✅ NOUVEAU : Lire depuis le sélecteur modeSelected
+    const selector = document.getElementById('modeSelected');
+    if (selector) {
+      return selector.value;
+    }
+    
+    // Fallback : Essayer de récupérer depuis STATE
+    if (typeof STATE !== 'undefined' && STATE && STATE.workMode) {
+      return STATE.workMode === 'PROD' ? 'PROD' : 'TEST';
+    }
+    
+    // Par défaut TEST
+    return 'TEST';
+  },
+  
+  /**
+   * Afficher les résultats du streaming
+   * ✅ PANNEAU ANALYTIQUE COMPLET : Scores, Parité, Mobilité
+   */
+  displayStreamingResults(results) {
+    const { p1, p2, p3, p4, audit, scores, duration } = results;
+    const container = document.getElementById('resultsContent');
+
+    if (!container) return;
+
+    // ===== SCORE GLOBAL 0-100 =====
+    // Calcul basé sur les écarts réels : COM, TRA, PART, ABS + parité
+    let globalScore = 100;
+    let scoreDetails = [];
+    if (scores && Object.keys(scores).length > 0) {
+      const classes = Object.keys(scores);
+      const metrics = ['COM', 'TRA', 'PART', 'ABS'];
+      const thresholds = { COM: 0.30, TRA: 0.30, PART: 0.60, ABS: 0.60 };
+      metrics.forEach(m => {
+        const vals = classes.map(c => parseFloat(scores[c][m] || 0));
+        const ecart = Math.max(...vals) - Math.min(...vals);
+        const penalty = Math.min(15, Math.round((ecart / thresholds[m]) * 15));
+        globalScore -= penalty;
+        if (penalty > 5) scoreDetails.push(m + ' (-' + penalty + ')');
+      });
+    }
+    if (audit && Object.keys(audit).length > 0) {
+      const classes = Object.keys(audit);
+      let totalF = 0, totalM = 0;
+      classes.forEach(c => { totalF += audit[c].F || 0; totalM += audit[c].M || 0; });
+      const globalRatioF = totalF / (totalF + totalM);
+      let maxParityDelta = 0;
+      classes.forEach(c => {
+        const t = (audit[c].F || 0) + (audit[c].M || 0);
+        maxParityDelta = Math.max(maxParityDelta, Math.abs((audit[c].F || 0) - Math.round(t * globalRatioF)));
+      });
+      const parityPenalty = Math.min(20, maxParityDelta * 5);
+      globalScore -= parityPenalty;
+      if (parityPenalty > 5) scoreDetails.push('Parité (-' + parityPenalty + ')');
+    }
+    globalScore = Math.max(0, Math.min(100, globalScore));
+    const scoreColor = globalScore >= 80 ? 'green' : globalScore >= 60 ? 'yellow' : 'red';
+    const scoreEmoji = globalScore >= 80 ? 'A' : globalScore >= 60 ? 'B' : 'C';
+    const scoreLabel = globalScore >= 80 ? 'Excellente répartition' : globalScore >= 60 ? 'Répartition correcte' : 'Répartition à améliorer';
+
+    // ===== HEADER : Résumé succès + Score global =====
+    let html = `
+      <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="font-semibold text-green-800">
+            <i class="fas fa-check-circle mr-2"></i>Optimisation réussie en ${duration}s
+          </h4>
+          <div class="text-center">
+            <div class="text-3xl font-black text-${scoreColor}-600">${globalScore}</div>
+            <div class="text-xs font-semibold text-${scoreColor}-700">/100 — ${scoreLabel}</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div><strong>Phase 1:</strong> ITA=${p1.counts?.ITA || 0}, CHAV=${p1.counts?.CHAV || 0}</div>
+          <div><strong>Phase 2:</strong> ${p2.asso || 0} ASSO, ${p2.disso || 0} DISSO</div>
+          <div><strong>Phase 3:</strong> Effectifs équilibrés</div>
+          <div><strong>Phase 4:</strong> ${p4.swaps || 0} swaps</div>
+        </div>
+        ${scoreDetails.length > 0 ? '<div class="text-xs text-gray-500 mt-2">Points perdus : ' + scoreDetails.join(', ') + '</div>' : ''}
+      </div>
+    `;
+
+    // ===== PANNEAU ANALYTIQUE : SCORES COMPORTEMENTAUX =====
+    if (scores && Object.keys(scores).length > 0) {
+      const classes = Object.keys(scores).sort();
+      const allCOM = classes.map(cls => parseFloat(scores[cls].COM || 0));
+      const allTRA = classes.map(cls => parseFloat(scores[cls].TRA || 0));
+      const allPART = classes.map(cls => parseFloat(scores[cls].PART || 0));
+      const allABS = classes.map(cls => parseFloat(scores[cls].ABS || 0));
+      
+      const ecartCOM = Math.max(...allCOM) - Math.min(...allCOM);
+      const ecartTRA = Math.max(...allTRA) - Math.min(...allTRA);
+      const ecartPART = Math.max(...allPART) - Math.min(...allPART);
+      const ecartABS = Math.max(...allABS) - Math.min(...allABS);
+      
+      const statusCOM = ecartCOM <= 0.15 ? '✅' : ecartCOM <= 0.30 ? '⚠️' : '❌';
+      const statusTRA = ecartTRA <= 0.15 ? '✅' : ecartTRA <= 0.30 ? '⚠️' : '❌';
+      const statusPART = ecartPART <= 0.40 ? '✅' : ecartPART <= 0.60 ? '⚠️' : '❌';
+      const statusABS = ecartABS <= 0.40 ? '✅' : ecartABS <= 0.60 ? '⚠️' : '❌';
+      
+      html += `
+        <div class="bg-blue-50 border border-blue-300 rounded-lg p-4 mb-4">
+          <h4 class="font-semibold text-blue-900 mb-3">
+            <i class="fas fa-chart-bar mr-2"></i>📊 ÉQUILIBRE DES SCORES COMPORTEMENTAUX
+          </h4>
+          
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm border-collapse">
+              <thead>
+                <tr class="bg-blue-100">
+                  <th class="border border-blue-300 px-3 py-2 text-left font-semibold">Classe</th>
+                  <th class="border border-blue-300 px-3 py-2 text-center font-semibold">COM</th>
+                  <th class="border border-blue-300 px-3 py-2 text-center font-semibold">TRA</th>
+                  <th class="border border-blue-300 px-3 py-2 text-center font-semibold">PART</th>
+                  <th class="border border-blue-300 px-3 py-2 text-center font-semibold">ABS</th>
+                  <th class="border border-blue-300 px-3 py-2 text-center font-semibold">Effectif</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+      
+      classes.forEach(cls => {
+        const s = scores[cls];
+        html += `
+          <tr class="hover:bg-blue-50">
+            <td class="border border-blue-200 px-3 py-2 font-medium">${cls}</td>
+            <td class="border border-blue-200 px-3 py-2 text-center">${s.COM}</td>
+            <td class="border border-blue-200 px-3 py-2 text-center">${s.TRA}</td>
+            <td class="border border-blue-200 px-3 py-2 text-center">${s.PART}</td>
+            <td class="border border-blue-200 px-3 py-2 text-center">${s.ABS}</td>
+            <td class="border border-blue-200 px-3 py-2 text-center text-gray-600">${s.count} élèves</td>
+          </tr>
+        `;
+      });
+      
+      html += `
+              </tbody>
+              <tfoot>
+                <tr class="bg-blue-100 font-semibold">
+                  <td class="border border-blue-300 px-3 py-2">ÉCART</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center">${ecartCOM.toFixed(2)}</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center">${ecartTRA.toFixed(2)}</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center">${ecartPART.toFixed(2)}</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center">${ecartABS.toFixed(2)}</td>
+                  <td class="border border-blue-300 px-3 py-2"></td>
+                </tr>
+                <tr class="bg-blue-100 font-semibold">
+                  <td class="border border-blue-300 px-3 py-2">STATUT</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center text-lg">${statusCOM}</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center text-lg">${statusTRA}</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center text-lg">${statusPART}</td>
+                  <td class="border border-blue-300 px-3 py-2 text-center text-lg">${statusABS}</td>
+                  <td class="border border-blue-300 px-3 py-2"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div class="mt-3 text-xs space-y-1">
+            <div class="font-semibold text-blue-900">🎯 QUALITÉ :</div>
+            <div>${statusCOM} <strong>COM :</strong> Écart de ${ecartCOM.toFixed(2)} ${ecartCOM <= 0.15 ? '(très homogène)' : ecartCOM <= 0.30 ? '(acceptable)' : '(à améliorer)'}</div>
+            <div>${statusTRA} <strong>TRA :</strong> Écart de ${ecartTRA.toFixed(2)} ${ecartTRA <= 0.15 ? '(très homogène)' : ecartTRA <= 0.30 ? '(acceptable)' : '(à améliorer)'}</div>
+            <div>${statusPART} <strong>PART :</strong> Écart de ${ecartPART.toFixed(2)} ${ecartPART <= 0.40 ? '(acceptable)' : '(à améliorer)'}</div>
+            <div>${statusABS} <strong>ABS :</strong> Écart de ${ecartABS.toFixed(2)} ${ecartABS <= 0.40 ? '(acceptable)' : '(à améliorer)'}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ===== PANNEAU ANALYTIQUE : PARITÉ F/M (AVEC CIBLES ADAPTATIVES) =====
+    if (audit && Object.keys(audit).length > 0) {
+      const classes = Object.keys(audit).sort();
+      let totalF = 0, totalM = 0;
+      
+      classes.forEach(cls => {
+        totalF += audit[cls].F || 0;
+        totalM += audit[cls].M || 0;
+      });
+      
+      const ratioF = totalF + totalM > 0 ? (totalF / (totalF + totalM) * 100).toFixed(1) : 50;
+      const ratioM = totalF + totalM > 0 ? (totalM / (totalF + totalM) * 100).toFixed(1) : 50;
+      
+      // ✅ CORRECTION : Calculer les cibles adaptatives (comme Phase 4)
+      const globalRatioF = totalF / (totalF + totalM);
+      const parityTargets = {};
+      classes.forEach(cls => {
+        const total = (audit[cls].F || 0) + (audit[cls].M || 0);
+        parityTargets[cls] = {
+          targetF: Math.round(total * globalRatioF),
+          targetM: Math.round(total * (1 - globalRatioF))
+        };
+      });
+      
+      html += `
+        <div class="bg-purple-50 border border-purple-300 rounded-lg p-4 mb-4">
+          <h4 class="font-semibold text-purple-900 mb-3">
+            <i class="fas fa-venus-mars mr-2"></i>🚻 PARITÉ F/M (Cibles Adaptatives)
+          </h4>
+          
+          <div class="text-xs mb-2 text-purple-700">
+            <strong>Ratio global :</strong> ${ratioF}% F / ${ratioM}% M
+            <span class="ml-2">→ Chaque classe vise ce ratio proportionnellement</span>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm border-collapse">
+              <thead>
+                <tr class="bg-purple-100">
+                  <th class="border border-purple-300 px-3 py-2 text-left font-semibold">Classe</th>
+                  <th class="border border-purple-300 px-3 py-2 text-center font-semibold">F (Cible)</th>
+                  <th class="border border-purple-300 px-3 py-2 text-center font-semibold">M (Cible)</th>
+                  <th class="border border-purple-300 px-3 py-2 text-center font-semibold">Δ vs Cible</th>
+                  <th class="border border-purple-300 px-3 py-2 text-center font-semibold">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+      
+      let maxEcartVsCible = 0;
+      classes.forEach(cls => {
+        const a = audit[cls];
+        const realF = a.F || 0;
+        const realM = a.M || 0;
+        const targetF = parityTargets[cls].targetF;
+        const targetM = parityTargets[cls].targetM;
+        
+        // ✅ Écart par rapport à la CIBLE (pas 50/50)
+        const deltaVsCible = (realF - targetF) + (targetM - realM);
+        const ecartVsCible = Math.abs(deltaVsCible);
+        maxEcartVsCible = Math.max(maxEcartVsCible, ecartVsCible);
+        
+        // Statut basé sur l'écart à la cible
+        const status = ecartVsCible <= 2 ? '✅' : ecartVsCible <= 4 ? '⚠️' : '❌';
+        const deltaStr = deltaVsCible > 0 ? `+${deltaVsCible}` : deltaVsCible;
+        
+        html += `
+          <tr class="hover:bg-purple-50">
+            <td class="border border-purple-200 px-3 py-2 font-medium">${cls}</td>
+            <td class="border border-purple-200 px-3 py-2 text-center">${realF} <span class="text-xs text-gray-500">(${targetF})</span></td>
+            <td class="border border-purple-200 px-3 py-2 text-center">${realM} <span class="text-xs text-gray-500">(${targetM})</span></td>
+            <td class="border border-purple-200 px-3 py-2 text-center font-semibold">${deltaStr}</td>
+            <td class="border border-purple-200 px-3 py-2 text-center text-lg">${status}</td>
+          </tr>
+        `;
+      });
+      
+      html += `
+              </tbody>
+              <tfoot>
+                <tr class="bg-purple-100 font-semibold">
+                  <td class="border border-purple-300 px-3 py-2">TOTAL</td>
+                  <td class="border border-purple-300 px-3 py-2 text-center">${totalF}</td>
+                  <td class="border border-purple-300 px-3 py-2 text-center">${totalM}</td>
+                  <td class="border border-purple-300 px-3 py-2 text-center">+${totalF - totalM}</td>
+                  <td class="border border-purple-300 px-3 py-2"></td>
+                </tr>
+                <tr class="bg-purple-100 font-semibold">
+                  <td class="border border-purple-300 px-3 py-2">RATIO</td>
+                  <td class="border border-purple-300 px-3 py-2 text-center">${ratioF}%</td>
+                  <td class="border border-purple-300 px-3 py-2 text-center">${ratioM}%</td>
+                  <td class="border border-purple-300 px-3 py-2"></td>
+                  <td class="border border-purple-300 px-3 py-2"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div class="mt-3 text-xs space-y-1">
+            <div class="font-semibold text-purple-900">🎯 QUALITÉ (vs Cibles Adaptatives) :</div>
+            <div>${maxEcartVsCible <= 2 ? '✅' : maxEcartVsCible <= 4 ? '⚠️' : '❌'} Écart maximum vs cible : ${maxEcartVsCible} ${maxEcartVsCible <= 2 ? '(excellent)' : maxEcartVsCible <= 4 ? '(acceptable)' : '(à améliorer)'}</div>
+            <div>${maxEcartVsCible <= 4 ? '✅' : '❌'} Répartition équitable ${maxEcartVsCible <= 4 ? '(toutes les classes respectent le ratio global)' : '(déséquilibre détecté)'}</div>
+            <div class="text-purple-600 mt-2">
+              <i class="fas fa-info-circle mr-1"></i>
+              <strong>Note :</strong> Les cibles sont calculées selon le ratio global (${ratioF}% F / ${ratioM}% M), 
+              pas un 50/50 artificiel. Cela évite les classes "poubelle".
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ===== PANNEAU ANALYTIQUE : MOBILITÉ =====
+    if (audit && Object.keys(audit).length > 0) {
+      const classes = Object.keys(audit).sort();
+      
+      html += `
+        <div class="bg-orange-50 border border-orange-300 rounded-lg p-4 mb-4">
+          <h4 class="font-semibold text-orange-900 mb-3">
+            <i class="fas fa-exchange-alt mr-2"></i>🔄 MOBILITÉ DES ÉLÈVES
+          </h4>
+          
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm border-collapse">
+              <thead>
+                <tr class="bg-orange-100">
+                  <th class="border border-orange-300 px-3 py-2 text-left font-semibold">Classe</th>
+                  <th class="border border-orange-300 px-3 py-2 text-center font-semibold">FIXE</th>
+                  <th class="border border-orange-300 px-3 py-2 text-center font-semibold">PERMUT</th>
+                  <th class="border border-orange-300 px-3 py-2 text-center font-semibold">LIBRE</th>
+                  <th class="border border-orange-300 px-3 py-2 text-center font-semibold">% Mobile</th>
+                  <th class="border border-orange-300 px-3 py-2 text-center font-semibold">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+      
+      classes.forEach(cls => {
+        const a = audit[cls];
+        const fixe = a.FIXE || 0;
+        const permut = a.PERMUT || 0;
+        const libre = a.LIBRE || 0;
+        const total = fixe + permut + libre;
+        const pctMobile = total > 0 ? ((permut + libre) / total * 100).toFixed(0) : 0;
+        const status = pctMobile >= 90 ? '✅' : pctMobile >= 70 ? '⚠️' : '❌';
+        
+        html += `
+          <tr class="hover:bg-orange-50">
+            <td class="border border-orange-200 px-3 py-2 font-medium">${cls}</td>
+            <td class="border border-orange-200 px-3 py-2 text-center">${fixe}</td>
+            <td class="border border-orange-200 px-3 py-2 text-center">${permut}</td>
+            <td class="border border-orange-200 px-3 py-2 text-center">${libre}</td>
+            <td class="border border-orange-200 px-3 py-2 text-center font-semibold">${pctMobile}%</td>
+            <td class="border border-orange-200 px-3 py-2 text-center text-lg">${status}</td>
+          </tr>
+        `;
+      });
+      
+      html += `
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="mt-3 text-xs text-orange-900">
+            <div class="font-semibold">⚠️ ATTENTION :</div>
+            <div>Les classes avec beaucoup d'élèves FIXE (quotas LV2/OPT) sont plus difficiles à optimiser.</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ===== DÉTAILS PAR CLASSE (LV2/OPT) =====
+    if (audit) {
+      html += '<div class="space-y-2">';
+      const allClasses = Object.keys(audit).sort();
+
+      allClasses.forEach(cls => {
+        const a = audit[cls];
+        const violations = [
+          ...(a.violations?.QUOTAS || []),
+          ...(a.violations?.A || [])
+        ];
+        const hasViolations = violations.length > 0;
+
+        html += `
+          <div class="border rounded p-3 ${hasViolations ? 'border-red-300 bg-red-50' : 'border-gray-200'}">
+            <div class="font-semibold">${cls} (${a.total} élèves)</div>
+            <div class="text-sm text-gray-600">
+              LV2: ${Object.keys(a.LV2 || {}).map(k => `${k}=${a.LV2[k]}`).join(', ') || '—'} |
+              OPT: ${Object.keys(a.OPT || {}).map(k => `${k}=${a.OPT[k]}`).join(', ') || '—'}
+            </div>
+            ${hasViolations ? `<div class="text-xs text-red-700 mt-1">⚠️ ${violations.join(', ')}</div>` : ''}
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  },
+  
+  /**
+   * Afficher les résultats (ANCIEN MODE)
+   */
+  displayResults(result) {
+    const container = document.getElementById('resultsContent');
+
+    if (!result.success) {
+      const messageFromWarnings = Array.isArray(result.warnings) && result.warnings.length
+        ? result.warnings.join(' · ')
+        : null;
+      const failureMessage = result.message || messageFromWarnings ||
+        'Le serveur a signalé un échec sans message. Vérifiez la feuille CACHE et la console.';
+      container.innerHTML = `
+        <div class="bg-red-50 p-4 rounded">
+          <h4 class="font-bold text-red-700 mb-2">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Échec de l'optimisation
+          </h4>
+          <p class="text-sm">${failureMessage}</p>
+        </div>
+      `;
+      return;
+    }
+
+    const stats = result.statsFinales || {};
+    const nbSwaps = result.nbSwaps || 0;
+    const src = result.sourceSuffix || 'TEST';
+    const dst = result.writeSuffix || 'CACHE';
+
+    // ✅ Construire le diagnostic CACHE
+    let cacheDiagnostic = '';
+    if (window.lastOptimizationResult && window.lastOptimizationResult.cacheStats && window.lastOptimizationResult.cacheStats.length) {
+      const cacheRows = window.lastOptimizationResult.cacheStats.map(s =>
+        `<div class="text-xs"><b>${s.sheet}</b>: ${s.rows} lignes, ${s.cols} colonnes</div>`
+      ).join('');
+      cacheDiagnostic = `
+        <div class="mt-3 text-xs bg-slate-50 border rounded p-3">
+          <div class="font-bold mb-1">📊 Onglets CACHE écrits:</div>
+          ${cacheRows}
+        </div>
+      `;
+    }
+
+    // ✅ Construire le résumé de l'audit de conformité
+    let auditSummary = '';
+    if (window.lastOptimizationResult && window.lastOptimizationResult.cacheAudit) {
+      const audit = window.lastOptimizationResult.cacheAudit;
+      const violations = [];
+      let totalViolations = 0;
+
+      Object.entries(audit).forEach(([cls, a]) => {
+        const vLV2 = a.violations.LV2.length;
+        const vOPT = a.violations.OPT.length;
+        const vD = a.violations.D.length;
+        const vA = a.violations.A.length;
+        const vTotal = vLV2 + vOPT + vD + vA;
+        totalViolations += vTotal;
+
+        if (vTotal > 0) {
+          violations.push(`<div class="text-xs text-red-600">
+            <b>${cls}</b>: ${vLV2 ? `LV2(${vLV2})` : ''} ${vOPT ? `OPT(${vOPT})` : ''} ${vD ? `D(${vD})` : ''} ${vA ? `A(${vA})` : ''}
+          </div>`);
+        }
+      });
+
+      if (totalViolations > 0) {
+        auditSummary = `
+          <div class="mt-3 text-xs bg-red-50 border border-red-200 rounded p-3">
+            <div class="font-bold mb-1 text-red-700">⚠️ Violations détectées (${totalViolations} total):</div>
+            ${violations.join('')}
+            <div class="mt-2 text-xs text-gray-600">Consultez la console pour les détails</div>
+          </div>
+        `;
+      } else {
+        auditSummary = `
+          <div class="mt-3 text-xs bg-green-50 border border-green-200 rounded p-3">
+            <div class="font-bold text-green-700">✅ Aucune violation - Structure respectée</div>
+          </div>
+        `;
+      }
+    }
+
+    container.innerHTML = `
+      <div class="space-y-4">
+        <!-- Résumé -->
+        <div class="bg-green-50 p-4 rounded">
+          <h4 class="font-bold text-green-700 mb-2">
+            <i class="fas fa-check-circle mr-2"></i>Optimisation réussie !
+          </h4>
+          <p class="text-sm"><strong>${nbSwaps}</strong> permutations effectuées</p>
+          <p class="text-sm">Temps d'exécution : <strong>${(result.tempsTotalMs / 1000).toFixed(2)}s</strong></p>
+          <p class="text-xs text-gray-600 mt-1">Source : <b>${src}</b> → Écriture : <b>${dst}</b></p>
+          ${cacheDiagnostic}
+        </div>
+        
+        <!-- Statistiques -->
+        <div class="bg-white border rounded p-4">
+          <h4 class="font-bold mb-3">📊 Équilibre des classes</h4>
+          
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Têtes de classe (COM=4, TRA=4, PART=4)</span>
+              <span class="font-bold">${stats.tetesDeClasse?.ecartType?.toFixed(2) || 'N/A'}</span>
+            </div>
+            
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Élèves en difficulté (niveau 1)</span>
+              <span class="font-bold">${stats.niveau1?.ecartType?.toFixed(2) || 'N/A'}</span>
+            </div>
+            
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Distribution globale</span>
+              <span class="font-bold">${stats.distribution?.ecartMoyen?.toFixed(2) || 'N/A'}</span>
+            </div>
+          </div>
+          
+          <p class="text-xs text-gray-600 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>Plus l'écart-type est faible, plus les classes sont équilibrées
+          </p>
+        </div>
+        
+        <!-- Répartition par classe -->
+        ${this.generateClassBreakdown(result.classesFinales)}
+      </div>
+    `;
+  },
+  
+  /**
+   * Générer la répartition par classe
+   */
+  generateClassBreakdown(classesFinales) {
+    if (!classesFinales) return '';
+    
+    const classes = Object.keys(classesFinales).sort();
+    
+    return `
+      <div class="bg-white border rounded p-4">
+        <h4 class="font-bold mb-3">📋 Répartition par classe</h4>
+        <div class="space-y-2">
+          ${classes.map(classe => {
+            const eleves = classesFinales[classe] || [];
+            const nbF = eleves.filter(e => e.sexe === 'F').length;
+            const nbM = eleves.filter(e => e.sexe === 'M').length;
+            
+            return `
+              <div class="flex justify-between items-center text-sm">
+                <span class="font-bold">${classe}</span>
+                <span>${eleves.length} élèves (${nbF}F / ${nbM}M)</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  },
+  
+  /**
+   * Appliquer les résultats
+   */
+  async applyResults() {
+    if (confirm('Voulez-vous appliquer ces résultats et mettre à jour les classes ?')) {
+      try {
+        if (typeof toast === 'function') {
+          toast('💾 Application des résultats en cours...', 'info');
+        }
+
+        // Fermer le panneau d'optimisation
+        this.close();
+
+        // ✅ CORRECTION CRITIQUE : Vider le cache navigateur pour éviter les collisions
+        console.log('🧹 Vidage du cache navigateur...');
+        
+        // 1. Vider le localStorage des données de disposition
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('disposition') || key.includes('cache-data') || key.includes('eleves-'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => {
+          console.log('  🗑️ Suppression cache:', key);
+          localStorage.removeItem(key);
+        });
+        
+        // 2. Mettre à jour le sélecteur de mode dans localStorage
+        localStorage.setItem('mode-selection', 'CACHE');
+        console.log('  ✅ Mode CACHE défini dans localStorage');
+        
+        // 3. Mettre à jour visuellement le sélecteur de mode (si présent)
+        const modeSelector = document.getElementById('mode-selector');
+        if (modeSelector) {
+          modeSelector.value = 'CACHE';
+          console.log('  ✅ Sélecteur visuel mis à jour');
+        }
+        
+        // 4. Mettre à jour STATE.currentMode et le badge
+        if (typeof STATE !== 'undefined') {
+          STATE.currentMode = 'CACHE';
+          console.log('  ✅ STATE.currentMode = CACHE');
+        }
+        if (typeof showModeBadge === 'function') {
+          showModeBadge('CACHE');
+          console.log('  ✅ Badge de mode mis à jour');
+        }
+        
+        // 5. Attendre un peu pour que le cache soit bien vidé
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 5. Recharger l'interface avec les données CACHE DEPUIS LE SERVEUR
+        console.log('📂 Rechargement COMPLET depuis le serveur...');
+        
+        if (typeof loadDataForMode === 'function') {
+          console.log('  📡 Appel loadDataForMode(CACHE)...');
+          await loadDataForMode('CACHE');
+          
+          if (typeof toast === 'function') {
+            toast('✅ Résultats appliqués ! Onglets CACHE ouverts.', 'success');
+          }
+        } else if (typeof loadData === 'function') {
+          // Fallback si loadDataForMode n'existe pas
+          console.log('  📡 Appel loadData (fallback)...');
+          loadData({ mode: 'CACHE', force: true });
+          
+          if (typeof toast === 'function') {
+            toast('✅ Résultats appliqués ! Rechargement en cours...', 'success');
+          }
+        } else {
+          console.warn('⚠️ Aucune fonction de chargement disponible');
+          if (typeof toast === 'function') {
+            toast('⚠️ Veuillez recharger manuellement l\'interface', 'warning');
+          }
+        }
+        
+        // ✅ RELANCER L'AUTO-SAVE après application des résultats
+        this.optimizationPendingApplication = false;
+        console.log('▶️ Relance de l\'auto-save dans 30 secondes (temps de stabilisation)...');
+        setTimeout(function() {
+          if (typeof startAutoSave === 'function') {
+            startAutoSave();
+            console.log('✅ Auto-save relancé après application');
+          } else if (typeof startCacheAutoSave === 'function') {
+            startCacheAutoSave();
+            console.log('✅ Cache auto-save relancé après application');
+          }
+        }, 30000); // 30 secondes pour laisser le temps au rechargement complet
+
+      } catch (error) {
+        console.error('Erreur application résultats:', error);
+        if (typeof toast === 'function') {
+          toast('❌ Erreur lors de l\'application des résultats', 'error');
+        }
+      }
+    }
+  },
+  
+  /**
+   * Annuler et restaurer l'état initial
+   */
+  cancel() {
+    if (confirm('Voulez-vous annuler l\'optimisation et restaurer l\'état initial ?')) {
+      if (this.initialState) {
+        this.importState(this.initialState);
+      }
+      
+      // ✅ RELANCER L'AUTO-SAVE après annulation
+      if (this.optimizationPendingApplication) {
+        this.optimizationPendingApplication = false;
+        console.log('▶️ Relance de l\'auto-save dans 5 secondes (après annulation)...');
+        setTimeout(function() {
+          if (typeof startAutoSave === 'function') {
+            startAutoSave();
+            console.log('✅ Auto-save relancé après annulation');
+          } else if (typeof startCacheAutoSave === 'function') {
+            startCacheAutoSave();
+            console.log('✅ Cache auto-save relancé après annulation');
+          }
+        }, 5000); // 5 secondes (pas de rechargement serveur)
+      }
+      
+      this.close();
+    }
+  },
+  
+  /**
+   * Afficher un indicateur de chargement
+   */
+  showLoading(message) {
+    // Implémenter si nécessaire
+  },
+  
+  /**
+   * Masquer l'indicateur de chargement
+   */
+  hideLoading() {
+    // Implémenter si nécessaire
+  }
+};
+
+// Exposer globalement
+window.OptimizationPanel = OptimizationPanel;
+
+console.log('✅ Module OptimizationPanel chargé');
+
+})(); // Fin du DOM Environment Guard IIFE
+</script>
+
+<style>
+/* Styles pour le panneau d'optimisation */
+.tab-btn {
+  padding: 0.5rem 1rem;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #64748b;
+}
+
+.tab-btn.active {
+  border-bottom-color: #7c3aed;
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.tab-btn:hover {
+  color: #7c3aed;
+}
+
+/* Switch toggle */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #7c3aed;
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+/* Sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #7c3aed;
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #7c3aed;
+  cursor: pointer;
+  border: none;
+}
+
+/* Mode sombre */
+body.dark-mode #optimizationPanel {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+body.dark-mode .tab-btn {
+  color: #94a3b8;
+}
+
+body.dark-mode .tab-btn.active {
+  color: #a78bfa;
+  border-bottom-color: #a78bfa;
+}
+</style>

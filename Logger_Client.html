@@ -1,0 +1,305 @@
+<!--
+  ===================================================================
+  LOGGER CLIENT-SIDE - Pour fichiers HTML
+  ===================================================================
+
+  À inclure via: <?!= HtmlService.createHtmlOutputFromFile('Logger_Client').getContent(); ?>
+
+  Usage dans les scripts HTML:
+    LoggerClient.debug('User clicked button', { buttonId: 'btn-save' });
+    LoggerClient.info('Data loaded', { rows: 150 });
+    LoggerClient.warn('Slow operation', { duration: 3000 });
+    LoggerClient.error('Failed to save', error);
+
+  Configuration:
+    LoggerClient.setLevel(LoggerClient.LEVELS.INFO); // Production
+    LoggerClient.enableProduction(); // Mode production
+    LoggerClient.enableDevelopment(); // Mode development
+-->
+
+<script>
+(function() {
+  'use strict';
+
+  // ===================================================================
+  // LOGGER CLIENT (compatible navigateur)
+  // ===================================================================
+
+  window.LoggerClient = (function() {
+    // Niveaux de log
+    var LEVELS = {
+      TRACE: 0,
+      DEBUG: 1,
+      INFO: 2,
+      WARN: 3,
+      ERROR: 4
+    };
+
+    var LEVEL_NAMES = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR'];
+    var LEVEL_COLORS = {
+      0: '#9E9E9E', // TRACE: gris
+      1: '#2196F3', // DEBUG: bleu
+      2: '#4CAF50', // INFO: vert
+      3: '#FF9800', // WARN: orange
+      4: '#F44336'  // ERROR: rouge
+    };
+
+    // Configuration par défaut
+    var config = {
+      currentLevel: LEVELS.INFO,
+      enableConsole: true,
+      enableServerLog: true,      // Envoyer vers Logger.js server-side
+      enablePerformance: true,
+      timestampFormat: 'ISO',
+      colorize: true,
+      maxDataSize: 1000           // Limite de taille pour les objets (caractères)
+    };
+
+    // ===================================================================
+    // UTILITIES
+    // ===================================================================
+
+    function formatTimestamp() {
+      var now = new Date();
+      if (config.timestampFormat === 'ISO') {
+        return now.toISOString();
+      }
+      return now.toLocaleString('fr-FR');
+    }
+
+    function safeStringify(obj, maxDepth) {
+      maxDepth = maxDepth || 3;
+      try {
+        var seen = [];
+        return JSON.stringify(obj, function(key, value) {
+          if (typeof value === 'object' && value !== null) {
+            if (seen.indexOf(value) !== -1) return '[Circular]';
+            seen.push(value);
+          }
+          return value;
+        }, 2);
+      } catch (e) {
+        return '[Serialization Error]';
+      }
+    }
+
+    function truncate(str, maxLength) {
+      maxLength = maxLength || config.maxDataSize;
+      if (str.length <= maxLength) return str;
+      return str.substring(0, maxLength) + '... [truncated]';
+    }
+
+    // ===================================================================
+    // OUTPUTS
+    // ===================================================================
+
+    function logToConsole(level, message, data, error) {
+      if (!config.enableConsole) return;
+
+      var timestamp = formatTimestamp();
+      var levelName = LEVEL_NAMES[level];
+
+      // Choisir la méthode console appropriée
+      var consoleMethod = console.log;
+      if (level === LEVELS.ERROR && console.error) consoleMethod = console.error;
+      else if (level === LEVELS.WARN && console.warn) consoleMethod = console.warn;
+      else if (level === LEVELS.INFO && console.info) consoleMethod = console.info;
+      else if (level === LEVELS.DEBUG && console.debug) consoleMethod = console.debug;
+
+      // Format coloré
+      if (config.colorize && consoleMethod === console.log) {
+        var color = LEVEL_COLORS[level];
+        consoleMethod(
+          '%c[' + timestamp + '] [' + levelName + '] ' + message,
+          'color: ' + color + '; font-weight: bold'
+        );
+      } else {
+        consoleMethod('[' + timestamp + '] [' + levelName + '] ' + message);
+      }
+
+      // Afficher les données
+      if (data) {
+        console.log('  └─ Data:', data);
+      }
+
+      // Afficher l'erreur
+      if (error) {
+        console.error('  └─ Error:', error);
+      }
+    }
+
+    function logToServer(level, message, data, error) {
+      if (!config.enableServerLog) return;
+      if (level < LEVELS.WARN) return; // Seulement WARN et ERROR vers serveur
+
+      try {
+        // Envoyer vers Apps Script Logger.js
+        var payload = {
+          timestamp: new Date().toISOString(),
+          level: LEVEL_NAMES[level],
+          message: message,
+          data: data ? truncate(safeStringify(data), 500) : null,
+          error: error ? truncate(String(error.message || error), 500) : null,
+          userAgent: navigator.userAgent,
+          url: window.location.href
+        };
+
+        // Appel asynchrone non-bloquant
+        google.script.run
+          .withFailureHandler(function(err) {
+            console.warn('LoggerClient: Failed to send to server', err);
+          })
+          .logFromClient(payload);
+      } catch (e) {
+        // Fallback silencieux
+      }
+    }
+
+    // ===================================================================
+    // API PRINCIPALE
+    // ===================================================================
+
+    function log(level, message, dataOrError, error) {
+      if (level < config.currentLevel) return;
+
+      var data = null;
+      var err = null;
+
+      if (dataOrError instanceof Error) {
+        err = dataOrError;
+      } else if (dataOrError && typeof dataOrError === 'object') {
+        data = dataOrError;
+      }
+
+      if (error instanceof Error) {
+        err = error;
+      }
+
+      logToConsole(level, message, data, err);
+      logToServer(level, message, data, err);
+    }
+
+    // ===================================================================
+    // API PUBLIQUE
+    // ===================================================================
+
+    return {
+      LEVELS: LEVELS,
+
+      trace: function(message, data, error) {
+        log(LEVELS.TRACE, message, data, error);
+      },
+
+      debug: function(message, data, error) {
+        log(LEVELS.DEBUG, message, data, error);
+      },
+
+      info: function(message, data, error) {
+        log(LEVELS.INFO, message, data, error);
+      },
+
+      warn: function(message, data, error) {
+        log(LEVELS.WARN, message, data, error);
+      },
+
+      error: function(message, data, error) {
+        log(LEVELS.ERROR, message, data, error);
+      },
+
+      setLevel: function(level) {
+        if (typeof level === 'number' && level >= 0 && level <= 4) {
+          config.currentLevel = level;
+        }
+      },
+
+      getLevel: function() {
+        return config.currentLevel;
+      },
+
+      setConfig: function(newConfig) {
+        for (var key in newConfig) {
+          if (config.hasOwnProperty(key)) {
+            config[key] = newConfig[key];
+          }
+        }
+      },
+
+      enableProduction: function() {
+        this.setLevel(LEVELS.INFO);
+        config.enableServerLog = true;
+        this.info('LoggerClient: Production mode enabled');
+      },
+
+      enableDevelopment: function() {
+        this.setLevel(LEVELS.DEBUG);
+        config.enableServerLog = false;
+        this.info('LoggerClient: Development mode enabled');
+      },
+
+      startTimer: function(label) {
+        if (!config.enablePerformance) return { end: function() {} };
+        var start = performance.now();
+        return {
+          end: function(message) {
+            var duration = (performance.now() - start).toFixed(2);
+            LoggerClient.info(message || label + ' completed', { duration: duration + 'ms' });
+            return parseFloat(duration);
+          }
+        };
+      },
+
+      // Groupe de logs
+      group: function(label) {
+        if (console.group) console.group(label);
+      },
+
+      groupEnd: function() {
+        if (console.groupEnd) console.groupEnd();
+      }
+    };
+  })();
+
+  // ===================================================================
+  // AUTO-CONFIGURATION
+  // ===================================================================
+
+  // Détecter l'environnement via URL
+  var isDevelopment = window.location.hostname === 'localhost' ||
+                      window.location.hostname.includes('script.google.com');
+
+  if (isDevelopment) {
+    LoggerClient.enableDevelopment();
+  } else {
+    LoggerClient.enableProduction();
+  }
+
+  // ===================================================================
+  // GLOBAL ERROR HANDLER
+  // ===================================================================
+
+  window.addEventListener('error', function(event) {
+    LoggerClient.error('Uncaught error', {
+      message: event.message,
+      filename: event.filename,
+      line: event.lineno,
+      column: event.colno
+    }, event.error);
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    LoggerClient.error('Unhandled promise rejection', {
+      reason: event.reason
+    });
+  });
+
+})();
+</script>
+
+<style>
+/* Style pour les logs dans la console (optionnel) */
+.logger-message {
+  font-family: 'Courier New', monospace;
+  padding: 4px;
+  border-left: 3px solid #2196F3;
+}
+</style>
