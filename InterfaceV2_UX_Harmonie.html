@@ -1,0 +1,435 @@
+<script>
+/**
+ * MODULE UX HARMONIE - Experience enseignant en reunion
+ *
+ * R1  - Bouton Swap permanent + bandeau contextuel
+ * R4  - Messages d'erreur humanises
+ * R5  - Preview What-If avant swap
+ * R6  - Mode Reunion
+ * R10 - Tooltips contextuels sur badges
+ *
+ * Aucune ligne supplementaire quand inactif. Zero pixel perdu.
+ */
+(function() {
+  'use strict';
+  if (typeof document === 'undefined') return;
+
+  // ═══════════════════════════════════════════════════
+  // SCORE D'HARMONIE (calcul pur, pas d'UI)
+  // Utilise dans le preview what-if et le toast post-swap
+  // ═══════════════════════════════════════════════════
+
+  function computeHarmonieScore() {
+    if (typeof STATE === 'undefined' || !STATE.students) {
+      return { score: 0, parite: 0, scores: 0, lv2: 0, contraintes: 100 };
+    }
+    const classes = {};
+    document.querySelectorAll('.droppable-zone').forEach(function(zone) {
+      const cn = zone.dataset.classe;
+      if (!cn) return;
+      const arr = [];
+      zone.querySelectorAll('.student-card').forEach(function(card) {
+        var s = STATE.students[card.dataset.id];
+        if (s) arr.push(s);
+      });
+      if (arr.length > 0) classes[cn] = arr;
+    });
+    var names = Object.keys(classes);
+    if (names.length < 2) return { score: 0, parite: 0, scores: 0, lv2: 0, contraintes: 100 };
+
+    // Parite F/M
+    var ratios = names.map(function(cn) {
+      var s = classes[cn], f = s.filter(function(e){ return e.sexe === 'F'; }).length;
+      return s.length > 0 ? f / s.length : 0.5;
+    });
+    var avg = ratios.reduce(function(a,b){ return a+b; }, 0) / ratios.length;
+    var pVar = ratios.reduce(function(sum,r){ return sum + Math.pow(r-avg,2); }, 0) / ratios.length;
+    var pariteScore = Math.max(0, Math.round(100 * (1 - pVar / 0.05)));
+
+    // Scores COM
+    var comAvgs = names.map(function(cn) {
+      var with_ = classes[cn].filter(function(e){ return e.scores && e.scores.COM != null; });
+      if (!with_.length) return 2.5;
+      return with_.reduce(function(s,e){ return s + parseFloat(e.scores.COM); }, 0) / with_.length;
+    });
+    var avgC = comAvgs.reduce(function(a,b){ return a+b; }, 0) / comAvgs.length;
+    var cVar = comAvgs.reduce(function(s,c){ return s + Math.pow(c-avgC,2); }, 0) / comAvgs.length;
+    var scoresScore = Math.max(0, Math.round(100 * (1 - cVar / 0.5)));
+
+    // Contraintes DISSO
+    var dissoV = 0, dissoT = 0;
+    names.forEach(function(cn) {
+      var codes = {};
+      classes[cn].forEach(function(e) {
+        var d = (e.disso || '').trim();
+        if (d) { codes[d] = (codes[d]||0)+1; dissoT++; }
+      });
+      Object.values(codes).forEach(function(c){ if(c>1) dissoV += c-1; });
+    });
+    var contrScore = dissoT > 0 ? Math.max(0, Math.round(100*(1-dissoV/dissoT))) : 100;
+
+    var score = Math.round(pariteScore*0.35 + scoresScore*0.35 + contrScore*0.30);
+    return {
+      score: Math.min(100, Math.max(0, score)),
+      parite: Math.min(100, Math.max(0, pariteScore)),
+      scores: Math.min(100, Math.max(0, scoresScore)),
+      contraintes: Math.min(100, Math.max(0, contrScore))
+    };
+  }
+  window.computeHarmonieScore = computeHarmonieScore;
+
+  // ═══════════════════════════════════════════════════
+  // R4 - MESSAGES D'ERREUR HUMANISES
+  // ═══════════════════════════════════════════════════
+
+  function humanizeSwapReason(reason, id1, id2) {
+    if (!reason) return reason;
+    var nom1 = (STATE.students[id1] && STATE.students[id1].nom) || 'cet eleve';
+    var nom2 = (STATE.students[id2] && STATE.students[id2].nom) || 'cet eleve';
+
+    if (reason.includes('Conflit DISSO')) {
+      var match = reason.match(/code (\w+)/);
+      var code = match ? match[1] : '';
+      var members = [];
+      if (code) {
+        Object.values(STATE.students).forEach(function(s) {
+          if ((s.disso||'').trim().toUpperCase() === code.toUpperCase()) members.push(s.nom);
+        });
+      }
+      return members.length > 1
+        ? 'Impossible : ' + members.join(', ') + ' doivent etre dans des classes differentes'
+        : 'Impossible : ces eleves doivent etre separes';
+    }
+    if (reason.includes('FIXE')) return nom1 + ' ou ' + nom2 + ' est fixe dans sa classe (direction)';
+    if (reason.includes('SPEC')) return nom1 + ' ou ' + nom2 + ' a un placement special non modifiable';
+    if (reason.includes('CONDI')) return nom1 + ' ou ' + nom2 + ' fait partie d\'un groupe a garder ensemble';
+    if (reason.includes('PERMUT') && reason.includes('autre PERMUT'))
+      return nom1 + ' ne peut etre echange qu\'avec un autre eleve marque PERMUT';
+    if (reason.includes('interdit') || reason.includes('LV2') || reason.includes('OPT'))
+      return 'Cet echange modifierait la repartition des options/LV2';
+    if (reason.includes('classe')) return 'Les deux eleves sont deja dans la meme classe';
+    return reason;
+  }
+  window.humanizeSwapReason = humanizeSwapReason;
+
+  // ═══════════════════════════════════════════════════
+  // R5 - PREVIEW WHAT-IF
+  // ═══════════════════════════════════════════════════
+
+  var pendingSwapIds = null;
+
+  function showSwapPreview(id1, id2) {
+    var modal = document.getElementById('swapPreviewModal');
+    var content = document.getElementById('swapPreviewContent');
+    if (!modal || !content) {
+      if (typeof performSwap === 'function') performSwap(id1, id2);
+      return;
+    }
+    var e1 = STATE.students[id1], e2 = STATE.students[id2];
+    if (!e1 || !e2) return;
+
+    var card1 = document.querySelector('.student-card[data-id="'+id1+'"]');
+    var card2 = document.querySelector('.student-card[data-id="'+id2+'"]');
+    var classe1 = card1 ? card1.closest('.droppable-zone').dataset.classe : '?';
+    var classe2 = card2 ? card2.closest('.droppable-zone').dataset.classe : '?';
+    pendingSwapIds = { id1: id1, id2: id2 };
+
+    document.getElementById('previewNom1').textContent = e1.nom + (e1.prenom ? ' ' + e1.prenom : '');
+    document.getElementById('previewClasse1').textContent = classe1;
+    document.getElementById('previewNom2').textContent = e2.nom + (e2.prenom ? ' ' + e2.prenom : '');
+    document.getElementById('previewClasse2').textContent = classe2;
+
+    // Impact parite
+    var impactDiv = document.getElementById('previewImpact');
+    var impacts = [];
+    var zone1 = card1 ? card1.closest('.droppable-zone') : null;
+    var zone2 = card2 ? card2.closest('.droppable-zone') : null;
+    if (zone1 && zone2) {
+      var stu1 = Array.from(zone1.querySelectorAll('.student-card')).map(function(c){return STATE.students[c.dataset.id];}).filter(Boolean);
+      var stu2 = Array.from(zone2.querySelectorAll('.student-card')).map(function(c){return STATE.students[c.dataset.id];}).filter(Boolean);
+      var f1 = stu1.filter(function(s){return s.sexe==='F';}).length, m1 = stu1.length - f1;
+      var f2 = stu2.filter(function(s){return s.sexe==='F';}).length, m2 = stu2.length - f2;
+      var f1a = f1 + (e2.sexe==='F'?1:0) - (e1.sexe==='F'?1:0);
+      var m1a = m1 + (e2.sexe==='M'?1:0) - (e1.sexe==='M'?1:0);
+      var f2a = f2 + (e1.sexe==='F'?1:0) - (e2.sexe==='F'?1:0);
+      var m2a = m2 + (e1.sexe==='M'?1:0) - (e2.sexe==='M'?1:0);
+      var diffB = Math.abs(f1-m1)+Math.abs(f2-m2), diffA = Math.abs(f1a-m1a)+Math.abs(f2a-m2a);
+      var parDelta = diffA < diffB ? 'positive' : diffA > diffB ? 'negative' : 'neutral';
+
+      impacts.push({ label: 'Parite '+classe1, before: f1+'F/'+m1+'M', after: f1a+'F/'+m1a+'M', delta: parDelta });
+      impacts.push({ label: 'Parite '+classe2, before: f2+'F/'+m2+'M', after: f2a+'F/'+m2a+'M', delta: parDelta });
+
+      // Impact COM
+      var com1 = e1.scores && e1.scores.COM != null ? parseFloat(e1.scores.COM) : null;
+      var com2 = e2.scores && e2.scores.COM != null ? parseFloat(e2.scores.COM) : null;
+      if (com1 !== null && com2 !== null && com1 !== com2) {
+        var withCom = stu1.filter(function(s){return s.scores && s.scores.COM != null;});
+        if (withCom.length) {
+          var avgBef = withCom.reduce(function(s,x){return s+parseFloat(x.scores.COM);},0)/withCom.length;
+          var avgAft = (avgBef * withCom.length - com1 + com2) / withCom.length;
+          impacts.push({
+            label: 'Moy. COM ' + classe1,
+            before: avgBef.toFixed(2),
+            after: avgAft.toFixed(2),
+            delta: Math.abs(avgAft-2.5) < Math.abs(avgBef-2.5) ? 'positive' : 'negative'
+          });
+        }
+      }
+    }
+
+    impactDiv.innerHTML = impacts.map(function(imp) {
+      var icon = imp.delta === 'positive' ? ' \u2705' : imp.delta === 'negative' ? ' \u26A0\uFE0F' : '';
+      return '<div class="impact-row impact-'+imp.delta+'">' +
+        '<span>'+escapeHtml(imp.label)+'</span>' +
+        '<span>'+escapeHtml(imp.before)+' \u2192 '+escapeHtml(imp.after)+icon+'</span></div>';
+    }).join('');
+
+    modal.classList.remove('hidden');
+    setTimeout(function(){ content.style.transform='scale(1)'; content.style.opacity='1'; }, 10);
+  }
+
+  function closeSwapPreview() {
+    var modal = document.getElementById('swapPreviewModal');
+    if (modal) modal.classList.add('hidden');
+    pendingSwapIds = null;
+  }
+
+  function confirmSwapPreview() {
+    if (!pendingSwapIds) return;
+    var ids = pendingSwapIds;
+    closeSwapPreview();
+    if (typeof performSwap === 'function') performSwap(ids.id1, ids.id2);
+  }
+
+  window.showSwapPreview = showSwapPreview;
+  window.closeSwapPreview = closeSwapPreview;
+  window.confirmSwapPreview = confirmSwapPreview;
+
+  // ═══════════════════════════════════════════════════
+  // R1 - BOUTON SWAP HEADER + BANDEAU CONTEXTUEL
+  // ═══════════════════════════════════════════════════
+
+  function updateSwapHeaderState() {
+    var btn = document.getElementById('btnSwapHeader');
+    var badge = document.getElementById('swapHeaderBadge');
+    var bar = document.getElementById('swapContextBar');
+    var active = typeof STATE !== 'undefined' && STATE.swapMode;
+
+    if (btn) {
+      btn.classList.toggle('swap-active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      document.body.classList.toggle('swap-mode-active', active);
+    }
+    if (badge) badge.textContent = active ? 'ON' : 'OFF';
+    if (bar) bar.classList.toggle('hidden', !active);
+    updateSwapInstruction();
+  }
+
+  function updateSwapInstruction() {
+    var el = document.getElementById('swapInstruction');
+    if (!el || typeof STATE === 'undefined' || !STATE.swapMode) return;
+    if (STATE.swapFirst) {
+      var eleve = STATE.students[STATE.swapFirst];
+      el.textContent = (eleve ? eleve.nom : '?') + ' selectionne \u2192 cliquez le deuxieme eleve';
+    } else {
+      el.textContent = 'Cliquez un premier eleve...';
+    }
+  }
+
+  // Patch toggleSwapMode pour synchroniser le bouton header
+  function patchSwapMode() {
+    var orig = window.toggleSwapMode;
+    if (!orig) {
+      console.warn('[UX Harmonie] toggleSwapMode pas encore dispo, retry dans 500ms');
+      setTimeout(patchSwapMode, 500);
+      return;
+    }
+    window.toggleSwapMode = function() {
+      orig.apply(this, arguments);
+      updateSwapHeaderState();
+    };
+    console.log('[UX Harmonie] toggleSwapMode patche avec succes');
+  }
+
+  // ═══════════════════════════════════════════════════
+  // R5 - INTERCEPTER LE 2e CLIC POUR LE PREVIEW
+  // ═══════════════════════════════════════════════════
+
+  function patchHandleCardClick() {
+    document.addEventListener('click', function(e) {
+      if (typeof STATE === 'undefined' || !STATE.swapMode) return;
+      var card = e.target.closest('.student-card');
+      if (!card) return;
+      var eleveId = card.dataset.id;
+      if (!eleveId) return;
+
+      // Deuxieme clic : intercepter pour preview ou message humanise
+      if (STATE.swapFirst && eleveId !== STATE.swapFirst) {
+        var check = typeof canSwap === 'function' ? canSwap(STATE.swapFirst, eleveId) : { ok: true };
+        e.stopImmediatePropagation();
+        e.preventDefault();
+
+        var firstId = STATE.swapFirst;
+        // Nettoyer visuellement
+        document.querySelectorAll('.student-card').forEach(function(c){ c.classList.remove('swap-mode','swap-selected'); });
+        document.querySelectorAll('.droppable-zone').forEach(function(z){ z.classList.remove('swap-target'); });
+        STATE.swapFirst = null;
+        updateSwapInstruction();
+
+        if (check.ok) {
+          showSwapPreview(firstId, eleveId);
+        } else {
+          if (typeof toast === 'function') toast(humanizeSwapReason(check.reason, firstId, eleveId), 'error');
+        }
+      } else if (!STATE.swapFirst) {
+        // Premier clic : ajouter le style ameliore
+        setTimeout(function() {
+          card.classList.add('swap-selected');
+          updateSwapInstruction();
+        }, 10);
+      }
+    }, true);
+  }
+
+  // ═══════════════════════════════════════════════════
+  // R6 - MODE REUNION
+  // ═══════════════════════════════════════════════════
+
+  var modeReunionActive = false;
+
+  function toggleModeReunion() {
+    modeReunionActive = !modeReunionActive;
+    document.body.classList.toggle('mode-reunion', modeReunionActive);
+
+    if (modeReunionActive) {
+      // Activer swap si pas deja actif
+      if (typeof STATE !== 'undefined' && !STATE.swapMode && typeof window.toggleSwapMode === 'function') {
+        window.toggleSwapMode();
+      }
+      document.body.classList.remove('header-xl');
+      document.body.classList.add('contrast-high');
+      if (typeof toast === 'function') toast('Mode Reunion active', 'info');
+    } else {
+      document.body.classList.remove('contrast-high');
+      if (typeof toast === 'function') toast('Mode Reunion desactive', 'info');
+    }
+    updateSwapHeaderState();
+  }
+  window.toggleModeReunion = toggleModeReunion;
+
+  // ═══════════════════════════════════════════════════
+  // R10 - TOOLTIPS CONTEXTUELS SUR BADGES
+  // ═══════════════════════════════════════════════════
+
+  function addBadgeTooltips() {
+    var board = document.getElementById('board');
+    if (!board) return;
+    var obs = new MutationObserver(function(muts) {
+      muts.forEach(function(m) {
+        m.addedNodes.forEach(function(n) {
+          if (n.nodeType !== 1) return;
+          if (n.classList && n.classList.contains('student-card')) attachTooltips(n);
+          if (n.querySelectorAll) n.querySelectorAll('.student-card').forEach(attachTooltips);
+        });
+      });
+    });
+    obs.observe(board, { childList: true, subtree: true });
+    board.querySelectorAll('.student-card').forEach(attachTooltips);
+  }
+
+  function attachTooltips(card) {
+    if (card.dataset.tooltipsAttached) return;
+    card.dataset.tooltipsAttached = 'true';
+    var eleve = (typeof STATE !== 'undefined' && STATE.students) ? STATE.students[card.dataset.id] : null;
+    if (!eleve) return;
+    var container = card.querySelector('.all-badges');
+    if (!container) return;
+
+    container.querySelectorAll('span, .badge').forEach(function(badge) {
+      var text = (badge.textContent||'').trim().toUpperCase();
+      var tip = '';
+      if (/^D\d+$/.test(text)) {
+        var members = [];
+        Object.values(STATE.students).forEach(function(s) {
+          if ((s.disso||'').trim() === text.substring(1)) members.push(s.nom);
+        });
+        tip = 'Separer : ' + (members.length > 0 ? members.join(', ') : text);
+      } else if (/^A\d+$/.test(text)) {
+        var grp = [];
+        if (STATE.aGroups && STATE.aGroups[text]) {
+          STATE.aGroups[text].forEach(function(sid) { if(STATE.students[sid]) grp.push(STATE.students[sid].nom); });
+        }
+        tip = 'Ensemble : ' + (grp.length > 0 ? grp.join(', ') : text);
+      } else if (text === 'FIXE') { tip = 'Fixe par la direction'; }
+      else if (text === 'SPEC') { tip = 'Placement special'; }
+      else if (text === 'CONDI') { tip = 'Lie a un groupe'; }
+      else if (text === 'PERMUT') { tip = 'Doit changer de classe'; }
+      else if (text === 'ESP') { tip = 'Espagnol LV2'; }
+      else if (text === 'ALL') { tip = 'Allemand LV2'; }
+      else if (text === 'ITA') { tip = 'Italien LV2'; }
+
+      if (tip) {
+        badge.style.position = 'relative';
+        var el = document.createElement('div');
+        el.className = 'badge-tooltip';
+        el.textContent = tip;
+        badge.appendChild(el);
+      }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════
+  // INIT
+  // ═══════════════════════════════════════════════════
+
+  function init() {
+    console.log('[UX Harmonie] Init...');
+
+    // R1 - Bouton swap header
+    var btnSwap = document.getElementById('btnSwapHeader');
+    if (btnSwap) {
+      btnSwap.addEventListener('click', function() {
+        if (typeof window.toggleSwapMode === 'function') window.toggleSwapMode();
+      });
+    }
+
+    // Bandeau annuler
+    var cancelBtn = document.getElementById('swapCancelBtn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        if (typeof STATE !== 'undefined' && STATE.swapMode && typeof window.toggleSwapMode === 'function')
+          window.toggleSwapMode();
+      });
+    }
+
+    // R5 - Preview buttons
+    var pc = document.getElementById('swapPreviewConfirm');
+    var px = document.getElementById('swapPreviewCancel');
+    var pz = document.getElementById('swapPreviewClose');
+    if (pc) pc.addEventListener('click', confirmSwapPreview);
+    if (px) px.addEventListener('click', closeSwapPreview);
+    if (pz) pz.addEventListener('click', closeSwapPreview);
+
+    // R5 - Intercepter les clicks swap
+    patchHandleCardClick();
+
+    // R6 - Mode Reunion
+    var rBtn = document.getElementById('btnModeReunion');
+    if (rBtn) rBtn.addEventListener('click', toggleModeReunion);
+
+    // R10 - Tooltips
+    addBadgeTooltips();
+
+    // Patcher toggleSwapMode (retry automatique si pas encore dispo)
+    setTimeout(patchSwapMode, 300);
+
+    console.log('[UX Harmonie] Charge');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    setTimeout(init, 100);
+  }
+})();
+</script>

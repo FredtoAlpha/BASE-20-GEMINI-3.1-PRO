@@ -1,0 +1,570 @@
+/**
+ * MODE SOMBRE COMPLET - V3 Final Polish
+ * Application du mode sombre sur tous les composants
+ */
+
+/* ========================================
+   VARIABLES MODE SOMBRE
+======================================== */
+
+body.dark-mode {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  
+  --border-color: #334155;
+  --border-hover: #475569;
+  
+  --primary: #818cf8;
+  --primary-dark: #6366f1;
+  
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* ========================================
+   BODY & LAYOUT
+======================================== */
+
+body.dark-mode {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+body.dark-mode .app-header {
+  background: rgba(30, 41, 59, 0.95);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+}
+
+body.dark-mode main {
+  background: transparent;
+}
+
+/* ========================================
+   CARTES ÉLÈVES
+======================================== */
+
+body.dark-mode .student-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode .student-card:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Sexe F/M en mode sombre */
+body.dark-mode .student-card.sexe-F {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(219, 39, 119, 0.1) 100%);
+  border-color: rgba(236, 72, 153, 0.3);
+}
+
+body.dark-mode .student-card.sexe-M {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.1) 100%);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+body.dark-mode .student-fullname {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+body.dark-mode .student-info {
+  color: #e2e8f0 !important;
+}
+
+/* ========================================
+   COLONNES CLASSES
+======================================== */
+
+body.dark-mode .class-column {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+body.dark-mode .class-column:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+}
+
+body.dark-mode .class-header {
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode .class-title {
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+body.dark-mode .class-count {
+  background: rgba(129, 140, 248, 0.2);
+  color: var(--primary);
+}
+
+/* ========================================
+   MODALS
+======================================== */
+
+body.dark-mode .modal {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-mode .modal-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode .modal-header {
+  border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-mode .modal-footer {
+  border-top: 1px solid var(--border-color);
+}
+
+body.dark-mode .modal-title {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+/* ========================================
+   BOUTONS
+======================================== */
+
+body.dark-mode .btn,
+body.dark-mode button {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+body.dark-mode .btn:hover,
+body.dark-mode button:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-hover);
+}
+
+body.dark-mode .btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  border: none;
+}
+
+body.dark-mode .btn-primary:hover {
+  background: linear-gradient(135deg, var(--primary-dark) 0%, #4f46e5 100%);
+}
+
+body.dark-mode .btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+body.dark-mode .btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+/* ========================================
+   STATS PANELS
+======================================== */
+
+body.dark-mode .stats-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+body.dark-mode .stat-label {
+  color: var(--text-secondary);
+}
+
+body.dark-mode .stat-value {
+  color: var(--text-primary);
+}
+
+body.dark-mode .stat-icon {
+  color: var(--primary);
+}
+
+/* ========================================
+   DROPDOWNS
+======================================== */
+
+body.dark-mode .dropdown-menu {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-mode .dropdown-item {
+  color: #f1f5f9 !important;
+}
+
+body.dark-mode .dropdown-item:hover {
+  background: var(--bg-tertiary);
+}
+
+body.dark-mode .dropdown-divider {
+  border-color: var(--border-color);
+}
+
+/* ========================================
+   INPUTS & FORMS
+======================================== */
+
+body.dark-mode input,
+body.dark-mode textarea,
+body.dark-mode select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode input:focus,
+body.dark-mode textarea:focus,
+body.dark-mode select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ========================================
+   TOASTS
+======================================== */
+
+body.dark-mode .toast {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode .toast.success {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+body.dark-mode .toast.error {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+body.dark-mode .toast.warning {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* ========================================
+   BADGES & PILLS
+======================================== */
+
+/* IMPORTANT: Conserver les couleurs des scores en mode sombre */
+body.dark-mode .badge,
+body.dark-mode .score-pill {
+  /* Ne pas override les couleurs des scores */
+}
+
+/* Scores - CONSERVER LES COULEURS ORIGINALES */
+body.dark-mode .score-pill.bg-red-100,
+body.dark-mode .badge.bg-red-100 {
+  background-color: #fecaca !important;
+  color: #991b1b !important;
+}
+
+body.dark-mode .score-pill.bg-orange-100,
+body.dark-mode .badge.bg-orange-100 {
+  background-color: #fed7aa !important;
+  color: #9a3412 !important;
+}
+
+body.dark-mode .score-pill.bg-yellow-100,
+body.dark-mode .badge.bg-yellow-100 {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+body.dark-mode .score-pill.bg-green-100,
+body.dark-mode .badge.bg-green-100 {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+body.dark-mode .score-pill.bg-blue-100,
+body.dark-mode .badge.bg-blue-100 {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+body.dark-mode .score-pill.bg-purple-100,
+body.dark-mode .badge.bg-purple-100 {
+  background-color: #e9d5ff !important;
+  color: #6b21a8 !important;
+}
+
+body.dark-mode .score-pill.bg-gray-100,
+body.dark-mode .badge.bg-gray-100 {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+}
+
+body.dark-mode .badge-primary {
+  background: rgba(129, 140, 248, 0.3) !important;
+  color: #c7d2fe !important;
+}
+
+body.dark-mode .badge-success {
+  background: rgba(52, 211, 153, 0.3) !important;
+  color: #6ee7b7 !important;
+}
+
+body.dark-mode .badge-warning {
+  background: rgba(251, 191, 36, 0.3) !important;
+  color: #fcd34d !important;
+}
+
+body.dark-mode .badge-danger {
+  background: rgba(248, 113, 113, 0.3) !important;
+  color: #fca5a5 !important;
+}
+
+/* ========================================
+   CHARTS
+======================================== */
+
+body.dark-mode .chart-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+body.dark-mode canvas {
+  filter: brightness(0.9);
+}
+
+/* ========================================
+   TABLES
+======================================== */
+
+body.dark-mode table {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+body.dark-mode th {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+body.dark-mode td {
+  border-bottom: 1px solid var(--border-color);
+  color: #e2e8f0 !important;
+}
+
+body.dark-mode tr:hover {
+  background: var(--bg-tertiary);
+}
+
+/* ========================================
+   SCROLLBARS
+======================================== */
+
+body.dark-mode ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  border: 2px solid var(--bg-primary);
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/* ========================================
+   TOOLTIPS
+======================================== */
+
+body.dark-mode .tooltip {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+   ALERTS
+======================================== */
+
+body.dark-mode .alert {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+body.dark-mode .alert-success {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+body.dark-mode .alert-warning {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+body.dark-mode .alert-danger {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ========================================
+   PROGRESS BARS (mode sombre)
+======================================== */
+
+body.dark-mode .progress-container {
+  background: rgba(30, 41, 59, 0.95);
+}
+
+body.dark-mode .progress-bar-wrapper {
+  background: var(--bg-tertiary);
+}
+
+/* ========================================
+   TOGGLE DARK MODE BUTTON
+======================================== */
+
+.dark-mode-toggle {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  font-size: 1.25rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.dark-mode-toggle:hover {
+  transform: scale(1.1) rotate(15deg);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .dark-mode-toggle {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+/* ========================================
+   MENUS DÉROULANTS (TOUJOURS AU-DESSUS)
+======================================== */
+
+#settingsDropdown {
+  z-index: 99999 !important;
+  position: fixed !important;
+}
+
+body.dark-mode #settingsDropdown {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  z-index: 99999 !important;
+}
+
+.bookmarks-menu {
+  z-index: 99999 !important;
+}
+
+body.dark-mode .bookmarks-menu {
+  z-index: 99999 !important;
+}
+
+/* ========================================
+   TEXTES GÉNÉRAUX - LISIBILITÉ AMÉLIORÉE
+======================================== */
+
+/* Tous les textes noirs deviennent blancs */
+body.dark-mode .text-gray-900,
+body.dark-mode .text-gray-800,
+body.dark-mode .text-gray-700,
+body.dark-mode .text-black {
+  color: #ffffff !important;
+}
+
+body.dark-mode .text-gray-600,
+body.dark-mode .text-gray-500 {
+  color: #e2e8f0 !important;
+}
+
+body.dark-mode .text-gray-400 {
+  color: #cbd5e1 !important;
+}
+
+/* Labels et titres */
+body.dark-mode label,
+body.dark-mode .label,
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode h4,
+body.dark-mode h5,
+body.dark-mode h6 {
+  color: #ffffff !important;
+}
+
+/* Paragraphes et spans */
+body.dark-mode p,
+body.dark-mode span:not(.score-pill):not(.badge) {
+  color: #e2e8f0 !important;
+}
+
+/* Stats et métriques */
+body.dark-mode .stat-label,
+body.dark-mode .metric-label {
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode .stat-value,
+body.dark-mode .metric-value {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+/* Icônes Font Awesome */
+body.dark-mode i.fa,
+body.dark-mode i.fas,
+body.dark-mode i.far,
+body.dark-mode i.fab {
+  opacity: 0.9;
+}

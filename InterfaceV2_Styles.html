@@ -1,0 +1,2674 @@
+/* Styles principaux extraits de InterfaceV2.html pour faciliter la maintenance. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    /* ========== SYSTÈME Z-INDEX CENTRALISÉ ==========
+       Échelle ordonnée pour éviter les conflits de superposition.
+       Utiliser UNIQUEMENT ces variables pour tout z-index.
+       ================================================ */
+    :root {
+      /* Échelle z-index */
+      --z-base:       1;
+      --z-card:       5;
+      --z-badge:      10;     /* modeBadge, autosaveBadge */
+      --z-overlay:    20;     /* overlay fond semi-transparent */
+      --z-panel:      30;     /* historyPanel, statsPanel */
+      --z-header:     40;     /* header sticky */
+      --z-dropdown:   50;     /* dropdowns, menus, bookmarks */
+      --z-feedback:   60;     /* feedback-panel, save-progress */
+      --z-focus:      70;     /* focus-overlay, focused-column */
+      --z-modal:      80;     /* modals (finaliser, etc.) */
+      --z-toast:      90;     /* toasts, notifications */
+      --z-loading:    95;     /* spinner de chargement global */
+      --z-startup:    100;    /* modal de démarrage */
+      --z-shepherd:   110;    /* tour guidé Shepherd */
+      --z-critical:   999;    /* skip-links, éléments critiques */
+
+      /* Couleurs principales */
+      --primary: #5b21b6;
+      --primary-dark: #4c1d95;
+      --secondary: #06b6d4;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --dark: #1e293b;
+      --light: #f8fafc;
+
+      /* Couleurs sexe adoucies */
+      --sexe-f: #ec4899;
+      --sexe-f-light: #fbcde6;
+      --sexe-m: #3b82f6;
+      --sexe-m-light: #d7e8fe;
+    }
+
+    /* optionnel : léger renfort d'opacité */
+    .student-card.sexe-F,
+    .student-card.sexe-M { opacity:.96; }
+
+    /* ========== STYLES POUR LES OPTIONS DE LISIBILITÉ ========== */
+    
+    /* Taille des noms */
+    .student-card.font-size-small .student-fullname { font-size: 0.75rem !important; }
+    .student-card.font-size-medium .student-fullname { font-size: 0.95rem !important; }
+    .student-card.font-size-large .student-fullname { font-size: 1.15rem !important; }
+    .student-card.font-size-xlarge .student-fullname { font-size: 1.35rem !important; }
+    
+    /* Style des noms */
+    .student-card.font-style-normal .student-fullname { font-weight: normal !important; background: none !important; border: none !important; }
+    .student-card.font-style-bold .student-fullname { font-weight: 900 !important; }
+    .student-card.font-style-highlight .student-fullname { 
+      background: #fef3c7 !important; 
+      padding: 2px 4px !important;
+      border-radius: 3px !important;
+    }
+    .student-card.font-style-outline .student-fullname { 
+      border: 2px solid #3b82f6 !important;
+      padding: 1px 3px !important;
+      border-radius: 3px !important;
+    }
+    
+    /* Contraste */
+    body.contrast-normal .student-fullname { text-shadow: none !important; }
+    body.contrast-high .student-fullname {
+      color: #000 !important;
+      text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff !important;
+    }
+    body.contrast-max .student-fullname {
+      color: #000 !important;
+      background: #fff !important;
+      padding: 2px 4px !important;
+      border-radius: 3px !important;
+      text-shadow: none !important;
+    }
+    
+    /* Affichage genres */
+    .student-card.gender-colors .all-badges { /* Couleurs par défaut */ }
+    .student-card.gender-symbols .all-badges::before {
+      content: attr(data-gender-symbol);
+      margin-right: 4px;
+      font-weight: bold;
+    }
+    .student-card.gender-both .all-badges::before {
+      content: attr(data-gender-symbol);
+      margin-right: 4px;
+      font-weight: bold;
+    }
+    
+    /* Boutons d'options de lisibilité : on stylise uniquement ce qui n'est pas Tailwind */
+    .btn-lisibilite {
+      background: #f3f4f6;
+      color: #6b7280;
+      border: 1px solid #d1d5db;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      border-radius: 0.375rem;
+      margin-right: 0.25rem;
+      margin-bottom: 0.25rem;
+      transition: all 0.2s;
+      cursor: pointer;
+      outline: none;
+    }
+    .btn-lisibilite:hover {
+      background: #e5e7eb;
+      color: #374151;
+      border-color: #9ca3af;
+    }
+    .btn-lisibilite.active {
+      background: #3b82f6;
+      color: white;
+      border-color: #2563eb;
+    }
+    
+    /* Effets de lisibilité sur les noms */
+    .student-fullname.size-small { font-size: 0.75rem; }
+    .student-fullname.size-medium { font-size: 0.95rem; }
+    .student-fullname.size-large { font-size: 1.15rem; }
+    .student-fullname.size-xlarge { font-size: 1.35rem; }
+    
+    .student-fullname.style-bold { font-weight: 900 !important; }
+    .student-fullname.style-highlight { 
+      background: #fef3c7; 
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    .student-fullname.style-outline { 
+      border: 2px solid #3b82f6;
+      padding: 1px 3px;
+      border-radius: 3px;
+    }
+    
+    /* Contraste élevé */
+    .contrast-high .student-fullname {
+      color: #000 !important;
+      text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+    }
+    
+    /* Contraste maximum */
+    .contrast-max .student-fullname {
+      color: #000 !important;
+      font-weight: 900 !important;
+      text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff;
+    }
+    
+    /* Symboles pour les genres, version très visible */
+    .student-card.symbols-symbols .student-fullname::before {
+      font-size: 1.3em;
+      font-weight: bold;
+      margin-right: 10px;
+      vertical-align: middle;
+      display: inline-block;
+    }
+    .student-card.symbols-symbols.sexe-F .student-fullname::before {
+      content: "♀ ";
+      color: #000;
+    }
+    .student-card.symbols-symbols.sexe-M .student-fullname::before {
+      content: "♂ ";
+      color: #000;
+    }
+    /* On supprime la couleur de fond quand symboles activés */
+    .student-card.symbols-symbols {
+      background: #fff !important;
+      border-color: #bbb !important;
+    }
+    .student-card.symbols-symbols .student-fullname {
+      color: #000 !important;
+    }
+    /* On garde la couleur rose/bleu uniquement si symbols n'est PAS activé */
+    .student-card.symbols-colors.sexe-F {
+      background: var(--sexe-f-light);
+      border-color: #fbbdd7;
+    }
+    .student-card.symbols-colors.sexe-M {
+      background: var(--sexe-m-light);
+      border-color: #bfdbfe;
+    }
+    /* Couleurs + symboles : fond blanc + symbole + petit badge couleur à droite */
+    .student-card.symbols-both {
+      background: #fff !important;
+      border-color: #bbb !important;
+      position: relative;
+    }
+    .student-card.symbols-both.sexe-F .student-fullname::after {
+      content: " ";
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      background: var(--sexe-f-light);
+      border-radius: 50%;
+      margin-left: 8px;
+      vertical-align: middle;
+      border: 1.5px solid #fbbdd7;
+    }
+    .student-card.symbols-both.sexe-M .student-fullname::after {
+      content: " ";
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      background: var(--sexe-m-light);
+      border-radius: 50%;
+      margin-left: 8px;
+      vertical-align: middle;
+      border: 1.5px solid #bfdbfe;
+    }
+
+    /* ========== STYLES POUR BADGES SEXE ET FOND BLANC ========== */
+
+    /* Fond blanc activé */
+    body.white-bg .student-card {
+      background: white !important;
+      border-color: #d1d5db !important;
+    }
+
+    /* Badge sexe dans le conteneur badge-dispo */
+    .badge-sexe {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 4px;
+      flex-shrink: 0;
+    }
+
+    /* Badge Femelle - Rose */
+    .badge-sexe.sexe-F {
+      background: #ec4899;
+      color: white;
+      box-shadow: 0 2px 4px rgba(236, 72, 153, 0.3);
+    }
+
+    /* Badge Mâle - Bleu */
+    .badge-sexe.sexe-M {
+      background: #3b82f6;
+      color: white;
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Masquer le badge sexe par défaut */
+    .badge-sexe {
+      display: none;
+    }
+
+    /* Afficher uniquement quand activé */
+    body.gender-badges .badge-sexe {
+      display: inline-flex;
+    }
+
+    /* Mode plein écran */
+    body.fullscreen-mode {
+      overflow: hidden;
+    }
+    body.fullscreen-mode .app-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+    }
+    body.fullscreen-mode main {
+      margin-top: 80px;
+    }
+
+    /* Mode sombre */
+    body.dark-mode {
+      --dark: #f8fafc;
+      --light: #1e293b;
+      background-color: #0f172a;
+      color: #e2e8f0;
+    }
+
+    body.dark-mode .app-header,
+    body.dark-mode .class-column,
+    body.dark-mode .chart-container,
+    body.dark-mode .stats-panel,
+    body.dark-mode .modal-content {
+      background-color: #1e293b;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+
+    /* Boutons de tri en mode sombre */
+    body.dark-mode .sort-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    body.dark-mode .sort-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    body.dark-mode .sort-btn.active {
+      background: rgba(147, 51, 234, 0.3);
+      color: #e9d5ff;
+      border-color: rgba(147, 51, 234, 0.5);
+    }
+
+    /* ========== STYLES POUR LES INDICATEURS DE FEEDBACK EN TEMPS RÉEL ========== */
+    
+    /* Panneau de feedback flottant */
+    .feedback-panel {
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      width: 280px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      border: 2px solid #e5e7eb;
+      z-index: var(--z-feedback);
+      transition: all 0.3s ease;
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .feedback-panel.minimized {
+      width: 60px;
+      height: 60px;
+      overflow: hidden;
+    }
+    
+    .feedback-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 10px 10px 0 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+    }
+    
+    .feedback-content {
+      padding: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .feedback-metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .feedback-metric:last-child {
+      border-bottom: none;
+    }
+    
+    .metric-label {
+      font-weight: 500;
+      color: #374151;
+      font-size: 0.9rem;
+    }
+    
+    .metric-value {
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .metric-change {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    
+    .metric-change.improved {
+      background: #dcfce7;
+      color: #166534;
+    }
+    
+    .metric-change.degraded {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+    
+    .metric-change.neutral {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    
+    /* Animation pour les changements */
+    @keyframes metricPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    
+    .metric-value.changed {
+      animation: metricPulse 0.6s ease-in-out;
+    }
+    
+    /* Indicateur de drag en cours */
+    .student-card.dragging {
+      opacity: 0.7;
+      transform: rotate(5deg);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Zone de drop avec feedback */
+    .droppable-zone.drag-over {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border: 2px dashed #f59e0b;
+      transform: scale(1.02);
+      transition: all 0.2s ease;
+    }
+    
+    .droppable-zone.drag-over.improved {
+      background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+      border-color: #10b981;
+    }
+    
+    .droppable-zone.drag-over.degraded {
+      background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+      border-color: #ef4444;
+    }
+    
+    /* Badge de score sur les cartes élèves */
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin: 1px;
+    }
+    
+    .score-badge.math {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+    }
+    
+    .score-badge.french {
+      background: #fce7f3;
+      color: #be185d;
+      border: 1px solid #f9a8d4;
+    }
+    
+    /* Indicateur de contrainte sur les cartes */
+    .constraint-indicator {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      color: white;
+    }
+    
+    .constraint-indicator.asso {
+      background: #10b981;
+    }
+    
+    .constraint-indicator.disso {
+      background: #ef4444;
+    }
+
+    body.dark-mode .search-input,
+    body.dark-mode .form-control {
+      background-color: #334155;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+
+    body.dark-mode .droppable-zone {
+      background-color: #334155;
+    }
+
+    body.dark-mode .student-card {
+      background-color: #475569;
+      border-color: #64748b;
+    }
+
+    body.dark-mode .student-card.sexe-F {
+      background: #831843;
+      border-color: #be185d;
+    }
+
+    body.dark-mode .student-card.sexe-M {
+      background: #1e3a8a;
+      border-color: #2563eb;
+    }
+
+    body.dark-mode .student-fullname {
+      color: #f1f5f9;
+    }
+
+    body.dark-mode .badge-compact {
+      background: #451a03 !important;
+      color: #fef3c7 !important;
+      border-color: #92400e !important;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    /* Animation fade-in */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+
+    /* ========== NOUVEAU LAYOUT 3 LIGNES ========== */
+    
+    /* Carte élève ultra-compacte avec couleurs adoucies */
+    .student-card {
+      width: 100%;
+      background: white;
+      border-radius: 8px;
+      padding: 6px 14px;
+      margin-bottom: 4px;
+      border: 2px solid transparent;
+      cursor: grab;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transform-origin: center;
+    }
+
+    .card-content-line {
+      display: flex;
+      align-items: center; /* Vertically center items */
+      justify-content: space-between; /* Distribute space */
+      flex-wrap: nowrap; /* Keep on one line */
+      width: 100%; /* Take full width of parent */
+      overflow: hidden; /* Hide any overflow */
+      gap: 4px; /* Default gap between items */
+      padding: 0 4px; /* Small horizontal padding inside the line */
+    }
+
+    .student-fullname {
+      flex-shrink: 1;
+      min-width: 0; /* Allow shrinking below content size */
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      flex-grow: 1; /* Allow name to grow and take available space */
+      text-align: left; /* Align name to the left */
+    }
+
+    .all-badges {
+      flex-shrink: 1;
+      min-width: 0;
+      flex-grow: 0; /* Prevent badges from growing */
+      justify-content: flex-start; /* Align badges to the left */
+    }
+
+    .source-class {
+      flex-shrink: 1;
+      min-width: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      flex-grow: 0; /* Prevent source-class from growing */
+      text-align: left; /* Align source-class to the left */
+    }
+
+    .scores {
+      flex-shrink: 1;
+      min-width: 0;
+      flex-grow: 0; /* Prevent scores from growing */
+      justify-content: flex-end; /* Align scores to the right */
+    }
+
+    /* Adjust badge-dispo-container to be absolute within student-card */
+    .badge-dispo-container {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      z-index: 1;
+    }
+    
+    /* Zoom sur les cartes */
+    body.zoom-cards .student-card {
+      padding: 10px 14px;
+      margin-bottom: 6px;
+    }
+    
+    body.zoom-cards .card-line {
+      height: 24px !important;
+    }
+    
+    body.zoom-cards .student-fullname {
+      font-size: 0.95rem;
+    }
+    
+    body.zoom-cards .mini-badge {
+      height: 20px;
+      font-size: 11px;
+      padding: 0 8px;
+    }
+    
+    body.zoom-cards .score-pill {
+      width: 26px;
+      height: 26px;
+      font-size: 13px;
+    }
+    
+    .student-card.sexe-F {
+      background: var(--sexe-f-light);
+      border-color: #fbbdd7;
+    }
+    
+    .student-card.sexe-M {
+      background: var(--sexe-m-light);
+      border-color: #bfdbfe;
+    }
+    
+    .student-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    
+    .student-card.dragging {
+      cursor: grabbing;
+      opacity: 0.8;
+      transform: scale(1.02) rotate(1deg);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .student-card.swap-mode {
+      animation: pulse 1.5s infinite;
+      border-style: dashed;
+      border-width: 3px;
+      border-color: #fbbf24;
+    }
+    
+    .student-card.search-highlight {
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4);
+      transform: scale(1.02);
+    }
+    
+    /* Lignes de la carte */
+    .card-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 20px;
+    }
+    
+    .card-line-1 { height: 22px; }
+    .card-line-2, .card-line-3 { height: 18px; }
+    
+    /* Ligne 1: Nom complet (NOM Prénom) */
+    .student-fullname {
+      font-size: 0.85rem;
+      font-weight: 700;
+      line-height: 1.1;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    
+    /* Ligne 2: Container pour tous les badges */
+.all-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;  /* ← CENTRÉ ! */
+  min-height: 16px;
+}
+    
+    /* Ligne 3: Source + scores - ALIGNEMENT FIXE */
+    .card-line-3 {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .source-class {
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .scores {
+      display: flex;
+      gap: 3px;
+      justify-content: flex-end;
+      min-width: fit-content;
+    }
+    
+    /* Mini badges avec couleurs marquantes */
+    .mini-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: var(--badge-h, 16px);
+      padding: 0 6px;
+      border-radius: 8px;
+      font-size: calc(var(--badge-h, 16px) * 0.55);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-left: 2px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      transition: all 0.2s ease;
+    }
+    
+    /* ========== BADGES COMPACTS ========== */
+    .badge-compact {
+      background: #fef3c7 !important;  /* jaune très clair */
+      color: #92400e !important;       /* brun pour contraste */
+      border: 1px solid #fcd34d !important; /* bordure jaune */
+      font-weight: 800 !important;
+      box-shadow: 0 1px 2px rgba(146, 64, 14, 0.2) !important;
+    }
+    
+    /* Badges dissociation/association - TOUJOURS VISIBLES */
+    .badge-disso {
+      background: #0f172a !important;
+      color: white !important;
+    }
+    
+    .badge-asso {
+      background: #f1f5f9 !important;
+      color: #0f172a !important;
+      border: 1px solid #94a3b8 !important;
+    }
+    
+    /* Badges LV2 avec couleurs distinctes - FORCÉ */
+    .badge-ESP { 
+      background: #dc2626 !important; 
+      color: white !important; 
+    }
+    .badge-ITA { 
+      background: #059669 !important; 
+      color: white !important; 
+    }
+    .badge-ALL { 
+      background: #2563eb !important; 
+      color: white !important; 
+    }
+    .badge-LATIN { 
+      background: #7c3aed !important; 
+      color: white !important; 
+    }
+    .badge-GRECO { 
+      background: #dc2626 !important; 
+      color: white !important; 
+    }
+    
+    /* Badges Options avec couleurs marquantes - FORCÉ */
+    .badge-CHAV { 
+      background: #7c3aed !important; 
+      color: white !important; 
+    }
+    .badge-LLCA { 
+      background: #0891b2 !important; 
+      color: white !important; 
+    }
+    .badge-EURO { 
+      background: #d97706 !important; 
+      color: white !important; 
+    }
+    .badge-BIL { 
+      background: #047857 !important; 
+      color: white !important; 
+    }
+    .badge-GREC { 
+      background: #b91c1c !important; 
+      color: white !important; 
+    }
+    
+    /* Badge mobilité plus visible */
+    .badge-mobilite {
+      background: #fbbf24 !important;
+      color: #78350f !important;
+      font-weight: 800 !important;
+    }
+    
+/* Badge DISPO carré */
+.badge-dispo {
+  background: #374151 !important;
+  color: white !important;
+  border-radius: 4px !important;
+  padding: 2px 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px !important;
+  min-width: 28px !important;
+  text-align: center !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+    /* Mode sombre - badges restent visibles */
+    body.dark-mode .mini-badge {
+      opacity: 0.95;
+    }
+    
+    /* Ajustement pour les petites cartes */
+    .card-sm .mini-badge {
+      padding: 0 4px;
+      margin-left: 1px;
+    }
+    
+    /* Scores en pastilles colorées */
+    .score-pill {
+      width: 22px;
+      height: 22px;
+      border-radius: 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: white;
+      margin-left: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Couleurs des scores selon la valeur */
+    .score-pill.score-4 { 
+      background: #006400; /* Vert foncé */
+    }
+    
+    .score-pill.score-3 { 
+      background: #22c55e; /* Vert clair */
+    }
+    
+    .score-pill.score-2 { 
+      background: #fbbf24; /* Jaune */
+      color: #78350f;
+    }
+    
+    .score-pill.score-1 { 
+      background: #dc2626; /* Rouge */
+    }
+
+    /* ---------------------------  CARTES FLUIDES 3 LIGNES  --------------------------- */
+    /* 3 tailles de carte selon la largeur disponible */
+    .card-sm { 
+      --fs-name: .80rem; 
+      --badge-h: 16px; 
+      --score: 20px;
+    }
+    .card-md { 
+      --fs-name: .85rem; 
+      --badge-h: 18px; 
+      --score: 22px;
+    }
+    .card-lg { 
+      --fs-name: .90rem; 
+      --badge-h: 20px; 
+      --score: 24px;
+    }
+
+    /* Application des variables aux éléments */
+    .student-fullname { 
+      font-size: var(--fs-name, 0.85rem);
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    /* Scores avec taille adaptative */
+    .score-pill {
+      width: var(--score, 22px); 
+      height: var(--score, 22px);
+      font-size: calc(var(--score, 22px) * 0.5);
+      border-radius: 50%;
+      font-weight: 700;
+    }
+
+    /* S'assurer que les badges sont toujours visibles */
+    .all-badges {
+      display: flex !important;
+      gap: 2px;
+      flex-wrap: wrap;
+    }
+
+    /* Mode compact : réduire encore plus les marges */
+    body.stats-open .card-line {
+      height: 16px !important;
+      margin-bottom: 1px;
+    }
+
+    body.stats-open .card-line-1 {
+      height: 18px !important;
+    }
+
+    /* Colonnes de classe modernes et compactes */
+    .class-column {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s;
+      overflow: hidden;
+      width: 100%;
+      min-width: 200px;
+      max-width: none;
+    }
+    
+    .class-column:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    
+    .class-header {
+  background: linear-gradient(135deg, #5b21b6 0%, #4c1d95 100%); /* Violet ! */
+  color: white;
+  padding: 12px;
+  position: relative;
+}
+
+/* Vue simple : en-tête ultra-compact sur 1 ligne */
+body.simple-view .class-header {
+  padding: 6px 10px !important;
+}
+
+body.simple-view .class-header h2 {
+  font-size: 1rem !important;
+  margin-bottom: 0 !important;
+}
+
+body.simple-view .class-title-line {
+  margin-bottom: 0 !important;
+}
+
+/* CACHER les boutons de tri en vue simple */
+body.simple-view .sort-buttons {
+  display: none !important;
+}
+
+/* Mode Essential : cartes avec badges essentiels uniquement */
+body.essential-view .class-header {
+  padding: 8px 10px !important;
+}
+
+body.essential-view .card-line-3 {
+  display: none !important;  /* Masquer la ligne des scores */
+}
+
+/* Masquer les badges options en mode essential */
+body.essential-view .badge-CHAV,
+body.essential-view .badge-LLCA,
+body.essential-view .badge-EURO,
+body.essential-view .badge-BIL,
+body.essential-view .badge-GREC {
+  display: none !important;
+}
+
+    /* CORRECTION PROBLÈME 2 : En-tête sur une ligne */
+    .class-header h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    
+    .class-title-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    
+    .class-counts {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.875rem;
+    }
+    
+    .class-stats {
+      display: flex;
+      gap: 12px;
+      font-size: 0.875rem;
+      opacity: 0.9;
+      align-items: center;
+    }
+
+    /* Boutons de tri */
+    .sort-buttons {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sort-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      letter-spacing: 0.5px;
+    }
+
+    .sort-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .sort-btn.active {
+      background: rgba(255, 255, 255, 0.95);
+      color: #5b21b6;
+      border-color: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .sort-label {
+      font-weight: 700;
+      font-size: 0.7rem;
+    }
+
+    .sort-arrow {
+      font-size: 0.9rem;
+      font-weight: bold;
+      transition: transform 0.2s;
+    }
+
+    .sort-btn.active .sort-arrow {
+      transform: scale(1.2);
+    }
+
+    /* Zone de drop */
+    .droppable-zone {
+      min-height: 400px;
+      max-height: calc(100vh - 320px);
+      overflow-y: auto;
+      padding: 8px;
+      background: #f8fafc;
+    }
+    
+    .droppable-zone.drag-over {
+      background: #e0f2fe;
+      box-shadow: inset 0 0 0 2px #0ea5e9;
+    }
+    
+    .droppable-zone.swap-target {
+      background: #dcfce7;
+      box-shadow: inset 0 0 0 3px #22c55e;
+    }
+    
+    .droppable-zone.drop-forbidden {
+      background: #fee2e2;
+      box-shadow: inset 0 0 0 3px #dc2626;
+    }
+
+    /* Scrollbar personnalisée */
+    .droppable-zone::-webkit-scrollbar {
+      width: 4px;
+    }
+    
+    .droppable-zone::-webkit-scrollbar-track {
+      background: #e2e8f0;
+    }
+    
+    .droppable-zone::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border-radius: 2px;
+    }
+
+    /* Header moderne */
+    .app-header {
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Message d'erreur stylé */
+    .error-container {
+      background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+      border: 2px solid #fca5a5;
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      margin: 2rem;
+    }
+
+    .error-icon {
+      font-size: 3rem;
+      color: #dc2626;
+      margin-bottom: 1rem;
+    }
+
+    .error-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #7f1d1d;
+      margin-bottom: 1rem;
+    }
+
+    .error-message {
+      color: #991b1b;
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+
+    .error-suggestions {
+      background: white;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      text-align: left;
+    }
+
+    .error-suggestions ul {
+      list-style-type: disc;
+      margin-left: 1.5rem;
+      color: #374151;
+    }
+
+    .error-suggestions li {
+      margin-bottom: 0.5rem;
+    }
+
+    /* Boutons modernes */
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      border: none;
+      cursor: pointer;
+    }
+    
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .btn-primary {
+  background: #5b21b6; /* Violet au lieu de var(--primary) */
+  color: white;
+}
+    
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+    }
+    
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+    
+    .btn-swap {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+    }
+    
+    .btn-swap.active {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      animation: pulse 1.5s infinite;
+    }
+    
+    .btn-admin {
+      background: #dc2626;
+      color: white;
+    }
+    
+    .btn-admin.active {
+      background: #059669;
+    }
+
+    .btn-dark-mode {
+      background: #1e293b;
+      color: white;
+    }
+
+    body.dark-mode .btn-dark-mode {
+      background: #f8fafc;
+      color: #1e293b;
+    }
+
+    /* Toast moderne */
+    .toast {
+      background: white;
+      color: #1e293b;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-left: 4px solid;
+    }
+    
+    .toast.success { border-left-color: var(--success); }
+    .toast.error { border-left-color: var(--danger); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast.info { border-left-color: var(--primary); }
+
+    /* Loading spinner */
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #e2e8f0;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Search input */
+    .search-input {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 8px 12px;
+      width: 250px;
+      font-size: 0.875rem;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(91, 33, 182, 0.1);
+    }
+    
+    /* Graphiques */
+    .chart-container {
+      background: white;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      margin-bottom: 10px;
+    }
+    
+    .chart-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 8px;
+    }
+    
+    /* CORRECTION PROBLÈME 4 : Stats panel avec z-index réduit */
+    .stats-panel {
+      width: 600px;
+      max-width: 90vw;
+      z-index: var(--z-panel);
+      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+      animation: slideInRight 0.3s ease-out;
+      resize: horizontal;
+      overflow: auto;
+    }
+
+    .stats-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #e5e7eb;
+      cursor: move;
+    }
+
+    .stats-panel.anchored {
+      position: relative;
+      width: 100%;
+      height: auto;
+      transform: none !important;
+      box-shadow: none;
+    }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: var(--z-modal);
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 800px;
+      max-height: 90vh;
+      overflow: auto;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .modal-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+    }
+
+    .modal-footer {
+      padding: 1.5rem;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+    }
+
+    /* Formulaire */
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(91, 33, 182, 0.1);
+    }
+
+    /* Table règles */
+    .rules-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .rules-table th,
+    .rules-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .rules-table th {
+      background: #f8fafc;
+      font-weight: 600;
+    }
+
+    /* Suggestions de swap */
+    .swap-suggestions {
+      background: #f0f9ff;
+      border: 1px solid #0ea5e9;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .swap-suggestion {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem;
+      background: white;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+
+    .swap-suggestion:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Comparaison avant/après */
+    .comparison-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); /* fluide */
+      gap: 12px;
+      margin-top: 2rem;
+    }
+
+    .comparison-side {
+      padding: 1rem;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .comparison-side h3 {
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    /* Mode plein écran */
+    body.fullscreen-stats {
+      overflow: hidden;
+    }
+
+    body.fullscreen-stats .stats-panel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100% !important;
+      max-width: 100% !important;
+      transform: none !important;
+      border-radius: 0;
+    }
+
+    /* Raccourcis clavier */
+    .keyboard-shortcuts {
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      z-index: var(--z-feedback);
+      max-width: 300px;
+    }
+
+    .keyboard-shortcuts h4 {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .shortcut-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.25rem;
+    }
+
+    .shortcut-key {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 0.125rem 0.375rem;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+/* CORRECTION PROBLÈME 4 : Overlay non bloquant pour stats */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: var(--z-overlay);
+  display: none;
+  pointer-events: none;
+}
+
+.overlay.active {
+  pointer-events: auto;
+}
+    /* ========== EFFET ACCORDÉON RESPONSIVE ========== */
+    /* Grille qui occupe TOUTE la largeur disponible */
+    #board {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 100%;
+      padding-right: 12px;
+      margin: 0;
+      max-width: none;
+    }
+
+    /* Quand le panneau stats s'ouvre : compression accordéon */
+    body.stats-open #board {
+      width: calc(100% - var(--stats-width, 600px));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    /* Colonnes adaptatives */
+    .class-column {
+      width: 100%;
+      min-width: 160px;
+      transition: all 0.3s ease;
+    }
+
+    /* Adaptation fine selon nombre de colonnes et taille écran */
+    @media (min-width: 1920px) {
+      #board {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+      body.stats-open #board {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+    }
+
+    @media (min-width: 2560px) {
+      #board {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+      body.stats-open #board {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+    }
+
+    /* Pour 6 colonnes sur grand écran */
+    @container (min-width: 1600px) {
+      #board {
+        grid-template-columns: repeat(6, 1fr);
+      }
+    }
+
+    /* Animation fluide du panneau stats */
+    #statsPanel {
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Zone de drop adaptative */
+    .droppable-zone {
+      min-height: 400px;
+      max-height: calc(100vh - 200px);
+    }
+
+    /* Compression des cartes en mode stats */
+    body.stats-open .student-card {
+      padding: 5px 8px;
+      margin-bottom: 3px;
+    }
+
+    body.stats-open .mini-badge {
+      height: 14px;
+      font-size: 8px;
+      padding: 0 4px;
+    }
+
+    body.stats-open .score-pill {
+      width: 20px;
+      height: 20px;
+      font-size: 10px;
+    }
+
+    /* Header de colonne plus compact */
+    body.stats-open .class-header {
+      padding: 10px;
+    }
+
+    body.stats-open .class-header h2 {
+      font-size: 1.1rem;
+    }
+    .card-line-2 .all-badges {
+  justify-content: center !important;
+}
+
+/* ========== NOUVEAUX STYLES POUR STATS SUPPLÉMENTAIRES ========== */
+.stats-metric {
+  text-align: center;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.conformity-grid {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: 0.7rem;
+}
+
+.conformity-cell {
+  padding: 4px;
+  border-radius: 4px;
+  text-align: center;
+  font-weight: 600;
+  color: white;
+}
+
+.conformity-ok { background: #10b981; }
+.conformity-warning { background: #f59e0b; }
+.conformity-error { background: #ef4444; }
+.conformity-undefined { background: #6b7280; }
+
+.indicator-card {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-left: 4px solid;
+}
+
+.indicator-good { border-left-color: #10b981; }
+.indicator-warning { border-left-color: #f59e0b; }
+.indicator-bad { border-left-color: #ef4444; }
+
+/* Mode sombre */
+body.dark-mode .stats-metric {
+  background: #334155;
+  border-color: #475569;
+}
+
+body.dark-mode .metric-value {
+  color: #f1f5f9;
+}
+
+body.dark-mode .indicator-card {
+  background: #334155;
+}
+
+/* Vue simplifiée - cartes ULTRA compactes */
+.simple-mode { 
+  padding: 1px 6px !important;    /* ← RÉDUIT ! */
+  margin-bottom: 0px !important;   /* ← AUCUNE MARGE ! */
+}
+
+/* Symboles en vue simplifiée */
+.simple-mode.symbols-symbols .student-simple-name::before {
+  font-size: 1.2em;
+  font-weight: bold;
+  margin-right: 8px;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.simple-mode.symbols-symbols.sexe-F .student-simple-name::before {
+  content: "♀ ";
+  color: #000;
+}
+
+.simple-mode.symbols-symbols.sexe-M .student-simple-name::before {
+  content: "♂ ";
+  color: #000;
+}
+
+/* Couleurs en vue simplifiée */
+.simple-mode.symbols-colors.sexe-F {
+  background: var(--sexe-f-light) !important;
+  border-color: #fbbdd7 !important;
+}
+
+.simple-mode.symbols-colors.sexe-M {
+  background: var(--sexe-m-light) !important;
+  border-color: #bfdbfe !important;
+}
+
+/* Couleurs + symboles en vue simplifiée */
+.simple-mode.symbols-both {
+  background: #fff !important;
+  border-color: #bbb !important;
+}
+
+.simple-mode.symbols-both .student-simple-name::after {
+  content: " ";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  border: 1px solid #bbb;
+}
+
+.simple-mode.symbols-both.sexe-F .student-simple-name::after {
+  background: var(--sexe-f-light);
+  border-color: #fbbdd7;
+}
+
+.simple-mode.symbols-both.sexe-M .student-simple-name::after {
+  background: var(--sexe-m-light);
+  border-color: #bfdbfe;
+}
+
+.simple-line { 
+  /* plus de hauteur fixe, sera géré dynamiquement en JS */
+  display: flex; 
+  align-items: center; 
+}
+
+.student-simple-name {
+  font-size: 0.8rem;
+  line-height: 1;
+  font-weight: 700 !important;
+  -webkit-text-stroke: 1px black;
+}
+
+/* Bordure colorée gauche pour vue essentielle selon genre */
+.simple-mode.sexe-F {
+  border-left: 4px solid #ec4899 !important;
+}
+
+.simple-mode.sexe-M {
+  border-left: 4px solid #3b82f6 !important;
+}
+
+body.dark-mode .student-simple-name {
+  -webkit-text-stroke: 1px white;
+}
+
+/* Zone de drop MAXIMALE en mode simple */
+body.simple-view .droppable-zone {
+  min-height: calc(100vh - 140px) !important;  /* ← PRESQUE TOUT L'ÉCRAN ! */
+  max-height: calc(100vh - 140px) !important;
+  padding: 2px !important;
+  overflow-y: auto;
+}
+
+/* Masquer des éléments en mode simple */
+body.simple-view .class-stats {
+  display: none;
+}
+
+body.simple-view .class-counts {
+  font-size: 0.75rem;
+}
+
+body.simple-view .class-title-line {
+  margin-bottom: 4px;
+}
+
+/* ==== SUPPRIME (quasi) TOUTES LES MARGES BAS DE PAGE ==== */
+html, body { height: 100%; }          /* occupe 100 % du viewport */
+body       { display:flex; flex-direction:column; }
+
+main       {                          /* zone qui contient #board  */
+  flex: 1;                            /* prend toute la hauteur libre */
+  padding-bottom: 0 !important;       /* retire le petit padding Tailwind */
+}
+
+/* ======= MODAL DE DÉMARRAGE (centrage et animation améliorés) ======= */
+#startupModal .bg-white.rounded-lg.shadow-xl.p-8.max-w-md.w-full.text-center.relative {
+  max-width: 700px !important;
+  padding: 3rem 2rem !important;
+}
+#startupModal h2 {
+  font-size: 2.5rem !important;
+  margin-bottom: 2rem !important;
+}
+#startupModal .btn {
+  font-size: 1.25rem !important;
+  padding: 1.25rem 2rem !important;  /* Ajout padding horizontal */
+  margin-bottom: 1.25rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+#startupModal .btn span {
+  display: block !important;
+  margin-top: 0.5rem !important;
+}
+#startupModal .space-y-3.mb-6 > * {
+  margin-bottom: 1.5rem !important;
+}
+#startupModal .text-xs {
+  font-size: 1rem !important;
+}
+@keyframes modalSlideIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95) translateY(-20px);
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateY(0);
+  }
+}
+#startupModal > div {
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+    /* ========== NOUVELLES FONCTIONNALITÉS ========== */
+    
+    /* Boutons de filtre rapide */
+    .filter-btn {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #f3f4f6;
+      color: #6b7280;
+      border: 1px solid #e5e7eb;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .filter-btn.active {
+      background: #5b21b6;
+      color: white;
+      border-color: #5b21b6;
+    }
+
+    /* Cartes filtrées */
+    .student-card.filtered-out {
+      opacity: 0.2;
+      pointer-events: none;
+      transform: scale(0.95);
+    }
+
+    /* Panel historique */
+    .history-panel {
+      position: fixed;
+      left: 0;
+      top: 60px;
+      bottom: 0;
+      width: 300px;
+      background: white;
+      border-right: 1px solid #e5e7eb;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+      z-index: var(--z-panel);
+      overflow-y: auto;
+    }
+
+    .history-panel.open {
+      transform: translateX(0);
+    }
+
+    .history-timeline {
+      padding: 1rem;
+    }
+
+    .timeline-item {
+      padding: 0.75rem;
+      border-left: 3px solid #e5e7eb;
+      margin-left: 1rem;
+      margin-bottom: 1rem;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .timeline-item:hover {
+      background: #f8fafc;
+      border-left-color: #5b21b6;
+    }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 12px;
+      height: 12px;
+      background: #5b21b6;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+
+    .timeline-time {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+
+    .timeline-action {
+      font-weight: 600;
+      margin-top: 0.25rem;
+    }
+
+    .timeline-details {
+      font-size: 0.875rem;
+      color: #4b5563;
+      margin-top: 0.25rem;
+    }
+
+    /* Mode focus */
+    .focused-column {
+      position: fixed !important;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1.2);
+      z-index: var(--z-focus);
+      width: 90vw !important;
+      max-width: 600px !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Indicateur de mise à jour des stats */
+    .stats-updated {
+      animation: pulse-green 2s ease-in-out;
+      background: #10b981 !important;
+      color: white !important;
+    }
+    
+    @keyframes pulse-green {
+      0%, 100% { background: #10b981; }
+      50% { background: #059669; }
+    }
+
+    .focus-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: calc(var(--z-focus) - 1);
+    }
+
+    .exit-focus-hint {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      z-index: calc(var(--z-focus) + 1);
+    }
+
+    /* Menu bookmarks */
+    .bookmarks-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      min-width: 200px;
+      max-height: 400px;
+      overflow-y: auto;
+      display: none;
+      z-index: var(--z-dropdown) !important;
+    }
+
+    .bookmarks-menu.open {
+      display: block;
+    }
+
+    .bookmark-item {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #f3f4f6;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .bookmark-item:hover {
+      background: #f8fafc;
+    }
+
+    .bookmark-name {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .bookmark-meta {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+
+    .bookmark-actions {
+      margin-top: 0.5rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .new-bookmark-form {
+      padding: 1rem;
+      border-top: 2px solid #e5e7eb;
+    }
+
+    /* Mode sombre pour les nouvelles fonctionnalités */
+    body.dark-mode .filter-btn {
+      background: #334155;
+      color: #e2e8f0;
+      border-color: #475569;
+    }
+
+    body.dark-mode .filter-btn:hover {
+      background: #475569;
+      color: #f1f5f9;
+    }
+
+    body.dark-mode .filter-btn.active {
+      background: #5b21b6;
+      color: white;
+    }
+
+    body.dark-mode .history-panel {
+      background: #1e293b;
+      border-color: #334155;
+    }
+
+    body.dark-mode .timeline-item:hover {
+      background: #334155;
+    }
+
+    body.dark-mode .bookmarks-menu {
+      background: #1e293b;
+      border-color: #334155;
+    }
+
+    body.dark-mode .bookmark-item:hover {
+      background: #334155;
+    }
+
+    /* Distinguer visuellement les groupes créés */
+    .class-column[data-group-name] .class-header {
+      background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%) !important;
+    }
+
+    .class-column[data-group-name] .classe-name::before {
+      content: "📊 ";
+      margin-right: 4px;
+    }
+
+    /* Vraies classes avec indicateur */
+    .class-column:not([data-group-name]) .classe-name::before {
+      content: "🏫 ";
+      margin-right: 4px;
+    }
+
+    /* Animation de mise à jour des graphiques */
+    .stats-panel.updating {
+      animation: statsUpdate 0.3s ease-in-out;
+    }
+
+    @keyframes statsUpdate {
+      0% { opacity: 1; }
+      50% { opacity: 0.8; transform: scale(0.99); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Barre de progression sauvegarde - Repositionnée en bas à droite */
+    .save-progress-bar {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      z-index: var(--z-feedback);
+      width: 320px;
+      max-width: calc(100vw - 2rem);
+      
+      border-radius: 0.75rem;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      box-shadow: 0 20px 40px rgba(0,0,0,.4);
+      
+      color: #fff;
+      font-size: 13px;
+      line-height: 1.2;
+      font-family: 'Inter', sans-serif;
+      
+      display: none; /* Invisible par défaut */
+    }
+
+    .save-progress-bar.show {
+      display: block; /* Visible uniquement pendant la sauvegarde */
+    }
+
+    .save-progress-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+    }
+
+    .save-progress-content {
+      background: rgba(0,0,0,.15);
+      padding: 0.75rem 1rem;
+      max-height: 50vh;
+      overflow-y: auto;
+      border-radius: 0 0 .75rem .75rem;
+    }
+
+    .progress-bar-container {
+      background: rgba(255,255,255,.25);
+      height: 6px;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-bottom: .5rem;
+    }
+
+    .progress-bar-fill {
+      background: #fff;
+      height: 100%;
+      width: 0%;
+      transition: width .2s linear;
+    }
+
+    .progress-steps {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+      opacity: 0.5;
+    }
+
+    .progress-step.active {
+      opacity: 1;
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    .progress-step.completed {
+      opacity: 1;
+      color: #059669;
+    }
+
+    .progress-step i {
+      margin-right: 8px;
+      width: 12px;
+    }
+
+    /* Menu Paramètres avec sections */
+    .settings-section {
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .settings-section:last-child {
+      border-bottom: none;
+    }
+
+    .settings-section-header {
+      padding: 10px 16px;
+      background: #f9fafb;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #374151;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .settings-item {
+      width: 100%;
+      text-align: left;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      color: #374151;
+      background: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .settings-item:hover:not(:disabled) {
+      background: #f3f4f6;
+    }
+
+    .settings-item:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .settings-item-inline {
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      border: 1px solid #e5e7eb;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .settings-item-inline:hover:not(:disabled) {
+      background: #e5e7eb;
+    }
+
+    .settings-item-inline:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .filter-btn-compact {
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      border: 1px solid #e5e7eb;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn-compact:hover {
+      background: #f3f4f6;
+      border-color: #9ca3af;
+    }
+
+    .filter-btn-compact.active {
+      background: #3b82f6;
+      color: white;
+      border-color: #2563eb;
+    }
+
+    /* Largeur menu paramètres */
+    #settingsDropdown {
+      max-height: 80vh;
+      overflow-y: auto;
+      z-index: var(--z-dropdown) !important;
+      position: absolute !important;
+    }
+
+    /* ================================================================
+       WCAG AA ACCESSIBILITY IMPROVEMENTS
+       ================================================================
+       - Focus states pour navigation clavier
+       - Contraste amélioré (ratio 4.5:1 minimum)
+       - Transitions fluides pour feedback utilisateur
+    ================================================================ */
+
+    /* ─────────────────────────────────────────────────────────────
+       FOCUS STATES - Navigation clavier
+    ───────────────────────────────────────────────────────────── */
+
+    /* Focus global pour tous les éléments interactifs */
+    button:focus,
+    a:focus,
+    input:focus,
+    select:focus,
+    textarea:focus,
+    [tabindex]:focus,
+    [role="button"]:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* Focus visible amélioré pour boutons */
+    .btn-lisibilite:focus,
+    button:focus-visible {
+      outline: 3px solid #3b82f6;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+    }
+
+    /* Focus pour student cards (cartes glissables) */
+    .student-card:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+      z-index: 10;
+    }
+
+    /* Focus pour éléments de navigation */
+    nav a:focus,
+    .nav-link:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    /* Supprimer le outline par défaut du navigateur (remplacé par nos styles) */
+    *:focus:not(:focus-visible) {
+      outline: none;
+    }
+
+    /* Focus visible uniquement pour navigation clavier (pas au clic souris) */
+    *:focus-visible {
+      outline: 3px solid #3b82f6;
+      outline-offset: 2px;
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       CONTRASTE AMÉLIORÉ - WCAG AA (4.5:1)
+    ───────────────────────────────────────────────────────────── */
+
+    /* Améliorer contraste boutons gris (avant: #6b7280 sur #f3f4f6 = 3.2:1 ❌) */
+    .btn-lisibilite {
+      color: #4b5563; /* Ratio amélioré: 5.1:1 ✅ */
+    }
+
+    .btn-lisibilite:hover {
+      color: #1f2937; /* Ratio: 8.2:1 ✅ */
+    }
+
+    /* Améliorer contraste textes secondaires */
+    .text-gray-600 {
+      color: #4b5563 !important; /* Au lieu de #6b7280 */
+    }
+
+    .text-gray-500 {
+      color: #6b7280 !important; /* Acceptable pour texte large uniquement */
+    }
+
+    /* S'assurer que les badges ont un bon contraste */
+    .badge {
+      font-weight: 600; /* Texte plus lisible */
+    }
+
+    /* Contraste pour liens */
+    a {
+      color: #2563eb; /* Ratio: 6.1:1 sur blanc ✅ */
+    }
+
+    a:hover {
+      color: #1d4ed8; /* Ratio: 8.4:1 ✅ */
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       STATES DÉSACTIVÉS - Accessibilité
+    ───────────────────────────────────────────────────────────── */
+
+    /* Boutons désactivés avec bon contraste */
+    button:disabled,
+    .btn-lisibilite:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      color: #6b7280 !important;
+      background: #f3f4f6 !important;
+      border-color: #d1d5db !important;
+    }
+
+    button:disabled:focus {
+      outline: 2px solid #9ca3af; /* Focus même désactivé */
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       SKIP LINKS - Navigation clavier rapide
+    ───────────────────────────────────────────────────────────── */
+
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: #1f2937;
+      color: white;
+      padding: 8px 16px;
+      text-decoration: none;
+      border-radius: 0 0 4px 0;
+      z-index: var(--z-critical);
+      font-weight: 600;
+    }
+
+    .skip-link:focus {
+      top: 0;
+      outline: 3px solid #3b82f6;
+      outline-offset: 2px;
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       LECTEURS D'ÉCRAN - sr-only class
+    ───────────────────────────────────────────────────────────── */
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    .sr-only-focusable:focus {
+      position: static;
+      width: auto;
+      height: auto;
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       HIGH CONTRAST MODE - Respect des préférences utilisateur
+    ───────────────────────────────────────────────────────────── */
+
+    @media (prefers-contrast: high) {
+      button,
+      .btn-lisibilite,
+      a {
+        font-weight: 600;
+        border-width: 2px;
+      }
+
+      *:focus {
+        outline-width: 3px;
+      }
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       REDUCED MOTION - Respect des préférences utilisateur
+    ───────────────────────────────────────────────────────────── */
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* ========== INDICATEUR MODIFICATIONS NON SAUVEGARDÉES ========== */
+
+    /* Point rouge sur le badge autosave quand modifié */
+    #autosaveBadge.has-unsaved {
+      border-color: #ef4444 !important;
+      background: #fef2f2 !important;
+      color: #dc2626 !important;
+      animation: unsavedPulse 2s ease-in-out infinite;
+    }
+
+    #autosaveBadge.has-unsaved::before {
+      content: '';
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      width: 8px;
+      height: 8px;
+      background: #ef4444;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+
+    @keyframes unsavedPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+    }
+
+    body.dark-mode #autosaveBadge.has-unsaved {
+      background: #450a0a !important;
+      color: #fca5a5 !important;
+      border-color: #dc2626 !important;
+    }
+
+    body.dark-mode #autosaveBadge.has-unsaved::before {
+      border-color: #1e293b;
+    }
+
+    /* ========== SKELETON LOADING (CARTES FANTÔMES) ========== */
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .skeleton-card {
+      width: 100%;
+      background: white;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 4px;
+      border: 2px solid #e5e7eb;
+      overflow: hidden;
+    }
+
+    .skeleton-line {
+      height: 12px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    .skeleton-line.name { width: 70%; height: 14px; margin-bottom: 6px; }
+    .skeleton-line.badges { width: 50%; height: 10px; margin-bottom: 4px; }
+    .skeleton-line.source { width: 40%; height: 10px; }
+
+    body.dark-mode .skeleton-card {
+      background: #334155;
+      border-color: #475569;
+    }
+
+    body.dark-mode .skeleton-line {
+      background: linear-gradient(90deg, #475569 25%, #64748b 37%, #475569 63%);
+      background-size: 200% 100%;
+    }
+
+    /* ========== RACCOURCIS CLAVIER OVERLAY ========== */
+
+    #shortcutsOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: var(--z-modal);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #shortcutsOverlay.show {
+      display: flex;
+    }
+
+    .shortcuts-panel {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 520px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    body.dark-mode .shortcuts-panel {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+
+    .shortcuts-panel h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    body.dark-mode .shortcut-row {
+      border-bottom-color: #334155;
+    }
+
+    .shortcut-row:last-child {
+      border-bottom: none;
+    }
+
+    .shortcut-row .action {
+      font-size: 0.875rem;
+      color: #374151;
+    }
+
+    body.dark-mode .shortcut-row .action {
+      color: #d1d5db;
+    }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
+      font-weight: 600;
+      color: #374151;
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      box-shadow: 0 1px 0 #d1d5db;
+    }
+
+    body.dark-mode .kbd {
+      color: #e2e8f0;
+      background: #334155;
+      border-color: #475569;
+      box-shadow: 0 1px 0 #475569;
+    }
+
+    /* Hint discret en bas à droite */
+    #shortcutsHint {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      z-index: var(--z-badge);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid #e2e8f0;
+      cursor: pointer;
+      transition: all 0.2s;
+      backdrop-filter: blur(4px);
+    }
+
+    #shortcutsHint:hover {
+      color: #475569;
+      background: white;
+      border-color: #94a3b8;
+    }
+
+    body.dark-mode #shortcutsHint {
+      color: #64748b;
+      background: rgba(30, 41, 59, 0.8);
+      border-color: #334155;
+    }
+
+    body.dark-mode #shortcutsHint:hover {
+      color: #94a3b8;
+      background: #1e293b;
+    }

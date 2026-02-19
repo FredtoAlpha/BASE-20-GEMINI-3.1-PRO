@@ -1,0 +1,2177 @@
+<!-- InterfaceV2_NewStudentModule.html -->
+<!-- Module complet : gestion de l'arrivée d'un nouvel élève -->
+<!-- Responsabilités : UI "Nouvel élève" + calcul meilleure classe + affectation -->
+
+<style id="newStudentModule-styles">
+/* Panneau droit — Style OptimizationPanel */
+.new-student-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.new-student-modal.open {
+  display: block;
+}
+
+.new-student-panel {
+  position: fixed;
+  top: 80px;
+  right: 0;
+  width: 900px;
+  height: calc(100% - 80px);
+  background: white;
+  box-shadow: -2px 0 40px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  grid-template-rows: 1fr auto;
+  animation: slideInRight 0.3s ease;
+  transform: translateX(0);
+}
+
+.new-student-panel .new-student-sidebar {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.new-student-panel .new-student-content {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.new-student-panel .new-student-footer {
+  grid-column: 1 / 3;
+  grid-row: 2;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.new-student-modal.open .new-student-panel {
+  transform: translateX(0);
+}
+
+.new-student-modal:not(.open) .new-student-panel {
+  transform: translateX(100%);
+}
+
+/* Barre latérale gauche */
+.new-student-sidebar {
+  width: 250px;
+  background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.new-student-sidebar-header {
+  text-align: center;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.new-student-icon-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a78bfa 0%, #818cf8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  font-size: 40px;
+}
+
+.new-student-sidebar h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  text-align: center;
+}
+
+.new-student-sidebar p {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.new-student-sidebar-content {
+  flex: 1;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 16px;
+}
+
+.new-student-sidebar-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.new-student-sidebar-item strong {
+  display: block;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.new-student-sidebar-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.new-student-close {
+  width: 100%;
+  padding: 10px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.new-student-close:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+/* Contenu principal */
+.new-student-content {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  background: white;
+}
+
+.new-student-content .new-student-header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.new-student-content .new-student-form-column {
+  grid-column: 1;
+  grid-row: 2;
+  border-right: 1px solid #e5e7eb;
+}
+
+.new-student-content .new-student-result-column {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.new-student-header {
+  padding: 24px 28px;
+  background: linear-gradient(to right, #f3f4f6, #ede9fe);
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.new-student-header h2 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.new-student-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Colonne formulaire */
+.new-student-form-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px;
+  background: white;
+  overflow-y: auto;
+}
+
+.new-student-form-column h3 {
+  margin: 0 0 12px 0;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 700;
+  display: none;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select {
+  padding: 10px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background: white;
+  transition: all 0.2s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #2563eb;
+  background-color: #f0f7ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-group-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Checkboxes et toggles */
+.form-group-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.form-group-checkbox input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.form-group-checkbox label {
+  margin: 0;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.form-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.form-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scores-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.score-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.score-input label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+.score-input input[type="number"] {
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+/* Colonne résultats */
+.new-student-result-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  background: #fafbfc;
+  overflow-y: auto;
+  border-left: 1px solid #e5e7eb;
+}
+
+.new-student-result-column h3 {
+  margin: 0 0 12px 0;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 600;
+  display: block;
+}
+
+.result-empty {
+  color: #999;
+  font-size: 14px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+/* === Carte "Classe recommandée" (look proche OptimizationPanel) === */
+.result-best-class {
+  background: linear-gradient(90deg, #2563eb 0%, #1e3a8a 100%);
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 16px 32px rgba(0,0,0,0.18);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-best-class-title {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.result-best-class-label {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.result-best-class-icon {
+  font-size: 18px;
+}
+
+/* Tableau des alternatives = carte blanche clean */
+.result-scores-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.07);
+  margin-bottom: 16px;
+}
+
+.result-scores-table thead {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .03em;
+}
+
+.result-scores-table th,
+.result-scores-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.result-scores-table tr.best-row {
+  background: #ecfdf5;
+  font-weight: 600;
+  color: #065f46;
+}
+
+.score-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.score-badge.good { background: #c8e6c9; color: #1b5e20; }
+.score-badge.warning { background: #ffe0b2; color: #e65100; }
+.score-badge.critical { background: #ffcdd2; color: #b71c1c; }
+
+.result-justification {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.05);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+.result-justification h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.result-justification ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.result-justification li {
+  margin: 2px 0;
+  line-height: 1.4;
+}
+
+/* Footer / Boutons */
+.new-student-footer {
+  padding: 20px 28px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #f9fafb;
+  flex-shrink: 0;
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  color: #475569;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #334155;
+}
+
+.btn-primary {
+  background: #2563eb;
+  border: none;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.btn-primary:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-action {
+  background: #10b981;
+  border: none;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-action:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* Message de confirmation */
+.affectation-message {
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.affectation-message.success {
+  background: #c8e6c9;
+  color: #1b5e20;
+  border: 1px solid #81c784;
+}
+
+.affectation-message.info {
+  background: #bbdefb;
+  color: #0d47a1;
+  border: 1px solid #64b5f6;
+}
+
+.result-alternatives-note {
+  margin: 12px 0 8px 0;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.result-alternatives-note small {
+  display: block;
+}
+
+/* Avertissement fallback */
+.result-fallback-warning {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #92400e;
+  line-height: 1.4;
+}
+
+.result-fallback-warning strong {
+  display: block;
+  margin-bottom: 4px;
+}
+</style>
+
+<script>
+(function() {
+  'use strict';
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🛡️ DOM ENVIRONMENT GUARD
+  // ═══════════════════════════════════════════════════════════════════
+  if (typeof document === 'undefined') {
+    console.warn('[NewStudentModule] Skipping client-side code in server context');
+    return;
+  }
+  // ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Module Nouvel Élève
+ * Gère l'UI, le calcul de la meilleure classe, et l'affectation finale
+ */
+const NewStudentModule = {
+  // État interne
+  state: {
+    isOpen: false,
+    currentFormData: null,
+    computationResult: null,
+    affectedClassId: null
+  },
+
+  // Mode debug (mettre à true pour logs verbeux)
+  debug: false,
+
+  // Configuration des scores possibles
+  scoreRanges: {
+    COM: { min: 0, max: 4, label: 'Comportement' },
+    TRA: { min: 0, max: 4, label: 'Travail' },
+    PART: { min: 0, max: 4, label: 'Participation' },
+    ABS: { min: 0, max: 4, label: 'Absences' }
+  },
+
+  // Poids du scoring (sur 100) - Priorités réalistes pour une école
+  // 💡 Pour dramatiser l'effet climat : passer comportement de 0.20 à 0.30 et effectif de 0.35 à 0.30
+  scoringWeights: {
+    effectif: 0.35,        // Éviter surcharge (priorité #1 : ne pas saturer)
+    lv2Opt: 0.25,          // Compatibilité LV2/OPT (contrainte structurelle)
+    parite: 0.20,          // Équilibre M/F (important mais flexible)
+    comportement: 0.20     // Équilibre profil social/scolaire (COM/TRA/PART/ABS)
+  },
+
+  /**
+   * Initialisation du module
+   */
+  init() {
+    if (this.initialized) return;
+
+    // Créer le DOM de la modale
+    this.createModalDOM();
+
+    // Attacher les event listeners
+    this.attachEventListeners();
+
+    this.initialized = true;
+    console.log('[NewStudentModule] Initialized');
+  },
+
+  /**
+   * Crée le DOM de la modale (structure HTML)
+   */
+  createModalDOM() {
+    const html = `
+      <div class="new-student-modal" id="newStudentModal">
+        <div class="new-student-panel" id="newStudentPanel">
+          <!-- Sidebar Gauche -->
+          <div class="new-student-sidebar">
+            <div class="new-student-sidebar-header">
+              <div class="new-student-icon-circle">⭐</div>
+              <h3>Assistant d'Affectation</h3>
+              <p>Guidé pour nouvel élève</p>
+            </div>
+
+            <div class="new-student-sidebar-content">
+              <div class="new-student-sidebar-item">
+                <strong>Étape 1:</strong>
+                Remplissez le profil
+              </div>
+              <div class="new-student-sidebar-item">
+                <strong>Étape 2:</strong>
+                Cliquez sur "Calculer"
+              </div>
+              <div class="new-student-sidebar-item">
+                <strong>Étape 3:</strong>
+                Confirmez l'affectation
+              </div>
+            </div>
+
+            <div class="new-student-sidebar-footer">
+              <button class="new-student-close" id="newStudentClose">
+                <i class="fas fa-times mr-2"></i>Fermer
+              </button>
+            </div>
+          </div>
+
+          <!-- Contenu Principal -->
+          <div class="new-student-content">
+            <!-- Header Contextuel -->
+            <div class="new-student-header">
+              <h2>Profil du nouvel élève</h2>
+              <p>Complétez les informations et cliquez sur "Calculer" pour voir la meilleure classe</p>
+            </div>
+
+            <!-- Formulaire -->
+            <div class="new-student-form-column">
+              <!-- Identité -->
+              <div class="form-section">
+                <h4>Identité</h4>
+                <div class="form-group">
+                  <label>Nom *</label>
+                  <input type="text" id="nsNom" placeholder="ex: Dupont" required>
+                </div>
+                <div class="form-group">
+                  <label>Prénom *</label>
+                  <input type="text" id="nsPrenom" placeholder="ex: Jean" required>
+                </div>
+                <div class="form-group">
+                  <label>Sexe *</label>
+                  <select id="nsSexe" required>
+                    <option value="">-- Sélectionner --</option>
+                    <option value="F">Fille</option>
+                    <option value="M">Garçon</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- LV2 / Option -->
+              <div class="form-section">
+                <h4>Langues & Options</h4>
+                <div class="form-group">
+                  <label>LV2 (si connue)</label>
+                  <select id="nsLV2">
+                    <option value="">-- Pas encore défini(e) --</option>
+                  </select>
+                  <small style="color: #999; font-size: 11px; margin-top: 4px;">Basées sur STATE.rules</small>
+                </div>
+                <div class="form-group">
+                  <label>Option / dispositif (facultatif)</label>
+                  <select id="nsOpt">
+                    <option value="">-- Aucune / Inconnu --</option>
+                  </select>
+                  <small style="color: #999; font-size: 11px; margin-top: 4px;">Basées sur STATE.rules</small>
+                </div>
+              </div>
+
+              <!-- Scores -->
+              <div class="form-section">
+                <h4>Indicateurs comportementaux</h4>
+                <div class="scores-grid">
+                  <div class="score-input">
+                    <label for="nsCOM">COM (0-4)</label>
+                    <input type="number" id="nsCOM" min="0" max="4" value="2">
+                  </div>
+                  <div class="score-input">
+                    <label for="nsTRA">TRA (0-4)</label>
+                    <input type="number" id="nsTRA" min="0" max="4" value="2">
+                  </div>
+                  <div class="score-input">
+                    <label for="nsPART">PART (0-4)</label>
+                    <input type="number" id="nsPART" min="0" max="4" value="2">
+                  </div>
+                  <div class="score-input">
+                    <label for="nsABS">ABS (0-4)</label>
+                    <input type="number" id="nsABS" min="0" max="4" value="1">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Contraintes admin -->
+              <div class="form-section">
+                <h4>Contraintes</h4>
+                <div class="form-group-checkbox">
+                  <input type="checkbox" id="nsForceClass">
+                  <label for="nsForceClass">Imposer une classe spécifique</label>
+                </div>
+                <div class="form-group" id="nsForceClassGroup" style="display: none;">
+                  <label>Classe imposée</label>
+                  <select id="nsForceClassSelect">
+                    <option value="">-- Sélectionner --</option>
+                    <!-- Rempli dynamiquement -->
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Colonne droite : Résultats -->
+            <div class="new-student-result-column">
+              <h3>Classe recommandée</h3>
+              <div id="nsResults" class="result-empty">
+                Cliquez sur "Calculer" pour voir la classe recommandée
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="new-student-footer">
+            <button class="btn-secondary" id="newStudentCancel">Annuler</button>
+            <button class="btn-primary" id="newStudentCalculate">Calculer la meilleure classe</button>
+            <button class="btn-action" id="newStudentAffect" style="display: none;">
+              Affecter
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Injecter dans le body
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container.querySelector('.new-student-modal'));
+
+    // NOTE: Ne pas remplir nsForceClassSelect ici, le faire dans open()
+    // car STATE n'est pas encore chargé à ce moment
+  },
+
+  /**
+   * Obtenir les classes depuis STATE.rules (comme Opti)
+   * Fallback sur STATE.classes si STATE.rules vide
+   */
+  getClasses() {
+    // Priorité 1: STATE.rules (structure officielle des règles)
+    if (STATE.rules && Object.keys(STATE.rules).length > 0) {
+      return Object.keys(STATE.rules).sort();
+    }
+
+    // Fallback 2: STATE.classes (où les élèves sont répartis)
+    if (STATE.classes && Object.keys(STATE.classes).length > 0) {
+      return Object.keys(STATE.classes).sort();
+    }
+
+    console.warn('[NewStudentModule] Aucune classe trouvée dans STATE.rules ni STATE.classes');
+    return [];
+  },
+
+  /**
+   * Détecter automatiquement les LV2 et OPT observées (comme Opti)
+   */
+  detectOptions() {
+    const students = STATE.students || {};
+    const lv2Set = new Set();
+    const optSet = new Set();
+
+    // Parcourir TOUS les élèves (pas de filtrage par niveau)
+    Object.values(students).forEach(student => {
+      if (!student || typeof student !== 'object') return;
+
+      // Tenter lv2 et LV2 (minuscule ou majuscule)
+      const lv2 = student.lv2 || student.LV2;
+      const opt = student.opt || student.OPT;
+
+      if (lv2) {
+        const normalized = lv2.toString().toUpperCase();
+        lv2Set.add(normalized);
+      }
+      if (opt) {
+        const normalized = opt.toString().toUpperCase();
+        optSet.add(normalized);
+      }
+    });
+
+    const detectedLV2 = Array.from(lv2Set).sort();
+    const detectedOPT = Array.from(optSet).sort();
+
+    // Note: On ne log plus ici pour éviter le spam dans la console
+    // Ces valeurs sont juste pour remplir les selects, pas pour pré-remplir le formulaire
+
+    return {
+      lv2: detectedLV2,
+      opt: detectedOPT
+    };
+  },
+
+  /**
+   * Remplir les selects LV2 et OPT (logique Opti)
+   */
+  populateLV2OptSelects() {
+    // Détecter les options observées
+    const { lv2, opt } = this.detectOptions();
+
+    // Remplir le select LV2
+    const selectLV2 = document.getElementById('nsLV2');
+    if (selectLV2) {
+      selectLV2.innerHTML = '<option value="">-- Sélectionner une LV2 --</option>';
+      lv2.forEach(option => {
+        const el = document.createElement('option');
+        el.value = option;
+        el.textContent = option;
+        selectLV2.appendChild(el);
+      });
+    }
+
+    // Remplir le select OPT
+    const selectOPT = document.getElementById('nsOpt');
+    if (selectOPT) {
+      selectOPT.innerHTML = '<option value="">-- Aucune --</option>';
+      opt.forEach(option => {
+        const el = document.createElement('option');
+        el.value = option;
+        el.textContent = option;
+        selectOPT.appendChild(el);
+      });
+    }
+  },
+
+
+  /**
+   * Attacher les event listeners
+   */
+  attachEventListeners() {
+    // Fermer le panneau
+    document.getElementById('newStudentClose').addEventListener('click', () => this.close());
+    document.getElementById('newStudentCancel').addEventListener('click', () => this.close());
+
+    // Panneau - clic sur l'overlay de fond
+    document.getElementById('newStudentModal').addEventListener('click', (e) => {
+      if (e.target.id === 'newStudentModal') this.close();
+    });
+
+    // Affichage du dropdown "Classe imposée"
+    document.getElementById('nsForceClass').addEventListener('change', (e) => {
+      const group = document.getElementById('nsForceClassGroup');
+      group.style.display = e.target.checked ? 'flex' : 'none';
+    });
+
+    // Boutons d'action
+    document.getElementById('newStudentCalculate').addEventListener('click', () => this.computeAndDisplay());
+    document.getElementById('newStudentAffect').addEventListener('click', () => this.affectStudentToClass());
+
+    // Validation live du formulaire
+    ['nsNom', 'nsPrenom', 'nsSexe'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => this.validateForm());
+    });
+  },
+
+  /**
+   * Valide que le formulaire est complet
+   * ✅ LV2 n'est plus obligatoire
+   */
+  validateForm() {
+    const nom = document.getElementById('nsNom').value.trim();
+    const prenom = document.getElementById('nsPrenom').value.trim();
+    const sexe = document.getElementById('nsSexe').value;
+
+    const isValid = nom && prenom && sexe;
+    document.getElementById('newStudentCalculate').disabled = !isValid;
+
+    return isValid;
+  },
+
+  /**
+   * Récupérer les données du formulaire
+   * ✅ on renvoie lv2/opt = null si vide
+   */
+  getFormData() {
+    return {
+      nom: document.getElementById('nsNom').value.trim(),
+      prenom: document.getElementById('nsPrenom').value.trim(),
+      sexe: document.getElementById('nsSexe').value,
+      lv2: document.getElementById('nsLV2').value || null,
+      opt: document.getElementById('nsOpt').value || null,
+      scores: {
+        COM: parseInt(document.getElementById('nsCOM').value) || 0,
+        TRA: parseInt(document.getElementById('nsTRA').value) || 0,
+        PART: parseInt(document.getElementById('nsPART').value) || 0,
+        ABS: parseInt(document.getElementById('nsABS').value) || 0
+      },
+      forceClass: document.getElementById('nsForceClass').checked,
+      forcedClassId: document.getElementById('nsForceClass').checked
+        ? document.getElementById('nsForceClassSelect').value
+        : null
+    };
+  },
+
+  /**
+   * Calculer et afficher le résultat
+   */
+  computeAndDisplay() {
+    if (!this.validateForm()) {
+      alert('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    const formData = this.getFormData();
+    this.state.currentFormData = formData;
+
+    // Calcul
+    const result = this.computeBestClass(formData);
+    this.state.computationResult = result;
+
+    // Affichage
+    this.displayResult(result);
+  },
+
+  /**
+   * Calcul du meilleur classe
+   * @param {Object} studentData - Données du nouvel élève
+   * @returns {Object} {bestClassId, rankedClasses, justification}
+   */
+  computeBestClass(studentData) {
+    // Étape 1 : Obtenir les classes admissibles (contraintes dures)
+    let eligibleClasses = this.getEligibleClasses(studentData);
+
+    // Fallback: si aucune classe admissible, proposer toutes les classes avec avertissement
+    if (eligibleClasses.length === 0) {
+      console.warn('[NewStudentModule] Aucune classe admissible! Fallback: utiliser toutes les classes');
+
+      // Fallback sur STATE.classes au complet (peut violer les contraintes)
+      eligibleClasses = Object.keys(STATE.classes || {});
+
+      if (eligibleClasses.length === 0) {
+        return {
+          bestClassId: null,
+          rankedClasses: [],
+          error: '⚠️ Aucune classe disponible dans le système'
+        };
+      }
+    }
+
+    // Étape 2 : Scoring pour chaque classe
+    const rankedClasses = eligibleClasses
+      .map(classId => ({
+        classId,
+        score: this.scoreClassForStudent(classId, studentData),
+        effectif: (STATE.classes[classId].eleves || []).length,
+        parityData: this.getParityAfterAdd(classId, studentData.sexe)
+      }))
+      .sort((a, b) => {
+        // Score principal
+        if (Math.abs(a.score - b.score) > 0.1) {
+          return b.score - a.score;
+        }
+
+        // Tie-breaker 1 : effectif le plus bas
+        if (a.effectif !== b.effectif) {
+          return a.effectif - b.effectif;
+        }
+
+        // Tie-breaker 2 : meilleure parité
+        const parityDiffA = Math.abs(a.parityData.filles - a.parityData.garcons);
+        const parityDiffB = Math.abs(b.parityData.filles - b.parityData.garcons);
+
+        if (parityDiffA !== parityDiffB) {
+          return parityDiffA - parityDiffB;
+        }
+
+        // Tie-breaker 3 : ordre alphabétique stable
+        return a.classId.localeCompare(b.classId);
+      });
+
+    const bestClassId = rankedClasses[0].classId;
+
+    // Justification
+    const justification = this.generateJustification(bestClassId, studentData, rankedClasses);
+
+    // Signaler si on a utilisé le fallback (contraintes violées)
+    const usedFallback = Object.keys(this.getEligibleClasses(studentData)).length === 0;
+
+    return {
+      bestClassId,
+      rankedClasses,
+      justification,
+      fallback: usedFallback
+    };
+  },
+
+  /**
+   * Obtenir les classes admissibles (applique contraintes dures)
+   * ✅ n'écarte plus les classes "pleines"
+   * ✅ n'écarte plus si LV2 inconnue
+   * ✅ se limite au niveau affiché (6°, 5°, 4°...) pour éviter d'envoyer un 4e en 3e
+   */
+  getEligibleClasses(studentData) {
+    // 1. classes du niveau courant dans l'UI
+    const niveau = this.detectNiveauFromDOM();
+    let classes = [];
+    if (niveau) {
+      classes = this.gatherClassesForNiveau(niveau);
+    } else {
+      classes = Object.keys(STATE.classes || {});
+    }
+
+    if (this.debug) {
+      console.log(`[NewStudentModule] Classes disponibles pour niveau "${niveau || 'tous'}":`, classes);
+    }
+
+    // Vérifier que STATE.rules existe
+    if (!STATE.rules || Object.keys(STATE.rules).length === 0) {
+      console.warn('[NewStudentModule] STATE.rules est vide ou inexistant. Toutes les classes sont admissibles.');
+      return classes; // Pas de règles = toutes les classes OK
+    }
+
+    const eligible = classes.filter(classId => {
+      // Si une classe est imposée par l'admin → on ne propose QUE celle-là
+      if (studentData.forceClass && studentData.forcedClassId) {
+        return classId === studentData.forcedClassId;
+      }
+
+      // Récupérer les règles de la classe (peut être undefined)
+      const rules = STATE.rules[classId];
+      if (!rules) {
+        console.warn(`[NewStudentModule] Pas de règles pour ${classId}, classe admissible par défaut`);
+        return true; // Pas de règles = OK
+      }
+
+      const quotas = rules.quotas || {};
+      const studentOption = studentData.lv2 || studentData.opt;
+
+      // Cas 1 : l'élève n'a pas encore de LV2 / option => OK partout
+      if (!studentOption || String(studentOption).trim() === '') {
+        return true;
+      }
+
+      // Cas 2 : il a déjà une LV2 / option => la classe doit AU MOINS proposer ce groupe
+      // (si la classe n'offre pas Italien/CHAV/etc du tout → là oui, c'est vraiment impossible)
+      if (!(studentOption in quotas) || quotas[studentOption] === 0) {
+        if (this.debug) {
+          console.log(`[NewStudentModule] Classe ${classId} écartée : n'offre pas ${studentOption}`);
+        }
+        return false;
+      }
+
+      // On NE BLOQUE PLUS sur :
+      // - capacité (on accepte la surcharge)
+      // - quota plein pour cette option
+      // Ça sera juste mal scoré plus tard.
+      return true;
+    });
+
+    if (this.debug) {
+      console.log(`[NewStudentModule] Classes admissibles après filtrage:`, eligible);
+    }
+
+    if (eligible.length === 0) {
+      console.warn('[NewStudentModule] Aucune classe admissible! Fallback: utiliser toutes les classes');
+      return classes; // Fallback : si aucune classe n'est admissible, on les prend toutes
+    }
+
+    return eligible;
+  },
+
+  /**
+   * Détecter le niveau depuis le DOM (si l'UI affiche un niveau spécifique)
+   * Essaye de déduire depuis le premier ID de classe affiché
+   */
+  detectNiveauFromDOM() {
+    // Chercher un indicateur de niveau dans l'UI
+    const niveauEl = document.querySelector('[data-niveau]');
+    if (niveauEl) {
+      return niveauEl.getAttribute('data-niveau');
+    }
+
+    // Essaye de lire le premier ID de classe tel qu'il est dans le HTML
+    const firstZone = document.querySelector('.droppable-zone[data-classe]');
+    if (firstZone) {
+      const raw = firstZone.getAttribute('data-classe').trim(); // ex: "6°1" ou "3E2"
+      let m = raw.match(/^(\d+°)/);   // "6°1" -> "6°"
+      if (m) return m[1];
+
+      m = raw.match(/^(\d+E)/i);      // "3E2" -> "3E"
+      if (m) return m[1].toUpperCase();
+    }
+
+    // fallback
+    return null;
+  },
+
+  /**
+   * Rassembler les classes pour un niveau donné
+   */
+  gatherClassesForNiveau(niveau) {
+    const allClasses = Object.keys(STATE.classes || {});
+    // Filtrer les classes qui correspondent au niveau
+    // Ex: si niveau = "6", on garde "6A", "6B", etc.
+    return allClasses.filter(classId => {
+      return classId.startsWith(niveau);
+    });
+  },
+
+  /**
+   * Calculer le score pondéré pour une classe
+   * Prend en compte le profil de l'élève (COM, TRA, ABS) même si la classe est vide
+   */
+  scoreClassForStudent(classId, studentData) {
+    const cls = STATE.classes?.[classId] || { eleves: [] };
+    const currentSize = cls.eleves.length;
+
+    const effectifScore = this.computeEffectifScore(classId, currentSize);
+    const lv2optScore   = this.computeLV2OptScore(classId, studentData.lv2, studentData.opt);
+    const parityScore   = this.computeParityScore(classId, studentData.sexe);
+    const climateScore  = this.computeClimateScore(classId, studentData.scores);
+
+    // Pondérations
+    const totalScore =
+      0.35 * effectifScore +
+      0.25 * lv2optScore +
+      0.20 * parityScore +
+      0.20 * climateScore;
+
+    return totalScore;
+  },
+
+  /**
+   * Normaliser une valeur à [0, 1]
+   */
+  normalizeScore(value, inMin, inMax, outMin = 0, outMax = 1) {
+    if (inMax === inMin) return outMax;
+    const normalized = (value - inMin) / (inMax - inMin);
+    const clamped = Math.max(outMin, Math.min(outMax, normalized));
+    return clamped;
+  },
+
+  /**
+   * Scorer l'effectif / Éviter la surcharge (35%)
+   * ✅ la capacité devient un malus progressif, pas un "mur"
+   */
+  computeEffectifScore(classId, currentSize) {
+    const rules = STATE.rules[classId] || {};
+    const capacity = rules.capacity || 25; // taille cible, ex: 25
+    const newSize = currentSize + 1;
+    const delta = newSize - capacity; // combien on dépasse la cible
+
+    if (delta <= 0) {
+      // encore sous ou à la capacité cible -> parfait
+      return 1.0;
+    }
+    if (delta === 1) {
+      return 0.8; // on pousse de +1 → acceptable
+    }
+    if (delta === 2) {
+      return 0.6; // +2 → ça commence à coincer
+    }
+    if (delta === 3) {
+      return 0.4; // +3 → pas idéal
+    }
+    return 0.2;   // au-delà → surcharge forte, mais PAS interdit
+  },
+
+  /**
+   * Scorer la parité
+   * Objectif : encourager l'équilibre F/G après ajout
+   */
+  computeParityScore(classId, sexe) {
+    const parity = this.getParityAfterAdd(classId, sexe); // {filles, garcons}
+
+    const diff = Math.abs(parity.filles - parity.garcons);
+
+    if (diff === 0) return 1.0;   // équilibre parfait
+    if (diff === 1) return 0.9;
+    if (diff === 2) return 0.8;
+    if (diff === 3) return 0.6;
+    if (diff === 4) return 0.4;
+    return 0.2; // très déséquilibré
+  },
+
+  /**
+   * Scorer LV2/OPT (équilibre et compatibilité) (25%)
+   * ✅ si LV2/option pas encore connue => neutre/bon
+   * ✅ si la classe n'offre pas cette LV2/option du tout => très mauvais
+   * ✅ quota saturé = gros malus mais pas bloquant
+   */
+  computeLV2OptScore(classId, newLV2, newOpt) {
+    const eleves = (STATE.classes[classId].eleves || []);
+    const rules = STATE.rules[classId] || {};
+    const quotas = rules.quotas || {};
+
+    const studentOption = newLV2 || newOpt;
+
+    // Élève sans LV2/option déclarée : on ne sait pas encore → pas bloquant
+    if (!studentOption || String(studentOption).trim() === '') {
+      return 0.8; // neutre-positif
+    }
+
+    // Classe vide → elle peut absorber n'importe quel profil pour démarrer le groupe
+    if (eleves.length === 0) {
+      return 1.0;
+    }
+
+    // Si la classe ne propose pas DU TOUT cette LV2/option
+    if (!(studentOption in quotas) || quotas[studentOption] === 0) {
+      return 0.1; // quasiment impossible pédagogiquement
+    }
+
+    // On regarde le remplissage du quota pour pondérer
+    const quota = quotas[studentOption];
+    const currentCount = eleves.filter(e =>
+      (e.lv2 === studentOption || e.opt === studentOption)
+    ).length;
+
+    const remplissage = (currentCount + 1) / quota;
+
+    if (remplissage <= 0.7) return 1.0; // groupe pas saturé
+    if (remplissage <= 0.9) return 0.8;
+    if (remplissage < 1.0)  return 0.6;
+    if (remplissage === 1.0) return 0.4; // ça remplit pile le quota
+    return 0.2; // on dépasse le quota → pas idéal mais jouable
+  },
+
+  /**
+   * Scorer le climat de classe (20%)
+   * Prend en compte à la fois la classe actuelle ET le profil du nouvel élève
+   * Objectif : donner une note climat entre ~0.2 (mauvais, explosif) et 1.0 (serein)
+   */
+  computeClimateScore(classId, studentScores) {
+    const eleves = (STATE.classes?.[classId]?.eleves || []);
+    const afterCount = eleves.length + 1;
+
+    // Risque actuel de la classe
+    let riskCOM = 0;
+    let riskTRA = 0;
+    let riskABS = 0;
+
+    eleves.forEach(e => {
+      if (!e || !e.scores) return;
+      const COM = Number(e.scores.COM);
+      const TRA = Number(e.scores.TRA);
+      const ABS = Number(e.scores.ABS);
+
+      if (COM === 1) riskCOM += 1;        // COM=1 = gros problème discipline
+      if (TRA === 1) riskTRA += 1;        // TRA=1 = travail très faible / décrocheur
+      if (ABS >= 3)  riskABS += 1;        // ABS>=3 = absentéisme lourd
+    });
+
+    // Contribution du NOUVEL élève
+    const newCOM = Number(studentScores?.COM);
+    const newTRA = Number(studentScores?.TRA);
+    const newABS = Number(studentScores?.ABS);
+
+    // COM : plus c'est bas, plus c'est chaud
+    if (newCOM === 1) {
+      riskCOM += 1;
+    } else if (newCOM === 2) {
+      riskCOM += 0.5;
+    } else if (newCOM === 3) {
+      riskCOM += 0.2;
+    } else {
+      // COM=4 -> pas de risque ajouté
+    }
+
+    if (newTRA === 1) {
+      riskTRA += 1;
+    }
+
+    if (newABS >= 3) {
+      riskABS += 1;
+    }
+
+    // Risque moyen après ajout
+    const rawRisk = (
+      riskCOM +
+      0.5 * riskTRA +
+      0.3 * riskABS
+    ) / afterCount;
+
+    // Convertir en score 0.2 .. 1.0
+    let score = 1 - rawRisk;
+    if (score > 1) score = 1;
+    if (score < 0.2) score = 0.2;
+
+    return score;
+  },
+
+  /**
+   * ANCIENNE VERSION computeComportementScore - CONSERVÉE POUR COMPATIBILITÉ
+   * Redirige vers computeClimateScore
+   */
+  computeComportementScore(classId, newScores) {
+    return this.computeClimateScore(classId, newScores);
+  },
+
+  /**
+   * Calculer le "stressScore" actuel de la classe (fonction helper)
+   * CONSERVÉE mais non utilisée directement
+   */
+  _computeClassStress_OLD(classId, newScores) {
+    const eleves = (STATE.classes[classId].eleves || []);
+
+    if (eleves.length === 0) {
+      return 1.0; // Classe vide = bon accueil pour tout profil
+    }
+
+    // Calculer le "stressScore" actuel de la classe
+    // Plus c'est haut, plus la classe a déjà de cas difficiles
+    let currentStress = 0;
+
+    eleves.forEach(e => {
+      // COM = 1 → comportement problématique
+      if (e.scores?.COM === 1) currentStress += 2;
+
+      // ABS >= 3 → absentéisme problématique
+      if (e.scores?.ABS >= 3) currentStress += 1;
+
+      // TRA = 1 → pas de travail
+      if (e.scores?.TRA === 1) currentStress += 1;
+
+      // PART = 1 → non-participation
+      if (e.scores?.PART === 1) currentStress += 0.5;
+    });
+
+    // Normaliser le stress par classe
+    const avgStress = currentStress / eleves.length;
+
+    // Nouvelle élève aggrave-t-il le stress ?
+    let newStudentStress = 0;
+    if (newScores.COM === 1) newStudentStress += 2;
+    if (newScores.ABS >= 3) newStudentStress += 1;
+    if (newScores.TRA === 1) newStudentStress += 1;
+    if (newScores.PART === 1) newStudentStress += 0.5;
+
+    const newTotalStress = (currentStress + newStudentStress) / (eleves.length + 1);
+
+    // Scoring :
+    // Si on baisse le stress : excellent
+    if (newTotalStress < avgStress) {
+      return 1.0; // Cet élève "lisse" la classe
+    }
+
+    // Si on augmente peu : acceptable
+    const stressIncrease = newTotalStress - avgStress;
+    if (stressIncrease <= 0.1) {
+      return 0.8; // Acceptable
+    }
+
+    if (stressIncrease <= 0.3) {
+      return 0.6; // Moyen
+    }
+
+    if (stressIncrease <= 0.5) {
+      return 0.4; // Mauvais
+    }
+
+    // Augmentation importante : très mauvais
+    return 0.2; // Cet élève aggrave beaucoup la situation
+  },
+
+  /**
+   * Obtenir les données de parité après ajout
+   */
+  getParityAfterAdd(classId, newStudentSexe) {
+    const eleves = (STATE.classes[classId].eleves || []);
+    const filles = eleves.filter(e => e.sexe === 'F').length + (newStudentSexe === 'F' ? 1 : 0);
+    const garcons = (eleves.length + 1) - filles;
+
+    return { filles, garcons };
+  },
+
+  /**
+   * Helper : Détecter si un élève a un profil fragile
+   */
+  isEleveFragile(scores) {
+    const COM = Number(scores?.COM);
+    const TRA = Number(scores?.TRA);
+    const ABS = Number(scores?.ABS);
+
+    if (COM === 1) return true;      // comportement explosif
+    if (TRA === 1) return true;      // très faible investissement scolaire
+    if (ABS >= 3) return true;       // absentéisme lourd
+    return false;
+  },
+
+  /**
+   * Helper : Construire les indicateurs de tension d'une classe
+   */
+  buildClimatIndicators(classEleves) {
+    let nbCOM1   = 0;
+    let nbTRA1   = 0;
+    let nbABSris = 0;
+
+    classEleves.forEach(e => {
+      if (!e || !e.scores) return;
+      const COM = Number(e.scores.COM);
+      const TRA = Number(e.scores.TRA);
+      const ABS = Number(e.scores.ABS);
+
+      if (COM === 1) nbCOM1++;
+      if (TRA === 1) nbTRA1++;
+      if (ABS >= 3)  nbABSris++;
+    });
+
+    const stressIndicators = [];
+    if (nbCOM1   > 0) stressIndicators.push(`${nbCOM1} COM=1`);
+    if (nbABSris > 0) stressIndicators.push(`${nbABSris} absentéisme lourd`);
+    if (nbTRA1   > 0) stressIndicators.push(`${nbTRA1} TRA=1`);
+
+    if (stressIndicators.length === 0) {
+      return {
+        isSensible: false,
+        text: 'pas de profil difficile signalé'
+      };
+    }
+
+    return {
+      isSensible: true,
+      text: stressIndicators.join(', ')
+    };
+  },
+
+  /**
+   * Helper : Construire la ligne climat contextuelle (4 cas)
+   */
+  buildClimatLine(classEleves, newStudentScores) {
+    const fragile = this.isEleveFragile(newStudentScores);
+    const { isSensible, text } = this.buildClimatIndicators(classEleves);
+
+    // Cas 1 : classe calme + élève calme
+    if (!isSensible && !fragile) {
+      return `✅ classe calme (${text}) + élève à profil serein`;
+    }
+
+    // Cas 2 : classe calme + élève fragile
+    if (!isSensible && fragile) {
+      return `✅ classe calme (${text}) capable d'absorber ce profil fragile`;
+    }
+
+    // Cas 3 : classe sensible + élève calme
+    if (isSensible && !fragile) {
+      return `👍 classe déjà sensible (${text}) mais cet élève n'aggrave pas`;
+    }
+
+    // Cas 4 : classe sensible + élève fragile
+    return `⚠ classe déjà sensible (${text}) + élève à profil fragile`;
+  },
+
+  /**
+   * Générer la justification textuelle (basée sur les vrais critères)
+   * ✅ nouveau wording : capacité cible vs surcharge
+   * ✅ gère le cas "LV2 inconnue"
+   */
+  generateJustification(bestClassId, studentData, rankedClasses) {
+    const classData = STATE.classes[bestClassId];
+    const rules = STATE.rules[bestClassId] || {};
+    const capacity = rules.capacity || 25;
+
+    const eleves = classData.eleves || [];
+    const beforeSize = eleves.length;
+    const newSize = beforeSize + 1;
+    const parity = this.getParityAfterAdd(bestClassId, studentData.sexe);
+
+    const bullets = [];
+
+    // 1. EFFECTIF / CAPACITÉ
+    const deltaCap = newSize - capacity;
+    let effLabel = '';
+    if (deltaCap <= 0) {
+      effLabel = '✅ dans la capacité cible';
+    } else if (deltaCap === 1) {
+      effLabel = '👍 +1 au-dessus de la capacité annoncée';
+    } else if (deltaCap === 2) {
+      effLabel = '⚠ +2 au-dessus';
+    } else {
+      effLabel = '⚠ surcharge importante';
+    }
+    bullets.push(
+      `<strong>Effectif :</strong> ${beforeSize} → ${newSize} élèves (capacité cible ${capacity}, ${effLabel})` 
+    );
+
+    // 2. LV2 / OPTION
+    if (studentData.lv2 || studentData.opt) {
+      const optLabel = studentData.lv2 || studentData.opt;
+      const lv2Count = eleves.filter(e =>
+        e.lv2 === optLabel || e.opt === optLabel
+      ).length + 1; // après ajout
+      bullets.push(
+        `<strong>LV2 / Option ${optLabel} :</strong> groupe existant et compatible (${lv2Count} élève(s) après ajout)` 
+      );
+    } else {
+      bullets.push(
+        `<strong>LV2 / Option :</strong> pas encore définie → placement basé surtout sur effectif, parité et climat de classe` 
+      );
+    }
+
+    // 3. PARITÉ
+    const diff = Math.abs(parity.filles - parity.garcons);
+    const parityStatus =
+      diff <= 2 ? '✅ équilibré' :
+      diff <= 4 ? '👍 acceptable' :
+      '⚠ déséquilibré';
+    bullets.push(
+      `<strong>Parité :</strong> ${parity.filles}F / ${parity.garcons}G (${parityStatus}) après ajout` 
+    );
+
+    // 4. CLIMAT / PROFIL SOCIAL
+    const climatLine = this.buildClimatLine(eleves, studentData.scores);
+    bullets.push(
+      `<strong>Climat social :</strong> ${climatLine}` 
+    );
+
+    return bullets;
+  },
+
+  /**
+   * Afficher les résultats (version consolidée professionnelle)
+   */
+  displayResult(result) {
+    const container = document.getElementById('nsResults');
+    const affectBtn = document.getElementById('newStudentAffect');
+
+    // Sécurisation de base
+    if (!container) return;
+
+    // Cas aucune classe dispo (ex : LV2 ultra spécifique impossible nulle part)
+    if (!result || !result.rankedClasses || result.rankedClasses.length === 0 || !result.bestClassId) {
+      container.innerHTML = `
+        <div class="result-best-class">
+          <div class="result-best-class-title">Affectation impossible</div>
+          <div class="result-best-class-label">
+            <span class="result-best-class-icon">⚠</span>
+            <span>Aucune classe compatible</span>
+          </div>
+          <div style="font-size:12px;opacity:.8;line-height:1.4;margin-top:4px;">
+            ${result && result.error ? result.error : "Aucune classe ne correspond aux contraintes pédagogiques actuelles."}
+          </div>
+        </div>
+      `;
+
+      if (affectBtn) {
+        affectBtn.style.display = 'none';
+        affectBtn.disabled = true;
+      }
+
+      return;
+    }
+
+    // On a au moins une classe
+    const bestClassId = result.bestClassId;
+    const ranked = result.rankedClasses;
+
+    // Récup infos sur la meilleure classe
+    const bestData = ranked.find(c => c.classId === bestClassId);
+    const bestRules = STATE.rules[bestClassId] || {};
+    const bestCapacity = bestRules.capacity || 25;
+    const bestNewEffectif = (bestData.effectif || 0) + 1;
+    const bestParity = bestData.parityData || { filles: 0, garcons: 0 };
+
+    // Badge capacité pour la classe recommandée
+    let bestCapacityBadge = '';
+    if (bestNewEffectif <= bestCapacity) {
+      bestCapacityBadge = `${bestNewEffectif}/${bestCapacity} ✅`;
+    } else if (bestNewEffectif === bestCapacity + 1) {
+      bestCapacityBadge = `${bestNewEffectif}/${bestCapacity} 👍`;
+    } else {
+      bestCapacityBadge = `${bestNewEffectif}/${bestCapacity} ⚠`;
+    }
+
+    // Construire la carte "Classe recommandée"
+    const bestCardHTML = `
+      <div class="result-best-class">
+        <div class="result-best-class-title">Classe recommandée</div>
+        <div class="result-best-class-label">
+          <span class="result-best-class-icon">✅</span>
+          <span>${bestClassId}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12px;line-height:1.4;margin-top:8px;">
+          <div style="display:flex;flex-direction:column;">
+            <span style="opacity:.8;">Capacité</span>
+            <span style="font-weight:600;">${bestCapacityBadge}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <span style="opacity:.8;">Parité après ajout</span>
+            <span style="font-weight:600;">${bestParity.filles}F / ${bestParity.garcons}G</span>
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <span style="opacity:.8;">Score</span>
+            <span style="font-weight:600;">${bestData.score.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Construire le tableau Alternatives
+    // On ajoute la colonne "Capacité" entre Score et F/M
+    const tableRowsHTML = ranked.map(item => {
+      const rules = STATE.rules[item.classId] || {};
+      const capacity = rules.capacity || 25;
+      const newEffectif = (item.effectif || 0) + 1;
+      let capBadge = '';
+
+      if (newEffectif <= capacity) {
+        capBadge = `${newEffectif}/${capacity} ✅`;
+      } else if (newEffectif === capacity + 1) {
+        capBadge = `${newEffectif}/${capacity} 👍`;
+      } else {
+        capBadge = `${newEffectif}/${capacity} ⚠`;
+      }
+
+      const filles = item.parityData?.filles ?? 0;
+      const garcons = item.parityData?.garcons ?? 0;
+
+      const isBest = item.classId === bestClassId;
+      return `
+        <tr class="${isBest ? 'best-row' : ''}">
+          <td>${item.classId}${isBest ? ' <span style="font-size:11px;font-weight:500;">(recommandée)</span>' : ''}</td>
+          <td>${item.score.toFixed(2)}</td>
+          <td>${capBadge}</td>
+          <td>${filles}F / ${garcons}G</td>
+        </tr>
+      `;
+    }).join('');
+
+    const alternativesTableHTML = `
+      <div class="result-alternatives-note">Autres possibilités</div>
+      <table class="result-scores-table">
+        <thead>
+          <tr>
+            <th>Classe</th>
+            <th>Score</th>
+            <th>Capacité</th>
+            <th>F/M après ajout</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRowsHTML}
+        </tbody>
+      </table>
+    `;
+
+    // Justification détaillée (déjà générée par generateJustification() : tableau de bullets <li>)
+    const justificationBullets = (result.justification || [])
+      .map(line => `<li>${line}</li>`)
+      .join('');
+
+    const justificationHTML = `
+      <div class="result-justification">
+        <h4>Pourquoi cette classe ?</h4>
+        <ul style="margin:0;padding-left:18px;">
+          ${justificationBullets}
+        </ul>
+      </div>
+    `;
+
+    // On assemble tout dans le container
+    container.innerHTML = `
+      ${bestCardHTML}
+      ${alternativesTableHTML}
+      ${justificationHTML}
+    `;
+
+    // On prépare le bouton "Affecter"
+    if (affectBtn) {
+      affectBtn.style.display = 'inline-flex';
+      affectBtn.disabled = false;
+      affectBtn.textContent = `Affecter dans ${bestClassId}`;
+      this.state.affectedClassId = bestClassId;
+    }
+  },
+
+  /**
+   * Affecter l'élève à sa classe
+   * Lit this.state.affectedClassId (pas de paramètre)
+   * Effet "magique" pour démo : création STATE + insertion DOM + message vert + fermeture
+   */
+  affectStudentToClass() {
+    const targetClassId = this.state.affectedClassId;
+    if (!targetClassId) {
+      console.warn('[NewStudentModule] Pas de classe cible pour affectation.');
+      return;
+    }
+
+    // Récupérer les infos du formulaire (nom, prénom, sexe, scores, LV2/OPT…)
+    const formData = this.getFormData();
+
+    // Créer l'élève
+    const newId = `NEW_${Date.now()}`;
+    const newStudent = {
+      id: newId,
+      nom: formData.nom,
+      prenom: formData.prenom,
+      sexe: formData.sexe,
+      lv2: formData.lv2 || null,
+      opt: formData.opt || null,
+      scores: formData.scores || {}
+    };
+
+    console.log(`[NewStudentModule] Affectation de ${newStudent.nom} ${newStudent.prenom} dans ${targetClassId}`);
+
+    // 1. Mise à jour STATE
+    if (!STATE.students) STATE.students = {};
+    STATE.students[newId] = newStudent;
+
+    if (!STATE.classes[targetClassId]) {
+      STATE.classes[targetClassId] = { eleves: [] };
+    }
+    STATE.classes[targetClassId].eleves.push(newStudent);
+
+    // Marquer comme modifié + historique
+    STATE.has_user_action = true;
+    STATE.history = STATE.history || [];
+    STATE.history.push({
+      type: 'add',
+      eleveId: newStudent.id,
+      eleveName: `${newStudent.nom} ${newStudent.prenom}`,
+      classe: targetClassId,
+      timestamp: new Date().toISOString()
+    });
+
+    // 2. Injection visuelle dans la colonne cible (effet "pop")
+    this.insertStudentCardInDOM(newStudent, targetClassId);
+
+    // 3. Mettre à jour l'affichage effectif/parité de la colonne (bonus)
+    this.updateClassCountDisplay(targetClassId);
+
+    // Mettre à jour les stats globales si disponible
+    if (window.updateAllColumnStats) {
+      window.updateAllColumnStats();
+    }
+
+    // 4. Message vert "Affectation réussie" dans le panneau droit
+    this.showSuccessResult(newStudent, targetClassId);
+
+    // 5. Fermeture douce après 1.2s
+    setTimeout(() => {
+      this.close();
+      this.resetForm();
+    }, 1200);
+
+    console.log(`[NewStudentModule] ✅ ${newStudent.nom} ${newStudent.prenom} affecté·e dans ${targetClassId}`);
+  },
+
+  /**
+   * Insérer la carte élève dans le DOM de la classe cible
+   * Animation "pop" pour effet magique en démo
+   * Synchronisé avec le format DOM existant (data-id)
+   */
+  insertStudentCardInDOM(student, classId) {
+    const dropZone =
+      document.querySelector(`.droppable-zone[data-classe="${classId}"]`) ||
+      document.querySelector(`.class-column[data-classe="${classId}"] .droppable-zone`);
+
+    if (!dropZone) {
+      console.warn('[NewStudentModule] Zone introuvable pour la classe', classId);
+      return;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'student-card';
+    // Synchronisé sur le DOM existant : data-id
+    card.setAttribute('data-id', student.id);
+    // On peut aussi ajouter data-student-id juste pour compat future, ça ne gêne pas
+    card.setAttribute('data-student-id', student.id);
+    card.setAttribute('draggable', 'true');
+
+    card.innerHTML = `
+      <div class="student-card-name">
+        <span class="sc-nom">${student.nom.toUpperCase()}</span>
+        <span class="sc-prenom">${student.prenom}</span>
+      </div>
+      <div class="student-card-tags">
+        ${student.lv2 ? `<span class="tag">${student.lv2}</span>` : ''}
+        ${student.opt ? `<span class="tag">${student.opt}</span>` : ''}
+      </div>
+    `;
+
+    dropZone.appendChild(card);
+
+    // Animation pop
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.8)';
+    requestAnimationFrame(() => {
+      card.style.transition = 'all 0.3s ease';
+      card.style.opacity = '1';
+      card.style.transform = 'scale(1)';
+    });
+
+    console.log(`[NewStudentModule] Carte élève ${student.id} insérée dans ${classId} avec animation`);
+  },
+
+  /**
+   * Mettre à jour le compteur d'élèves dans l'en-tête de la classe (bonus)
+   * Effet visuel immédiat : "25 élèves" → "26 élèves"
+   */
+  updateClassCountDisplay(classId) {
+    const countEl = document.querySelector(`[data-classe-count="${classId}"]`);
+    if (countEl && STATE.classes[classId]) {
+      const newSize = STATE.classes[classId].eleves.length;
+      countEl.textContent = `${newSize} élève${newSize > 1 ? 's' : ''}`;
+      console.log(`[NewStudentModule] Compteur ${classId} mis à jour : ${newSize} élèves`);
+    }
+  },
+
+  /**
+   * Afficher le message vert "Affectation réussie"
+   * Remplace le résultat de calcul par une confirmation visuelle
+   */
+  showSuccessResult(student, classId) {
+    const container = document.getElementById('nsResults');
+    if (!container) return;
+
+    const fullName = `${student.nom.toUpperCase()} ${student.prenom}`;
+    container.innerHTML = `
+      <div class="result-best-class"
+           style="background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+                  color:#fff;box-shadow:0 16px 32px rgba(0,0,0,0.18);border-radius:12px;">
+        <div class="result-best-class-title" style="color:rgba(255,255,255,.9);">
+          Affectation réussie
+        </div>
+        <div class="result-best-class-label" style="color:#fff;">
+          <span class="result-best-class-icon">✅</span>
+          <span>${fullName}</span>
+        </div>
+        <div style="font-size:13px;line-height:1.4;margin-top:6px;">
+          Ajouté dans la classe <strong>${classId}</strong>.
+        </div>
+      </div>
+    `;
+
+    // Désactivation du bouton pour éviter le double-affect
+    const affectBtn = document.getElementById('newStudentAffect');
+    if (affectBtn) {
+      affectBtn.disabled = true;
+      affectBtn.style.display = 'none';
+    }
+  },
+
+  /**
+   * Fallback pour ajouter l'élève si CoreScript n'expose pas la fonction
+   */
+  fallbackAddStudent(newStudent, classId) {
+    // Ajouter à STATE.students
+    STATE.students = STATE.students || {};
+    STATE.students[newStudent.id] = newStudent;
+
+    // Ajouter à STATE.classes
+    if (!STATE.classes[classId]) {
+      STATE.classes[classId] = { eleves: [] };
+    }
+    STATE.classes[classId].eleves.push(newStudent);
+
+    // Ajouter au DOM
+    const dropZone = document.querySelector(`.droppable-zone[data-classe="${classId}"]`);
+    if (dropZone && window.createStudentCard) {
+      const card = window.createStudentCard(newStudent);
+      if (card) dropZone.appendChild(card);
+    }
+
+    // Marquer comme modifié
+    STATE.has_user_action = true;
+
+    // Mettre à jour les stats
+    if (window.updateAllColumnStats) {
+      window.updateAllColumnStats();
+    }
+
+    // Enregistrer dans l'historique
+    STATE.history = STATE.history || [];
+    STATE.history.push({
+      type: 'add',
+      eleveId: newStudent.id,
+      eleveName: newStudent.nom + ' ' + newStudent.prenom,
+      classe: classId,
+      timestamp: new Date().toISOString()
+    });
+  },
+
+  /**
+   * Générer un ID temporaire pour l'élève
+   * Format : NEW_<timestamp> (ex: NEW_1730000123456)
+   * Le backend remplacera cet ID par un ID officiel lors de la sauvegarde
+   */
+  generateTempStudentId() {
+    const timestamp = Date.now();
+    return `NEW_${timestamp}`;
+  },
+
+  /**
+   * Réinitialiser le formulaire
+   */
+  resetForm() {
+    document.getElementById('nsNom').value = '';
+    document.getElementById('nsPrenom').value = '';
+    document.getElementById('nsSexe').value = '';
+    document.getElementById('nsLV2').value = '';
+    document.getElementById('nsOpt').value = '';
+    document.getElementById('nsCOM').value = '2';
+    document.getElementById('nsTRA').value = '2';
+    document.getElementById('nsPART').value = '2';
+    document.getElementById('nsABS').value = '1';
+    document.getElementById('nsForceClass').checked = false;
+    document.getElementById('nsForceClassSelect').value = '';
+    document.getElementById('nsForceClassGroup').style.display = 'none';
+
+    this.state.currentFormData = null;
+    this.state.computationResult = null;
+    this.state.affectedClassId = null;
+
+    document.getElementById('nsResults').innerHTML = 'Cliquez sur "Calculer" pour voir la classe recommandée';
+    document.getElementById('newStudentAffect').style.display = 'none';
+  },
+
+  /**
+   * Ouvrir le panneau
+   */
+  open() {
+    if (!this.initialized) {
+      this.init();
+    }
+
+    const modal = document.getElementById('newStudentModal');
+    if (!modal) return;
+
+    modal.classList.add('open');
+    this.state.isOpen = true;
+
+    this.resetForm();
+
+    // 1. Reprendre les classes affichées à l'écran et reconstruire STATE.classes
+    this.refreshStateClassesFromDOM();
+
+    // 2. Mettre à jour la liste déroulante "Classe imposée"
+    this.populateForceClassSelect();
+
+    // 3. Remplir LV2 / OPT à partir du niveau détecté
+    this.populateLV2OptSelects();
+
+    // 4. Désactiver le bouton "Affecter" tant qu'on n'a pas calculé
+    const affectBtn = document.getElementById('newStudentAffect');
+    if (affectBtn) {
+      affectBtn.style.display = 'none';
+      affectBtn.disabled = true;
+    }
+  },
+
+  /**
+   * Rafraîchir STATE.classes depuis le DOM réel
+   * Reconstruit STATE.classes[classId].eleves à partir des cartes élèves visibles
+   * Accepte data-student-id OU data-id (compatibilité multi-format)
+   */
+  refreshStateClassesFromDOM() {
+    console.log('[NewStudentModule] Rafraîchissement de STATE.classes depuis le DOM...');
+
+    if (!window.STATE) {
+      window.STATE = {};
+    }
+
+    // On garde une copie de secours de l'existant
+    const previousSnapshot = STATE.classes || {};
+    const snapshot = {};
+
+    // Stats debug
+    const prevClassIds = Object.keys(previousSnapshot);
+    let prevTotalEleves = 0;
+    prevClassIds.forEach(cid => {
+      prevTotalEleves += (previousSnapshot[cid]?.eleves || []).length;
+    });
+    console.log(`[NewStudentModule] État actuel: ${prevClassIds.length} classes, ${prevTotalEleves} élèves dans STATE.classes`);
+
+    // Récupérer toutes les zones de classe visibles
+    const zones = document.querySelectorAll('.droppable-zone[data-classe]');
+    console.log(`[NewStudentModule] ${zones.length} zones de classe trouvées dans le DOM`);
+
+    zones.forEach(zone => {
+      const classId = zone.getAttribute('data-classe')?.trim();
+      if (!classId) return;
+
+      // On prépare la classe dans le snapshot
+      snapshot[classId] = { eleves: [] };
+
+      // Récupérer absolument toutes les cartes élèves de cette zone
+      const cards = zone.querySelectorAll('.student-card');
+
+      if (!cards.length) {
+        console.warn(`[NewStudentModule] Aucune carte élève trouvée dans ${classId}`);
+      }
+
+      let pushedCount = 0;
+
+      cards.forEach(card => {
+        // Essayer de deviner l'ID élève affiché dans la carte
+        const sid =
+          card.getAttribute('data-student-id') ||
+          card.getAttribute('data-id') ||
+          card.dataset.studentId ||
+          card.dataset.id;
+
+        if (!sid) {
+          // Pas d'identifiant exploitable → on ne peut pas remonter cet élève
+          return;
+        }
+
+        // Aller chercher les données complètes de l'élève dans STATE.students
+        const eleveData = STATE.students ? STATE.students[sid] : null;
+        if (eleveData) {
+          snapshot[classId].eleves.push(eleveData);
+          pushedCount++;
+        } else {
+          console.warn(`[NewStudentModule] Élève ${sid} présent visuellement dans ${classId} mais pas dans STATE.students`);
+        }
+      });
+
+      if (pushedCount === 0) {
+        // Si on n'a rien réussi à pousser mais qu'on avait déjà des élèves connus dans l'ancien STATE,
+        // on ne jette pas l'info existante.
+        const backup = previousSnapshot[classId]?.eleves;
+        if (backup && backup.length > 0) {
+          console.warn(`[NewStudentModule] ⚠ Impossible de lire le DOM pour ${classId}, on conserve les ${backup.length} élèves connus`);
+          snapshot[classId].eleves = backup.slice(); // copie
+        }
+      }
+
+      console.log(`[NewStudentModule] Classe ${classId}: ${snapshot[classId].eleves.length} élèves synchronisés depuis le DOM`);
+    });
+
+    // Appliquer le snapshot final
+    STATE.classes = snapshot;
+
+    console.log('[NewStudentModule] ✅ STATE.classes synchronisé avec le DOM');
+    console.log('[NewStudentModule] STATE.rules disponible:', STATE.rules ? Object.keys(STATE.rules) : 'VIDE');
+    console.log('[NewStudentModule] STATE.students disponible:', STATE.students ? Object.keys(STATE.students).length + ' élèves' : 'VIDE');
+  },
+
+  /**
+   * Remplir le select "Classe imposée" dynamiquement
+   */
+  populateForceClassSelect() {
+    const selectForce = document.getElementById('nsForceClassSelect');
+    if (selectForce) {
+      // Vider le select (garder l'option par défaut)
+      selectForce.innerHTML = '<option value="">-- Sélectionner une classe --</option>';
+
+      const classes = this.getClasses();
+      if (classes.length === 0) {
+        console.warn('[NewStudentModule] Aucune classe trouvée pour le select imposé');
+        return;
+      }
+
+      classes.forEach(classe => {
+        const opt = document.createElement('option');
+        opt.value = classe;
+        opt.textContent = classe;
+        selectForce.appendChild(opt);
+      });
+
+      console.log(`[NewStudentModule] Select "Classe imposée" rempli avec ${classes.length} classes: ${classes.join(', ')}`);
+    }
+  },
+
+  /**
+   * Fermer le panneau
+   */
+  close() {
+    const modal = document.getElementById('newStudentModal');
+    const panel = document.getElementById('newStudentPanel');
+    if (modal && panel) {
+      modal.classList.remove('open');
+      panel.classList.remove('show-results');
+      this.state.isOpen = false;
+    }
+  },
+
+  /**
+   * Enregistrer le hook dans le menu Admin
+   * Appelé par CoreScript lors de l'initialisation
+   */
+  registerAdminMenuHook() {
+    // Chercher le menu admin et ajouter un bouton
+    const adminMenuContainer = document.querySelector('[data-admin-menu]') ||
+                               document.querySelector('.admin-controls') ||
+                               document.querySelector('#adminMenu');
+
+    if (!adminMenuContainer) {
+      console.warn('[NewStudentModule] Admin menu container not found, will retry');
+      // Retry dans 500ms
+      setTimeout(() => this.registerAdminMenuHook(), 500);
+      return;
+    }
+
+    // Créer le bouton
+    const btnNewStudent = document.createElement('button');
+    btnNewStudent.className = 'btn btn-admin';
+    btnNewStudent.id = 'btnNewStudent';
+    btnNewStudent.innerHTML = '<i class="fas fa-user-plus"></i> Nouvel élève';
+    btnNewStudent.onclick = () => this.open();
+
+    adminMenuContainer.appendChild(btnNewStudent);
+
+    console.log('[NewStudentModule] Admin menu hook registered');
+  }
+};
+
+// Initialisation automatique au chargement du DOM
+window.addEventListener('DOMContentLoaded', () => {
+  if (!window.NewStudentModule) {
+    window.NewStudentModule = NewStudentModule;
+  }
+  NewStudentModule.init();
+  console.log('[NewStudentModule] Loaded and initialized');
+});
+
+// Alias global pour accès facile
+if (!window.NewStudentModule) {
+  window.NewStudentModule = NewStudentModule;
+}
+
+})(); // Fin du DOM Environment Guard IIFE
+</script>

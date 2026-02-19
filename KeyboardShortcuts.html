@@ -1,0 +1,179 @@
+<script>
+// Configuration des raccourcis clavier (T/V/H tolérante)
+function setupKeyboardShortcuts() {
+  console.log('⌨️ Configuration des raccourcis clavier...');
+  
+  document.addEventListener('keydown', function(e) {
+    const tag = (e.target && e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.isComposing) return;
+
+    const key = (e.key || '').toLowerCase();
+
+    // Recherche (Ctrl/Cmd + F)
+    if ((e.ctrlKey || e.metaKey) && key === 'f') {
+      e.preventDefault();
+      const s = document.getElementById('search');
+      if (s) s.focus();
+      return;
+    }
+
+    // T : Statistiques (toggle ouvrir/fermer)
+    if (!e.ctrlKey && !e.altKey && key === 't') {
+      e.preventDefault();
+      const panel = document.getElementById('statsPanel');
+      if (panel) {
+        const isOpen = !panel.classList.contains('translate-x-full');
+        if (isOpen) {
+          // Fermer
+          const closeBtn = document.getElementById('closeStats');
+          if (closeBtn) {
+            closeBtn.click();
+          } else {
+            panel.classList.add('translate-x-full');
+            document.body.classList.remove('stats-open');
+          }
+        } else {
+          // Ouvrir
+          const btn = document.getElementById('btnStatsMenu');
+          if (btn) {
+            btn.click();
+          } else {
+            panel.classList.remove('translate-x-full');
+            document.body.classList.add('stats-open');
+          }
+        }
+      }
+      console.log('📊 Raccourci T : Statistiques toggle');
+      return;
+    }
+
+    // V : Changer de vue (cycle through select options)
+    if (!e.ctrlKey && !e.altKey && key === 'v') {
+      e.preventDefault();
+      const viewSelect = document.getElementById('viewModeSelect');
+      if (viewSelect) {
+        const currentIndex = viewSelect.selectedIndex;
+        const nextIndex = (currentIndex + 1) % viewSelect.options.length;
+        viewSelect.selectedIndex = nextIndex;
+        viewSelect.dispatchEvent(new Event('change'));
+        if (typeof window.toast === 'function') {
+          toast('Vue: ' + viewSelect.options[nextIndex].text, 'info');
+        }
+      }
+      console.log('👁️ Raccourci V : Vue changée');
+      return;
+    }
+
+    // H : Tutoriel/Aide
+    if (!e.ctrlKey && !e.altKey && key === 'h') {
+      e.preventDefault();
+      // Essayer d'ouvrir le tutoriel en priorité
+      if (typeof window.showTutorial === 'function') {
+        window.showTutorial();
+      } else if (typeof window.openTutorial === 'function') {
+        window.openTutorial();
+      } else {
+        // Fallback: afficher les raccourcis clavier
+        if (typeof window.toggleKeyboardHelp === 'function') {
+          window.toggleKeyboardHelp();
+        } else {
+          const panel = document.getElementById('keyboardShortcuts');
+          if (panel) panel.classList.toggle('hidden');
+        }
+      }
+      console.log('❓ Raccourci H : Tutoriel/Aide');
+      return;
+    }
+
+    // S : Mode Swap (permutation d'eleves)
+    if (!e.ctrlKey && !e.altKey && key === 's') {
+      e.preventDefault();
+      if (typeof window.toggleSwapMode === 'function') {
+        window.toggleSwapMode();
+      }
+      return;
+    }
+
+    // R : Mode Reunion (projection optimisee)
+    if (!e.ctrlKey && !e.altKey && key === 'r') {
+      e.preventDefault();
+      if (typeof window.toggleModeReunion === 'function') {
+        window.toggleModeReunion();
+      }
+      return;
+    }
+
+    // D : Mode sombre
+    if (!e.ctrlKey && !e.altKey && key === 'd') {
+      e.preventDefault();
+      const btnModeSombre = document.getElementById('btnModeSombre');
+      if (btnModeSombre) {
+        btnModeSombre.click();
+      } else if (typeof window.toggleDarkMode === 'function') {
+        window.toggleDarkMode();
+      }
+      console.log('🌓 Raccourci D : Mode sombre');
+      return;
+    }
+
+    // ? : Aide clavier
+    if ((e.shiftKey && key === '/') || e.key === '?') {
+      e.preventDefault();
+      if (typeof window.toggleKeyboardHelp === 'function') {
+        window.toggleKeyboardHelp();
+      } else {
+        const panel = document.getElementById('keyboardShortcuts');
+        if (panel) panel.classList.toggle('hidden');
+      }
+      return;
+    }
+
+    // Échap : fermeture modales/panels
+    if (e.key === 'Escape') {
+      let closedSomething = false;
+      
+      // Fermer les menus déroulants
+      document.querySelectorAll('#dropdownRegler:not(.hidden), #dropdownEditer:not(.hidden), #dropdownComparer:not(.hidden), #dropdownAdmin:not(.hidden)').forEach(function(dropdown) {
+        dropdown.classList.add('hidden');
+        closedSomething = true;
+      });
+      
+      // Fermer le panneau stats
+      const statsPanel = document.getElementById('statsPanel');
+      if (statsPanel && !statsPanel.classList.contains('translate-x-full')) {
+        const closeBtn = statsPanel.querySelector('#closeStats');
+        if (closeBtn) closeBtn.click();
+        closedSomething = true;
+      }
+      
+      // Fermer le panneau d'aide clavier
+      const shortcutsPanel = document.getElementById('keyboardShortcuts');
+      if (shortcutsPanel && !shortcutsPanel.classList.contains('hidden')) {
+        shortcutsPanel.classList.add('hidden');
+        closedSomething = true;
+      }
+      
+      // Fermer les modales génériques
+      document.querySelectorAll('.modal:not(.hidden), #startupModal:not(.hidden)').forEach(function(modal) {
+        const closeButton = modal.querySelector('button[onclick*="close"], #closeStartupModal');
+        if (closeButton) closeButton.click();
+        else modal.classList.add('hidden');
+        closedSomething = true;
+      });
+      
+      if (closedSomething) {
+        e.preventDefault();
+      }
+    }
+  });
+  
+  console.log('✅ Raccourcis clavier configurés');
+}
+
+// Initialiser au chargement du DOM
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupKeyboardShortcuts);
+} else {
+  setupKeyboardShortcuts();
+}
+</script>

@@ -1,0 +1,404 @@
+<!-- 
+  ============================================================
+  TOOLTIP REGISTRY - Gestionnaire centralisé des infobulles
+  ============================================================
+  
+  Gère l'affichage et la synchronisation des infobulles avec
+  le backend pendant l'optimisation.
+  
+  Utilise Tippy.js pour l'affichage des infobulles.
+  
+  @version 1.0
+  @date 2025-10-21
+-->
+
+<script>
+/**
+ * ============================================================
+ * TOOLTIP REGISTRY - Gestionnaire centralisé
+ * ============================================================
+ */
+const TooltipRegistry = {
+  instances: new Map(), // Map<element, tippyInstance>
+  phaseData: {},        // Données de la phase en cours
+  
+  /**
+   * Initialise tous les tooltips dans le document
+   */
+  init() {
+    console.log('🎨 TooltipRegistry: Initialisation...');
+    
+    // Initialiser tous les éléments avec data-tooltip
+    document.querySelectorAll('[data-tooltip]').forEach(el => {
+      this.register(el);
+    });
+    
+    console.log(`✅ TooltipRegistry: ${this.instances.size} tooltips initialisés`);
+  },
+  
+  /**
+   * Enregistre un élément pour afficher un tooltip
+   * @param {HTMLElement} element - Élément DOM
+   */
+  register(element) {
+    if (this.instances.has(element)) {
+      return; // Déjà enregistré
+    }
+    
+    const title = element.getAttribute('data-tooltip');
+    const detail = element.getAttribute('data-tooltip-detail');
+    const value = element.getAttribute('data-tooltip-value');
+    const range = element.getAttribute('data-tooltip-range');
+    const phase = element.getAttribute('data-tooltip-phase');
+    
+    // Construire le contenu HTML du tooltip
+    let content = `<div class="tooltip-content">`;
+    content += `<div class="tooltip-title">${title}</div>`;
+    
+    if (detail) {
+      content += `<div class="tooltip-detail">${detail}</div>`;
+    }
+    
+    if (value) {
+      content += `<div class="tooltip-value">Valeur actuelle : <strong>${value}</strong></div>`;
+    }
+    
+    if (range) {
+      content += `<div class="tooltip-range">Plage : ${range}</div>`;
+    }
+    
+    if (phase) {
+      content += `<div class="tooltip-phase">Phase : ${phase}</div>`;
+    }
+    
+    content += `</div>`;
+    
+    // Créer l'instance Tippy
+    const instance = tippy(element, {
+      content: content,
+      allowHTML: true,
+      theme: 'custom',
+      placement: 'top',
+      arrow: true,
+      animation: 'fade',
+      duration: [200, 150],
+      maxWidth: 350,
+      interactive: true,
+      appendTo: () => document.body
+    });
+    
+    this.instances.set(element, instance);
+  },
+  
+  /**
+   * Met à jour le contenu d'un tooltip
+   * @param {HTMLElement} element - Élément DOM
+   * @param {Object} data - Nouvelles données
+   */
+  update(element, data) {
+    const instance = this.instances.get(element);
+    if (!instance) return;
+    
+    // Mettre à jour les attributs data-*
+    if (data.value !== undefined) {
+      element.setAttribute('data-tooltip-value', data.value);
+    }
+    if (data.detail !== undefined) {
+      element.setAttribute('data-tooltip-detail', data.detail);
+    }
+    if (data.phase !== undefined) {
+      element.setAttribute('data-tooltip-phase', data.phase);
+    }
+    
+    // Reconstruire le contenu
+    const title = element.getAttribute('data-tooltip');
+    const detail = element.getAttribute('data-tooltip-detail');
+    const value = element.getAttribute('data-tooltip-value');
+    const range = element.getAttribute('data-tooltip-range');
+    const phase = element.getAttribute('data-tooltip-phase');
+    
+    let content = `<div class="tooltip-content">`;
+    content += `<div class="tooltip-title">${title}</div>`;
+    
+    if (detail) {
+      content += `<div class="tooltip-detail">${detail}</div>`;
+    }
+    
+    if (value) {
+      content += `<div class="tooltip-value">Valeur actuelle : <strong>${value}</strong></div>`;
+    }
+    
+    if (range) {
+      content += `<div class="tooltip-range">Plage : ${range}</div>`;
+    }
+    
+    if (phase) {
+      content += `<div class="tooltip-phase">Phase : ${phase}</div>`;
+    }
+    
+    content += `</div>`;
+    
+    // Mettre à jour l'instance Tippy
+    instance.setContent(content);
+  },
+  
+  /**
+   * Met à jour tous les tooltips d'une phase donnée
+   * @param {string} phaseName - Nom de la phase (phase1, phase2, etc.)
+   * @param {Object} data - Données de la phase
+   */
+  updatePhase(phaseName, data) {
+    console.log(`🔄 TooltipRegistry: Mise à jour phase ${phaseName}`, data);
+    
+    this.phaseData[phaseName] = data;
+    
+    // Mettre à jour tous les tooltips de cette phase
+    document.querySelectorAll(`[data-tooltip-phase="${phaseName}"]`).forEach(el => {
+      const key = el.getAttribute('data-tooltip-key');
+      if (key && data[key] !== undefined) {
+        this.update(el, { value: data[key] });
+      }
+    });
+  },
+  
+  /**
+   * Synchronise avec le statut streaming
+   * @param {string} message - Message de statut
+   * @param {string} phase - Phase en cours
+   * @param {Object} data - Données additionnelles
+   */
+  syncWithStreaming(message, phase, data = {}) {
+    console.log(`📡 TooltipRegistry: Sync streaming`, { message, phase, data });
+    
+    // Mettre à jour le tooltip du statut
+    const statusEl = document.getElementById('live-status');
+    if (statusEl) {
+      this.update(statusEl, {
+        value: message,
+        phase: phase,
+        detail: this.getPhaseDescription(phase)
+      });
+    }
+    
+    // Mettre à jour les tooltips des cartes de classes
+    if (data.classes) {
+      Object.keys(data.classes).forEach(className => {
+        const cardEl = document.querySelector(`[data-class="${className}"]`);
+        if (cardEl) {
+          const classData = data.classes[className];
+          this.update(cardEl, {
+            value: `${classData.total} élèves (${classData.female}F / ${classData.male}M)`,
+            detail: `Parité : ${classData.parityRatio}% F`
+          });
+        }
+      });
+    }
+    
+    // Mettre à jour les tooltips des métriques
+    if (data.metrics) {
+      const metricsEl = document.getElementById('metrics-summary');
+      if (metricsEl) {
+        const finalComposite = data.metrics.finalComposite ?? null;
+        const compositeGain = data.metrics.compositeImprovement ?? null;
+        const initialComposite = data.metrics.initialComposite ?? null;
+        const compositePct = (typeof compositeGain === 'number' && typeof initialComposite === 'number' && initialComposite !== 0)
+          ? ((compositeGain / initialComposite) * 100).toFixed(1) + '%'
+          : 'N/A';
+        const finalAcademic = data.metrics.finalAcademic ?? null;
+        const finalParity = data.metrics.finalParity ?? null;
+        this.update(metricsEl, {
+          value: `Composite : ${typeof finalComposite === 'number' ? finalComposite.toFixed(2) : 'N/A'}`,
+          detail: `Δ=${typeof compositeGain === 'number' ? compositeGain.toFixed(2) : 'N/A'} (${compositePct}) • Harmonie=${typeof finalAcademic === 'number' ? finalAcademic.toFixed(2) : 'N/A'} • Parité=${typeof finalParity === 'number' ? finalParity.toFixed(2) : 'N/A'}`
+        });
+      }
+    }
+  },
+  
+  /**
+   * Retourne la description d'une phase
+   * @param {string} phase - Nom de la phase
+   * @returns {string} Description
+   */
+  getPhaseDescription(phase) {
+    const descriptions = {
+      'init': 'Initialisation : Préparation des données et création des onglets CACHE',
+      'phase1': 'Phase 1 : Placement des élèves selon leurs options (LV2, OPT)',
+      'phase2': 'Phase 2 : Application des codes DISSO (séparation) et ASSO (regroupement)',
+      'phase3': 'Phase 3 : Équilibrage des effectifs et de la parité F/M',
+      'phase4': 'Phase 4 : Optimisation des scores (COM, TRA, PART, ABS) par swaps',
+      'audit': 'Audit : Génération du rapport de fin d\'optimisation',
+      'done': 'Terminé : Optimisation complète, résultats disponibles dans les onglets CACHE'
+    };
+    
+    return descriptions[phase] || 'Phase en cours...';
+  },
+  
+  /**
+   * Détruit tous les tooltips
+   */
+  destroy() {
+    console.log('🗑️ TooltipRegistry: Destruction...');
+    
+    this.instances.forEach((instance, element) => {
+      instance.destroy();
+    });
+    
+    this.instances.clear();
+    this.phaseData = {};
+    
+    console.log('✅ TooltipRegistry: Tous les tooltips détruits');
+  },
+  
+  /**
+   * Recharge tous les tooltips (après un reload de l'UI)
+   */
+  reload() {
+    console.log('🔄 TooltipRegistry: Rechargement...');
+    
+    this.destroy();
+    this.init();
+    
+    console.log('✅ TooltipRegistry: Tooltips rechargés');
+  }
+};
+
+/**
+ * ============================================================
+ * STYLES CSS POUR LES TOOLTIPS
+ * ============================================================
+ */
+const tooltipStyles = `
+<style>
+/* Thème personnalisé pour Tippy.js */
+.tippy-box[data-theme~='custom'] {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tippy-box[data-theme~='custom'][data-placement^='top'] > .tippy-arrow::before {
+  border-top-color: #1e293b;
+}
+
+.tippy-box[data-theme~='custom'][data-placement^='bottom'] > .tippy-arrow::before {
+  border-bottom-color: #1e293b;
+}
+
+.tippy-box[data-theme~='custom'][data-placement^='left'] > .tippy-arrow::before {
+  border-left-color: #1e293b;
+}
+
+.tippy-box[data-theme~='custom'][data-placement^='right'] > .tippy-arrow::before {
+  border-right-color: #1e293b;
+}
+
+/* Contenu du tooltip */
+.tooltip-content {
+  padding: 4px;
+}
+
+.tooltip-title {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: #60a5fa;
+}
+
+.tooltip-detail {
+  margin-bottom: 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.tooltip-value {
+  margin-bottom: 4px;
+  color: #a5f3fc;
+  font-size: 13px;
+}
+
+.tooltip-value strong {
+  color: #22d3ee;
+  font-weight: 600;
+}
+
+.tooltip-range {
+  margin-bottom: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.tooltip-phase {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* États visuels synchronisés */
+.streaming-active {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.phase-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.phase-indicator.init { background-color: #94a3b8; }
+.phase-indicator.phase1 { background-color: #60a5fa; }
+.phase-indicator.phase2 { background-color: #a78bfa; }
+.phase-indicator.phase3 { background-color: #f472b6; }
+.phase-indicator.phase4 { background-color: #fb923c; }
+.phase-indicator.audit { background-color: #fbbf24; }
+.phase-indicator.done { background-color: #34d399; }
+</style>
+`;
+
+// Injecter les styles
+document.head.insertAdjacentHTML('beforeend', tooltipStyles);
+
+/**
+ * ============================================================
+ * INITIALISATION AUTOMATIQUE
+ * ============================================================
+ */
+// Initialiser les tooltips quand le DOM est prêt
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    TooltipRegistry.init();
+  });
+} else {
+  TooltipRegistry.init();
+}
+
+console.log('✅ TooltipRegistry chargé');
+</script>

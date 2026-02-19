@@ -1,0 +1,2884 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <script>console.log("GEMINI_DEBUG: Running latest version of InterfaceV2.html");</script>
+
+  <!-- Bloquer document.write pour éviter injection HTML dans JS lors de OAuth -->
+  <script>
+    (function () {
+      try {
+        var p = new URLSearchParams(location.search);
+        if (p.get('createOAuthDialog') === 'true') {
+          // Bloquer document.write
+          var orig = document.write.bind(document);
+          document.write = function (s) {
+            console.warn('Blocked document.write from external script:', String(s).slice(0, 60));
+            // ne rien écrire pour éviter le HTML dans le flux JS
+          };
+
+          // Capturer les erreurs de syntaxe pendant OAuth
+          window.addEventListener('error', function (e) {
+            if (e && e.message && e.message.includes('Unexpected token')) {
+              console.warn('OAuth serialization error suppressed:', e.message);
+              e.preventDefault();
+              return true;
+            }
+          }, true);
+
+          // Bloquer console.error pour les erreurs de syntaxe OAuth
+          var originalError = console.error;
+          console.error = function (...args) {
+            var msg = args[0];
+            if (typeof msg === 'string' &&
+              (msg.includes('Unexpected token') ||
+                msg.includes('SyntaxError'))) {
+              // Ignorer silencieusement les erreurs de syntaxe OAuth
+              return;
+            }
+            originalError.apply(console, args);
+          };
+        }
+      } catch (e) {
+        // Erreur dans la protection elle-même - ne rien faire
+      }
+    })();
+  </script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Répartition Classes - Version Universelle</title>
+
+  <!-- Tailwind CSS avec configuration pour supprimer les warnings -->
+  <script>
+    // Configuration Tailwind pour supprimer le warning PostCSS
+    window.tailwindConfig = {
+      // Configuration silencieuse pour environnement CDN
+      darkMode: 'class', // ⚠️ FORCER mode class (pas media) pour éviter dark mode automatique
+      corePlugins: {
+        preflight: true,
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Supprimer le warning PostCSS de Tailwind CDN
+    (function () {
+      const originalWarn = console.warn;
+      console.warn = function (...args) {
+        const msg = args[0];
+        // Filtrer les warnings Tailwind PostCSS et CLI
+        if (typeof msg === 'string' &&
+          (msg.includes('PostCSS plugin') ||
+            msg.includes('Tailwind CLI') ||
+            msg.includes('install it as'))) {
+          return; // Ignorer silencieusement
+        }
+        originalWarn.apply(console, args);
+      };
+    })();
+  </script>
+  <!-- SortableJS pour drag & drop -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <!-- Font Awesome pour les icônes -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js pour les graphiques -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS pour export Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- jsPDF pour export PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- html2canvas pour screenshots PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- Shepherd.js pour tour guidé -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@latest/dist/css/shepherd.css">
+  <script src="https://cdn.jsdelivr.net/npm/shepherd.js@latest/dist/js/shepherd.min.js"></script>
+
+  <!-- Style pour forcer le centrage du tutoriel Shepherd -->
+  <style>
+    /* Forcer le centrage et limiter la hauteur des modals Shepherd */
+    .shepherd-element {
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      max-height: 85vh !important;
+      overflow-y: auto !important;
+      z-index: var(--z-shepherd) !important;
+    }
+
+    .shepherd-content {
+      max-height: 75vh !important;
+      overflow-y: auto !important;
+    }
+
+    .shepherd-text {
+      max-height: 60vh !important;
+      overflow-y: auto !important;
+    }
+
+    /* S'assurer que les boutons sont toujours visibles */
+    .shepherd-footer {
+      position: sticky !important;
+      bottom: 0 !important;
+      background: white !important;
+      padding: 1rem !important;
+      border-top: 1px solid #e5e7eb !important;
+      margin-top: 1rem !important;
+    }
+  </style>
+
+  <style id="interfaceV2-styles">
+    <? !=include('InterfaceV2_Styles');
+    ?>
+  </style>
+
+  <!-- CSS des optimisations V3 -->
+  <style id="v3-optimizations">
+    <? !=include('styles-animations');
+    ?><? !=include('styles-progress-bars');
+    ?><? !=include('styles-dark-mode');
+    ?>
+  </style>
+
+  <!-- CSS Mode édition : bouton Éditer en rouge pulsé -->
+  <style>
+    /* Mode édition actif : bouton Éditer devient rouge pulsé */
+    body.mode-edit #btnEditer {
+      background: #dc2626 !important;
+      color: #fff !important;
+      border-color: #b91c1c !important;
+      box-shadow: 0 0 20px rgba(220, 38, 38, .6), 0 0 3px rgba(220, 38, 38, 1) !important;
+      animation: pulse-edit 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-edit {
+
+      0%,
+      100% {
+        box-shadow: 0 0 20px rgba(220, 38, 38, .6), 0 0 0 0 rgba(220, 38, 38, 0.7);
+      }
+
+      50% {
+        box-shadow: 0 0 20px rgba(220, 38, 38, .6), 0 0 0 10px rgba(220, 38, 38, 0);
+      }
+    }
+  </style>
+
+  <!-- CSS Densité d'interface : mode compact (défaut) vs mode XL (confort) -->
+  <style>
+    /* ========================================
+       SYSTÈME DE DENSITÉ D'INTERFACE
+       Mode compact (défaut) = réunion/vidéoprojecteur
+       Mode XL = travail perso/confort souris
+       ======================================== */
+
+    /* Par défaut : mode compact (vidéoprojecteur / réunion) */
+    header {
+      --header-py: 0.75rem;
+      /* py-3 */
+    }
+
+    .header-btn {
+      padding: 0.5rem 0.75rem;
+      /* py-2 px-3 */
+      font-size: 14px;
+      /* text-[14px] */
+      font-weight: 700;
+      /* font-bold */
+      line-height: 1;
+      /* leading-none */
+    }
+
+    .header-btn.critique {
+      font-size: 15px;
+      /* Finaliser, Admin */
+      font-weight: 800;
+      /* extrabold */
+    }
+
+    .header-btn .emoji {
+      font-size: 13px;
+    }
+
+    .header-btn.critique .emoji {
+      font-size: 14px;
+    }
+
+    /* Mode XL (usage perso ordinateur confort souris) */
+    body.header-xl header {
+      --header-py: 1rem;
+      /* py-4 */
+    }
+
+    body.header-xl .header-btn {
+      padding: 0.75rem 1rem;
+      /* py-3 px-4 */
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    body.header-xl .header-btn.critique {
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    body.header-xl .header-btn .emoji {
+      font-size: 14px;
+    }
+
+    body.header-xl .header-btn.critique .emoji {
+      font-size: 15px;
+    }
+
+    /* Ajustement du bouton flottant stats selon la densité */
+    #statsFloatingClose {
+      top: 4.5rem;
+      /* Mode compact */
+    }
+
+    body.header-xl #statsFloatingClose {
+      top: 6rem;
+      /* Mode XL (header plus haut) */
+    }
+
+    /* Toggle de densité : affichage conditionnel du texte */
+    #toggleHeaderDensity .xl-text {
+      display: none;
+    }
+
+    body.header-xl #toggleHeaderDensity .compact-text {
+      display: none;
+    }
+
+    body.header-xl #toggleHeaderDensity .xl-text {
+      display: inline;
+    }
+
+    /* Transitions fluides pour le header */
+    .header-density,
+    .header-density .header-btn {
+      transition: all 0.18s ease;
+    }
+
+    /* Animations des dropdowns (slide-down) */
+    .dropdown-menu {
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+      transition: all 0.15s ease-out;
+    }
+
+    .dropdown-menu.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    /* Filtres : élèves estompés (Où est Charlie - Phase 6) */
+    .board-student.dimmed,
+    .student-card.dimmed {
+      opacity: 0.15;
+      filter: grayscale(100%);
+      transition: all 0.3s ease;
+      pointer-events: none;
+      /* empêche de drag un élève filtré par erreur */
+    }
+
+    /* Style carte réutilisable pour tous les dropdowns */
+    .cardRegler {
+      border-radius: 0.5rem;
+      border: 1px solid rgb(226 232 240);
+      background: white;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+    }
+
+    .dark .cardRegler {
+      border-color: rgb(51 65 85);
+      background: rgba(30 41 59 / 0.6);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    }
+
+    .cardHeader {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .cardBody {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      font-size: 0.8125rem;
+      color: rgb(30 41 59);
+    }
+
+    .dark .cardBody {
+      color: rgb(241 245 249);
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-gray-50 font-sans text-slate-800">
+
+  <!-- SKIP LINK pour accessibilité clavier -->
+  <a href="#board" class="skip-link" tabindex="1">Aller au contenu principal</a>
+
+  <!-- SPINNER DE CHARGEMENT GLOBAL -->
+  <div id="loadingSpinner" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 hidden"
+    style="z-index: var(--z-loading)">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- 1. MODAL DE DÉMARRAGE (indépendant) - DESIGN MODERNE -->
+  <div id="startupModal"
+    class="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-purple-900/95 to-indigo-900/95 backdrop-blur-sm hidden transition-opacity duration-300"
+    style="z-index: var(--z-startup)" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div
+      class="bg-white rounded-2xl shadow-2xl p-8 max-w-4xl w-full relative transform transition-all duration-300 scale-95 opacity-0"
+      id="startupModalContent">
+      <!-- Bouton de fermeture -->
+      <button id="closeStartupModal"
+        class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-all duration-200 hover:rotate-90"
+        title="Fermer" aria-label="Fermer">
+        <i class="fa fa-times text-lg"></i>
+      </button>
+
+      <!-- Header avec icône et titre -->
+      <div class="text-center mb-8">
+        <div
+          class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 mb-4 shadow-lg">
+          <i class="fas fa-layer-group text-2xl text-white"></i>
+        </div>
+        <h2 id="modal-title" class="text-3xl font-bold text-gray-800 mb-2">Choisissez votre espace de travail</h2>
+        <p class="text-gray-500 text-sm">Sélectionnez le mode adapté à votre rôle et à vos besoins</p>
+      </div>
+
+      <!-- Section PROFESSEURS -->
+      <div class="mb-8">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+          <div class="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full">
+            <i class="fas fa-chalkboard-teacher text-emerald-600"></i>
+            <span class="text-sm font-bold text-emerald-700">PROFESSEURS</span>
+          </div>
+          <div class="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Card TEST -->
+          <button
+            class="mode-card group relative overflow-hidden rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-6 text-left transition-all duration-300 hover:border-emerald-400 hover:shadow-xl hover:-translate-y-1"
+            data-mode="TEST">
+            <div
+              class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500">
+            </div>
+            <div class="relative">
+              <div class="flex items-center justify-between mb-3">
+                <div
+                  class="w-12 h-12 rounded-lg bg-emerald-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <i class="fas fa-flask text-xl text-white"></i>
+                </div>
+                <span class="px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-full">TEST</span>
+              </div>
+              <h3 class="text-lg font-bold text-gray-800 mb-2">Base préparée</h3>
+              <p class="text-sm text-gray-600 mb-3">Modifications manuelles</p>
+            </div>
+          </button>
+
+          <!-- Card CACHE -->
+          <button
+            class="mode-card group relative overflow-hidden rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 p-6 text-left transition-all duration-300 hover:border-amber-400 hover:shadow-xl hover:-translate-y-1"
+            data-mode="CACHE">
+            <div
+              class="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500">
+            </div>
+            <div class="relative">
+              <div class="flex items-center justify-between mb-3">
+                <div
+                  class="w-12 h-12 rounded-lg bg-amber-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <i class="fas fa-save text-xl text-white"></i>
+                </div>
+                <span class="px-3 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">CACHE</span>
+              </div>
+              <h3 class="text-lg font-bold text-gray-800 mb-2">Brouillon sauvegardé</h3>
+              <p class="text-sm text-gray-600 mb-3">Reprendre où vous en étiez</p>
+            </div>
+          </button>
+        </div>
+
+
+        <!-- Restauration auto-sauvegarde (sécurité discrète) -->
+        <div id="restoreCacheBlock" class="mt-4 hidden">
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+              <i class="fas fa-history text-amber-600"></i>
+            </div>
+            <div class="flex-1">
+              <p class="text-sm font-medium text-amber-900 mb-1">Brouillon non sauvegardé détecté</p>
+              <p class="text-xs text-amber-700 mb-2">Dernière auto-sauvegarde : <span id="lastCacheDate"
+                  class="font-medium"></span></p>
+              <button id="btnRestoreCache"
+                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors duration-200">
+                <i class="fas fa-undo mr-2"></i>Restaurer
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Section ADMINISTRATEUR -->
+      <div>
+        <div class="flex items-center gap-2 mb-4">
+          <div class="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+          <div class="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full">
+            <i class="fas fa-user-shield text-purple-600"></i>
+            <span class="text-sm font-bold text-purple-700">ADMINISTRATEUR</span>
+          </div>
+          <div class="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <!-- Card FIN -->
+          <button
+            class="mode-card group relative overflow-hidden rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-6 text-left transition-all duration-300 hover:border-purple-400 hover:shadow-xl hover:-translate-y-1"
+            data-mode="FIN">
+            <div
+              class="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500">
+            </div>
+            <div class="relative">
+              <div
+                class="w-12 h-12 rounded-lg bg-purple-500 flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300">
+                <i class="fas fa-check-circle text-xl text-white"></i>
+              </div>
+              <h3 class="text-base font-bold text-gray-800 mb-2">Répartition finalisée</h3>
+              <p class="text-xs text-gray-600 mb-3">Corriger une répartition</p>
+              <span class="inline-block px-2 py-1 bg-purple-500 text-white text-xs font-bold rounded">FIN</span>
+            </div>
+          </button>
+
+          <!-- Card PREVIOUS -->
+          <button
+            class="mode-card group relative overflow-hidden rounded-xl border-2 border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 p-6 text-left transition-all duration-300 hover:border-gray-400 hover:shadow-xl hover:-translate-y-1"
+            data-mode="PREVIOUS">
+            <div
+              class="absolute top-0 right-0 w-32 h-32 bg-gray-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500">
+            </div>
+            <div class="relative">
+              <div
+                class="w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300">
+                <i class="fas fa-cog text-xl text-white"></i>
+              </div>
+              <h3 class="text-base font-bold text-gray-800 mb-2">Base admin</h3>
+              <p class="text-xs text-gray-600 mb-3">Construire une nouvelle base</p>
+              <span class="inline-block px-2 py-1 bg-gray-700 text-white text-xs font-bold rounded">CLASSES
+                SOURCES</span>
+            </div>
+          </button>
+
+          <!-- Card SOURCES (disabled) -->
+          <button
+            class="mode-card relative overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-50 p-6 text-left opacity-50 cursor-not-allowed"
+            data-mode="SOURCES" disabled>
+            <div class="relative">
+              <div class="w-12 h-12 rounded-lg bg-gray-300 flex items-center justify-center shadow mb-3">
+                <i class="fas fa-database text-xl text-gray-500"></i>
+              </div>
+              <h3 class="text-base font-bold text-gray-600 mb-2">Base Pronote</h3>
+              <p class="text-xs text-gray-500 mb-3">Non implémentée</p>
+              <span class="inline-block px-2 py-1 bg-gray-300 text-gray-600 text-xs font-bold rounded">BIENTÔT</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUPPRIMÉ : Sections Filtrer et Aide qui n'ont rien à faire dans le startupModal
+       Ces sections appartenaient à l'ancien menu dropdown Régler
+       Le startupModal doit uniquement servir à choisir le mode (PROFESSEURS/ADMIN + source de données)
+  -->
+
+  </div>
+
+  <!-- 2. BADGE DE MODE (indépendant) -->
+  <div id="modeBadge" class="fixed top-2 left-2 px-3 py-1 rounded-full font-bold text-xs shadow-lg hidden"
+    style="z-index: var(--z-badge)"></div>
+
+  <!-- 2b. BADGE AUTO-SAVE (timestamp dernière sauvegarde) -->
+  <div id="autosaveBadge"
+    class="fixed top-2 right-2 px-3 py-1 rounded-full font-bold text-xs shadow-lg bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all duration-300"
+    style="z-index: var(--z-badge)">💾 Jamais</div>
+
+  <!-- 3. CONTENU PRINCIPAL DE L'APPLICATION (en dehors du modal) -->
+  <!-- Header moderne avec infos complètes -->
+  <header id="mainHeader" class="sticky top-0 relative
+         bg-white/80 backdrop-blur-md border-b border-slate-200 text-slate-900
+         dark:bg-slate-950/70 dark:border-white/10 dark:text-slate-100
+         shadow-[0_8px_24px_rgba(0,0,0,0.06)]
+         px-4" style="padding-top: var(--header-py); padding-bottom: var(--header-py); z-index: var(--z-header);"
+    role="banner" aria-label="Navigation principale">
+
+    <div class="flex flex-wrap items-center justify-between gap-6">
+
+      <!-- Gauche : contexte -->
+      <div class="flex items-center gap-4 min-w-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <i class="fas fa-graduation-cap text-purple-700 dark:text-purple-400 text-lg"></i>
+          <div class="leading-tight">
+            <div class="font-semibold text-sm">
+              Répartition classes <span id="niveau-detected"
+                class="text-purple-700 dark:text-purple-400 font-bold"></span>
+            </div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400">
+              Glisser-déposer · Vérifier l'équilibre
+            </div>
+          </div>
+        </div>
+
+        <!-- Recherche -->
+        <div class="relative">
+          <input id="search" type="text" placeholder="Rechercher un élève..." class="pl-3 pr-8 py-1.5 text-sm rounded-lg border
+                      border-slate-300 bg-white/70 text-slate-800
+                      focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent
+                      dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:placeholder-slate-400"
+            aria-label="Rechercher un élève">
+          <i
+            class="fas fa-search absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs"></i>
+        </div>
+
+        <!-- Vue -->
+        <div class="flex items-center gap-2">
+          <label for="viewModeSelect" class="text-[12px] font-medium text-slate-600 dark:text-slate-300">Vue :</label>
+          <select id="viewModeSelect" class="px-2.5 py-1 text-[12px] rounded-lg border
+                       border-slate-300 bg-white/70 text-slate-800
+                       focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent
+                       dark:border-white/10 dark:bg-white/5 dark:text-slate-100"
+            title="Sélectionner le mode d'affichage">
+            <option value="complete">Complète</option>
+            <option value="essential">Essentielle</option>
+            <option value="simple">Simple</option>
+          </select>
+        </div>
+
+        <!-- Filtres Spotlight (Où est Charlie - Phase 6) -->
+        <div class="hidden lg:flex items-center gap-1.5 ml-2 border-l border-slate-300 dark:border-slate-700 pl-4 py-1">
+          <span
+            class="text-[11px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap mr-1">
+            <i class="fas fa-search-location mr-1 text-slate-400"></i>Spotlight
+          </span>
+          <button
+            class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 hover:bg-orange-200 text-orange-800 transition-colors border border-orange-200"
+            onclick="doReglerFilter('D')" title="Mettre en surbrillance les élèves DISSO (à séparer)">DISSO</button>
+          <button
+            class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors border border-emerald-200"
+            onclick="doReglerFilter('A')" title="Mettre en surbrillance les élèves ASSO (à grouper)">ASSO</button>
+          <button
+            class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors border border-slate-300 shadow-sm"
+            onclick="doReglerFilter('FIXE')" title="Mettre en surbrillance les élèves FIXES">FIXE</button>
+          <button
+            class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 hover:bg-blue-200 text-blue-800 transition-colors border border-blue-200"
+            onclick="doReglerFilter('ALL')" title="Mettre en surbrillance les Allophones">ALL</button>
+          <button
+            class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 hover:bg-purple-200 text-purple-800 transition-colors border border-purple-200"
+            onclick="doReglerFilter('ESP')" title="Mettre en surbrillance les Hispanophones">ESP</button>
+          <button
+            class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 hover:bg-red-200 text-red-800 transition-colors border border-red-200"
+            onclick="doReglerFilter('ITA')" title="Mettre en surbrillance les Italianisants">ITA</button>
+
+          <button
+            class="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-slate-800 text-white hover:bg-slate-700 hover:shadow-md transition-all ml-1 shadow-[0_2px_4px_rgba(0,0,0,0.1)]"
+            onclick="doReglerFilter('all')" title="Enlever les filtres (Afficher tout le monde)">RESET</button>
+        </div>
+      </div>
+
+      <!-- Centre : Groupe PROF (outils pédagogiques) -->
+      <div id="headerProfGroup" class="flex items-center gap-2 header-density">
+
+        <button id="btnRegler" data-tour="regler-btn" class="header-btn flex items-center gap-1.5 rounded-lg
+                     bg-slate-800/90 text-white
+                     border border-slate-700/60
+                     shadow-[0_10px_20px_rgba(0,0,0,0.4)]
+                     hover:bg-slate-700/90
+                     tracking-[-0.03em]"
+          title="Affichage : tailles, badges, fond clair/sombre, lisibilité. Mode vidéoprojecteur"
+          aria-label="Ouvrir les réglages" aria-expanded="false" aria-haspopup="menu" aria-controls="dropdownRegler">
+          <span class="emoji opacity-80">👁</span>
+          <span>Régler</span>
+        </button>
+
+        <button id="btnComparer" data-tour="comparer-btn" class="header-btn flex items-center gap-1.5 rounded-lg
+                     bg-slate-800/90 text-white
+                     border border-slate-700/60
+                     shadow-[0_10px_20px_rgba(0,0,0,0.4)]
+                     hover:bg-slate-700/90
+                     tracking-[-0.03em]"
+          title="Ouvrir les statistiques : Vérifier l'équilibre des scores par classe et la parité"
+          aria-label="Ouvrir le menu Comparer" aria-expanded="false" aria-haspopup="menu"
+          aria-controls="dropdownComparer">
+          <span class="emoji opacity-80">📊</span>
+          <span>Comparer</span>
+        </button>
+
+        <!-- BOUTON GROUPES V4 -->
+        <button id="btnGroupesV4" class="header-btn flex items-center gap-1.5 rounded-lg
+                     bg-purple-800/90 text-white
+                     border border-purple-700/60
+                     shadow-[0_10px_20px_rgba(147,51,234,0.4)]
+                     hover:bg-purple-700/90
+                     hover:shadow-[0_12px_24px_rgba(147,51,234,0.5)]
+                     hover:border-purple-600/70
+                     transition-all duration-200 ease-out
+                     active:scale-[0.98]"
+          onclick="if(window.openModuleGroupsV4){window.openModuleGroupsV4('creator')}else{alert('Module Groupes V4 en cours de chargement...')}"
+          title="Créer des groupes (Besoins, LV2, Options)" aria-label="Ouvrir le module de création de groupes">
+          <span class="emoji opacity-80">👥</span>
+          <span>Groupes</span>
+        </button>
+
+        <button id="btnSwapHeader" data-tour="swap-btn" class="header-btn flex items-center gap-1.5 rounded-lg
+                     bg-blue-700/90 text-white
+                     border border-blue-600/60
+                     shadow-[0_10px_20px_rgba(37,99,235,0.4)]
+                     hover:bg-blue-600/90
+                     tracking-[-0.03em]
+                     transition-all duration-200" title="Echanger deux eleves entre classes (raccourci S)"
+          aria-label="Activer le mode permutation" aria-pressed="false">
+          <i class="fas fa-exchange-alt text-sm"></i>
+          <span>Echanger</span>
+          <span id="swapHeaderBadge"
+            class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/20 leading-none">OFF</span>
+        </button>
+
+        <!-- Groupe Historique / Edition (Nouveau depuis UX Audit Phase 6) -->
+        <div
+          class="flex items-center bg-slate-800/90 rounded-lg border border-slate-700/60 shadow-[0_10px_20px_rgba(0,0,0,0.4)] overflow-hidden h-[34px] sm:h-[38px]">
+          <button id="btnUndoQuick" data-tour="undo-btn"
+            class="h-full px-3 border-r border-slate-700/60 text-white hover:bg-slate-700/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-[14px]"
+            title="Annuler la dernière action (Ctrl+Z)" onclick="if(typeof window.undo === 'function') window.undo();">
+            <i class="fas fa-undo"></i>
+          </button>
+          <button id="btnRedoQuick"
+            class="h-full px-3 border-r border-slate-700/60 text-white hover:bg-slate-700/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-[14px]"
+            title="Rétablir l'action annulée (Ctrl+Y)" onclick="if(typeof window.redo === 'function') window.redo();">
+            <i class="fas fa-redo"></i>
+          </button>
+          <button id="btnEditer" data-tour="editer-btn"
+            class="h-full px-3 text-white hover:bg-slate-700/90 transition-colors flex items-center gap-1.5 text-[14px] font-bold tracking-[-0.03em]"
+            title="Historique complet et sources" aria-label="Ouvrir le menu Éditer" aria-expanded="false"
+            aria-haspopup="menu" aria-controls="dropdownEditer">
+            <span class="emoji opacity-80" style="font-size:13px">✍</span>
+            <span>Hist.</span>
+          </button>
+        </div>
+
+        <button id="btnSaveWIP" class="header-btn flex items-center gap-1.5 rounded-lg
+                     tracking-[-0.03em]
+                     text-amber-900 bg-amber-400/30
+                     border border-amber-600/30
+                     shadow-[0_12px_24px_rgba(245,158,11,.4)]
+                     hover:bg-amber-400/40
+                     dark:text-amber-300 dark:bg-amber-500/20 dark:border-amber-400/30 dark:hover:bg-amber-500/30"
+          title="Sauvegarder l'état actuel de travail (une sauvegarde automatique existe)">
+          <span class="emoji opacity-80">💾</span>
+          <span>Brouillon</span>
+        </button>
+
+      </div>
+
+      <!-- Droite : Groupe ADMIN (direction) + Aide -->
+      <div class="flex items-center gap-4 header-density">
+
+        <!-- Sous-groupe Admin -->
+        <div id="headerAdminGroup" class="flex items-center gap-2">
+
+          <button id="btnFinalize" data-tour="finalize-btn"
+            class="header-btn critique flex items-center gap-2 rounded-lg
+                     tracking-[-0.04em]
+                     text-slate-900 bg-emerald-400/30
+                     border border-emerald-600/30
+                     shadow-[0_12px_24px_rgba(16,185,129,.4)]
+                     hover:bg-emerald-400/40
+                     dark:text-emerald-300 dark:bg-emerald-500/20 dark:border-emerald-400/30 dark:hover:bg-emerald-500/30"
+            title="Valider la répartition (il est possible ensuite d'ajuster cette répartition)">
+            <span class="emoji opacity-90">✅</span>
+            <span>Finaliser</span>
+          </button>
+
+          <button id="btnAdmin" class="header-btn critique flex items-center gap-2 rounded-lg
+                     tracking-[-0.04em]
+                     text-white bg-red-600
+                     border border-red-700/40
+                     shadow-[0_12px_24px_rgba(220,38,38,.4)]
+                     hover:bg-red-700" title="Protégé par mot de passe. Consulter la direction." aria-expanded="false"
+            aria-haspopup="menu" aria-controls="dropdownAdmin">
+            <span class="emoji opacity-90">🔒</span>
+            <span>Admin</span>
+            <span id="adminStatusIndicator"
+              class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 leading-none">OFF</span>
+          </button>
+
+        </div>
+
+        <!-- Séparateur visuel -->
+        <div class="w-px h-6 bg-slate-300 dark:bg-slate-600"></div>
+
+        <!-- Mode Reunion -->
+        <button id="btnModeReunion" data-tour="reunion-btn" class="header-btn flex items-center gap-1.5 rounded-lg
+                     tracking-[-0.03em]
+                     bg-slate-200 text-slate-800 hover:bg-slate-300
+                     dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/15
+                     shadow-[0_4px_10px_rgba(0,0,0,0.15)]"
+          title="Mode reunion : affichage optimise pour videoprojecteur (raccourci R)">
+          <i class="fas fa-tv text-sm opacity-80"></i>
+          <span>Reunion</span>
+        </button>
+
+        <!-- Aide (isolée) -->
+        <button onclick="window.showTutorial()" class="header-btn flex items-center gap-1.5 rounded-lg
+                     tracking-[-0.03em]
+                     bg-slate-200 text-slate-800 hover:bg-slate-300
+                     dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/15
+                     shadow-[0_4px_10px_rgba(0,0,0,0.15)]" title="Tutoriel guidé (touche H).">
+          <span class="emoji opacity-80">❓</span>
+          <span>Aide</span>
+        </button>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════════
+     SWAP CONTEXT - Bandeau contextuel quand le mode echange est actif
+     S'affiche SOUS le header, remplace la barre harmonie supprimee
+     Hauteur 0 quand inactif = zero pixel perdu
+     ══════════════════════════════════════════════════════════════ -->
+  <div id="swapContextBar"
+    class="hidden bg-blue-50 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-800 px-4 py-1.5">
+    <div class="flex items-center justify-center gap-3">
+      <i class="fas fa-exchange-alt text-blue-500 text-sm"></i>
+      <span id="swapInstruction" class="text-sm font-medium text-blue-700 dark:text-blue-300">
+        Cliquez un premier eleve...
+      </span>
+      <button id="swapCancelBtn"
+        class="text-xs text-red-600 hover:text-red-800 dark:text-red-400 font-medium px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20">
+        Annuler
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+     MODAL WHAT-IF PREVIEW (R5) - Affiche avant de confirmer un swap
+     ══════════════════════════════════════════════════════════════ -->
+  <div id="swapPreviewModal"
+    class="fixed inset-0 z-[150000] flex items-center justify-center bg-black/40 backdrop-blur-[2px] hidden transition-opacity duration-150"
+    role="dialog" aria-modal="true" aria-label="Apercu de l'echange">
+    <div
+      class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 transform transition-all duration-200 scale-95 opacity-0"
+      id="swapPreviewContent">
+
+      <!-- En-tete -->
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+          <i class="fas fa-exchange-alt text-blue-600"></i> Apercu de l'echange
+        </h3>
+        <button id="swapPreviewClose"
+          class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Les deux eleves -->
+      <div class="flex items-center justify-center gap-3 mb-4">
+        <div id="previewEleve1" class="flex-1 bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-center">
+          <div class="text-sm font-bold text-slate-800 dark:text-slate-100" id="previewNom1">--</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400" id="previewClasse1">--</div>
+        </div>
+        <div class="text-2xl text-blue-500 font-bold">&#8644;</div>
+        <div id="previewEleve2" class="flex-1 bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-center">
+          <div class="text-sm font-bold text-slate-800 dark:text-slate-100" id="previewNom2">--</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400" id="previewClasse2">--</div>
+        </div>
+      </div>
+
+      <!-- Impact prevu -->
+      <div id="previewImpact" class="space-y-2 mb-5">
+        <!-- Rempli dynamiquement -->
+      </div>
+
+      <!-- Boutons -->
+      <div class="flex gap-3">
+        <button id="swapPreviewCancel"
+          class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm">
+          Annuler
+        </button>
+        <button id="swapPreviewConfirm"
+          class="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/30 transition-all text-sm">
+          <i class="fas fa-check mr-1"></i> Confirmer l'echange
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone principale -->
+  <main class="w-full p-4" role="main" aria-label="Répartition des élèves">
+    <!-- Wrapper visuel pour le plateau de travail -->
+    <div class="bg-slate-50 dark:bg-slate-900/40 rounded-xl p-4 shadow-sm">
+      <div id="board" data-tour="classes-container" class="flex gap-4 min-w-max"></div>
+    </div>
+  </main>
+
+  <!-- Panneau de feedback en temps réel (pour les groupes uniquement) -->
+  <div id="feedbackPanel" class="feedback-panel" style="display: none;" role="complementary" aria-live="polite"
+    aria-label="Statistiques en temps réel">
+    <div class="feedback-header">
+      <span><i class="fas fa-chart-line mr-2"></i>Indicateurs Groupes</span>
+      <div class="flex gap-2">
+        <button id="minimizeFeedback" class="text-white hover:text-yellow-200 transition-colors"
+          aria-label="Réduire le panneau">
+          <i class="fas fa-minus"></i>
+        </button>
+        <button id="closeFeedback" class="text-white hover:text-red-200 transition-colors"
+          aria-label="Fermer le panneau">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    <div class="feedback-content">
+      <div class="feedback-metric">
+        <span class="metric-label">Équilibre F/M</span>
+        <div class="metric-value" id="balanceMetric" aria-atomic="true">
+          <span id="balanceValue">0.0</span>
+          <div class="metric-change neutral" id="balanceChange">
+            <i class="fas fa-minus"></i>
+            <span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="feedback-metric">
+        <span class="metric-label">Contraintes</span>
+        <div class="metric-value" id="constraintsMetric" aria-atomic="true">
+          <span id="constraintsValue">0</span>
+          <div class="metric-change neutral" id="constraintsChange">
+            <i class="fas fa-minus"></i>
+            <span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="feedback-metric">
+        <span class="metric-label">Diversité</span>
+        <div class="metric-value" id="diversityMetric" aria-atomic="true">
+          <span id="diversityValue">0.0</span>
+          <div class="metric-change neutral" id="diversityChange">
+            <i class="fas fa-minus"></i>
+            <span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="feedback-metric">
+        <span class="metric-label">Taille groupes</span>
+        <div class="metric-value" id="sizeMetric" aria-atomic="true">
+          <span id="sizeValue">0.0</span>
+          <div class="metric-change neutral" id="sizeChange">
+            <i class="fas fa-minus"></i>
+            <span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="feedback-metric">
+        <span class="metric-label">Équilibre scores</span>
+        <div class="metric-value" id="scoresMetric" aria-atomic="true">
+          <span id="scoresValue">0.0</span>
+          <div class="metric-change neutral" id="scoresChange">
+            <i class="fas fa-minus"></i>
+            <span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="feedback-metric">
+        <span class="metric-label">Mobilité</span>
+        <div class="metric-value" id="mobilityMetric" aria-atomic="true">
+          <span id="mobilityValue">0.0</span>
+          <div class="metric-change neutral" id="mobilityChange">
+            <i class="fas fa-minus"></i>
+            <span>0</span>
+          </div>
+        </div>
+      </div>
+      <div class="feedback-metric">
+        <span class="metric-label">Score global</span>
+        <div class="metric-value" id="globalScoreMetric" aria-atomic="true">
+          <span id="globalScoreValue">0.0</span>
+          <div class="metric-change neutral" id="globalScoreChange">
+            <i class="fas fa-minus"></i>
+            <span>0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel historique (initialement caché) -->
+  <div id="historyPanel" class="history-panel">
+    <div class="p-4 border-b">
+      <h3 class="font-bold text-lg flex items-center justify-between">
+        Historique des actions
+        <button onclick="toggleHistoryPanel()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times"></i>
+        </button>
+      </h3>
+    </div>
+    <div id="historyTimeline" class="history-timeline"></div>
+  </div>
+
+  <!-- Menu bookmarks (dropdown) -->
+  <div class="relative">
+    <div id="bookmarksMenu" class="bookmarks-menu">
+      <div id="bookmarksList"></div>
+      <div class="new-bookmark-form">
+        <button class="btn btn-primary w-full" onclick="saveAsBookmark()">
+          <i class="fas fa-plus"></i> Nouveau favori
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale de confirmation Finaliser -->
+  <div id="finalizeConfirmModal"
+    class="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden transition-opacity duration-300"
+    style="z-index: var(--z-modal)" role="dialog" aria-modal="true" aria-labelledby="finalize-modal-title">
+    <div
+      class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4 transform transition-all duration-300 scale-95 opacity-0"
+      id="finalizeConfirmContent">
+      <!-- Icône et titre -->
+      <div class="text-center mb-6">
+        <div
+          class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 mb-4 shadow-lg">
+          <i class="fas fa-check-circle text-2xl text-white"></i>
+        </div>
+        <h2 id="finalize-modal-title" class="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-2">Confirmer la
+          version finale présentable ?</h2>
+        <p class="text-gray-600 dark:text-slate-300 text-sm leading-relaxed">
+          Cette répartition sera utilisée comme base officielle en réunion.
+          <br>
+          Il sera encore possible d'ajuster ensuite si besoin.
+        </p>
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="flex gap-3 justify-end">
+        <button id="btnCancelFinalize"
+          class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+          Annuler
+        </button>
+        <button id="btnConfirmFinalize"
+          class="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-500/30 transition-all">
+          Confirmer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panneau #lisibilite-panel SUPPRIMÉ - On utilise maintenant le menu dropdown #dropdownRegler -->
+
+  <!-- TEMPLATES - À PLACER JUSTE AVANT LA FIN DU BODY -->
+  <template id="tpl-carte-eleve">
+    <div class="student-card" draggable="true" data-id="">
+      <div class="card-content-line">
+
+        <div class="student-fullname"></div>
+        <div class="all-badges"></div>
+        <div class="source-class text-xs font-medium text-gray-700"></div>
+        <div class="scores"></div>
+        <div class="badge-dispo-container"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-classe-col">
+    <div class="class-column fade-in">
+      <div class="class-header">
+        <div class="class-title-line">
+          <h2 class="classe-name"></h2>
+          <div class="class-counts">
+            <span><i class="fas fa-users opacity-75"></i> <span class="count font-bold">0</span></span>
+            <span class="text-pink-200"><i class="fas fa-venus"></i> <span class="count-f font-bold">0</span></span>
+            <span class="text-blue-200"><i class="fas fa-mars"></i> <span class="count-m font-bold">0</span></span>
+          </div>
+        </div>
+        <div class="sort-buttons">
+          <button class="sort-btn" data-sort="name" title="Trier par nom (A→Z ou Z→A)">
+            <span class="sort-label">ABC</span>
+            <span class="sort-arrow">⇅</span>
+          </button>
+          <button class="sort-btn" data-sort="lv2" title="Trier par langue (ESP→ITA→ALL→LATIN→GRECO)">
+            <span class="sort-label">LV2</span>
+            <span class="sort-arrow">⇅</span>
+          </button>
+          <button class="sort-btn" data-sort="option" title="Trier par option (alphabétique)">
+            <span class="sort-label">OPT</span>
+            <span class="sort-arrow">⇅</span>
+          </button>
+          <button class="sort-btn" data-sort="score"
+            title="Trier par comportement (🟩 Vert=meilleurs en haut ↑ / 🔴 Rouge=pires en haut ↓)">
+            <span class="sort-label">COM</span>
+            <span class="sort-arrow">⇅</span>
+          </button>
+        </div>
+      </div>
+      <div class="droppable-zone" data-classe=""></div>
+    </div>
+  </template>
+
+  <!-- OVERLAY et MODALES (si absents, à compléter selon besoin) -->
+  <div id="overlay" class="overlay hidden"></div>
+
+  <!-- Modal Export -->
+  <div id="exportModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="text-xl font-bold">Exporter la répartition</h2>
+        <button onclick="closeExportModal()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="grid grid-cols-2 gap-4">
+          <button onclick="exportExcel()" class="btn btn-primary">
+            <i class="fas fa-file-excel"></i> Export Excel
+          </button>
+          <button onclick="exportPDF()" class="btn btn-primary">
+            <i class="fas fa-file-pdf"></i> Export PDF
+          </button>
+          <button onclick="exportAsImage()" class="btn btn-primary">
+            <i class="fas fa-camera"></i> Export Image (PNG)
+          </button>
+          <button onclick="showComparison()" class="btn btn-secondary">
+            <i class="fas fa-exchange-alt"></i> Comparer avant/après
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Règles -->
+  <div id="rulesModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="text-xl font-bold">Éditer les règles de répartition</h2>
+        <button onclick="closeRulesModal()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="rulesContainer"></div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="closeRulesModal()" class="btn btn-secondary">Annuler</button>
+        <button onclick="saveRules()" class="btn btn-primary">Sauvegarder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panneau Statistiques -->
+  <div id="statsPanel"
+    class="fixed top-0 right-0 h-full bg-white shadow-xl transform translate-x-full transition-transform duration-300 stats-panel">
+    <div class="stats-panel-header flex items-start justify-between p-4 border-b border-slate-200 bg-white relative">
+      <!-- Bloc gauche : bouton fermer + titre + sous-titre -->
+      <div class="flex items-start gap-3">
+        <button id="closeStats"
+          class="btn btn-sm text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-300 rounded-md leading-none"
+          title="Fermer les statistiques (Échap)">
+          <i class="fas fa-times text-[14px] leading-none"></i>
+        </button>
+
+        <div class="flex flex-col">
+          <div class="flex items-baseline gap-2">
+            <h2 class="text-lg font-bold leading-tight text-slate-800">
+              Statistiques détaillées
+            </h2>
+
+            <!-- Sous-titre compact lisible au vidéoprojecteur -->
+            <span class="text-[11px] font-semibold text-slate-500 leading-none tracking-[-0.03em]">
+              COM · TRA · PART · ABS
+            </span>
+          </div>
+
+          <!-- Optionnel : mini info contexte classe/groupe -->
+          <div id="statsContextLabel" class="text-[11px] text-slate-500 font-medium leading-snug">
+            <!-- Ex: "6A vs 6B - LV2 Espagnol" injecté en JS si besoin -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Bloc droit : outils d'affichage -->
+      <div class="flex gap-2 shrink-0">
+        <button id="btnFullscreen" class="btn btn-sm" onclick="toggleFullscreenStats()" title="Plein écran stats">
+          <i class="fas fa-expand"></i>
+        </button>
+
+        <button id="btnAnchor" class="btn btn-sm" onclick="toggleAnchoredStats()" title="Épingler les stats à droite">
+          <i class="fas fa-thumbtack"></i>
+        </button>
+      </div>
+    </div>
+    <div id="statsContent" class="p-4 overflow-y-auto" style="height: calc(100% - 80px);">
+      <!-- Le contenu sera généré dynamiquement -->
+    </div>
+  </div>
+
+  <!-- Bouton flottant pour fermer les stats (toujours accessible) -->
+  <button id="statsFloatingClose" title="Fermer les statistiques (Échap)" class="fixed top-[4.5rem] right-[1rem]
+         bg-red-600 text-white text-[13px] font-bold leading-none
+         px-3 py-2 rounded-lg shadow-[0_20px_40px_rgba(220,38,38,.5)]
+         border border-red-700/40
+         hidden" style="z-index: var(--z-panel)">
+    Fermer ✕
+  </button>
+
+  <!-- Aide clavier -->
+  <div id="keyboardShortcuts" class="keyboard-shortcuts hidden">
+    <h4>Raccourcis clavier</h4>
+    <div class="grid grid-cols-2 gap-2 text-xs">
+      <div class="shortcut-item"><span>Recherche</span><span class="shortcut-key">Ctrl+F</span></div>
+      <div class="shortcut-item"><span>Actualiser</span><span class="shortcut-key">F5</span></div>
+      <div class="shortcut-item"><span>Annuler</span><span class="shortcut-key">Ctrl+Z</span></div>
+      <div class="shortcut-item"><span>Refaire</span><span class="shortcut-key">Ctrl+Y</span></div>
+      <div class="shortcut-item"><span>Mode echange</span><span class="shortcut-key">S</span></div>
+      <div class="shortcut-item"><span>Mode reunion</span><span class="shortcut-key">R</span></div>
+      <div class="shortcut-item"><span>Statistiques</span><span class="shortcut-key">T</span></div>
+      <div class="shortcut-item"><span>Mode sombre</span><span class="shortcut-key">D</span></div>
+      <div class="shortcut-item"><span>Vue simple</span><span class="shortcut-key">V</span></div>
+      <div class="shortcut-item"><span>Tutoriel</span><span class="shortcut-key">H</span></div>
+      <div class="shortcut-item"><span>Fermer modals</span><span class="shortcut-key">Echap</span></div>
+    </div>
+  </div>
+
+  <!-- Scripts HtmlService injectés en fin de document pour garantir leur exécution après le chargement du DOM -->
+
+  <!-- 1. CHARGER LES MODULES DE BASE EN PREMIER (UI, Tooltips, etc) -->
+  <?!= include('UIComponents'); ?>
+  <?!= include('TooltipRegistry'); ?>
+
+  <!-- 1.5 PERFORMANCE OPTIMIZER - Phase 11 (Debounce, DOM Cache, Batch Operations) -->
+  <?!= include('PerformanceOptimizer'); ?>
+
+  <!-- 2. CHARGER LE SCRIPT PRINCIPAL -->
+  <?!= include('InterfaceV2_CoreScript'); ?>
+
+  <!-- MODULE NOUVEL ÉLÈVE — Gestion complète de l'arrivée d'un élève -->
+  <?!= include('InterfaceV2_NewStudentModule'); ?>
+
+  <!-- PATCH ÉTAPE 3 — Auto-save conditionnel (has_user_action + badge) -->
+  <?!= include('InterfaceV2_InitUpgrade'); ?>
+
+  <?!= include('InterfaceV2_StatsCleanupScript'); ?>
+
+  <!-- 3. CHARGER LES MODULES UI AVANCÉS (Tour guidé) -->
+  <?!= include('OnboardingTour'); ?>
+
+  <!-- 3.6 CHARGER LES RACCOURCIS CLAVIER (T/V/H) -->
+  <?!= include('KeyboardShortcuts'); ?>
+
+  <!-- 3.7 CHARGER LES CONTRÔLES DU HEADER (Mode édition + Modale Finaliser) -->
+  <?!= include('InterfaceV2_HeaderControls'); ?>
+
+  <!-- 4. CHARGER LE MODULE D'OPTIMISATION -->
+  <?!= include('OptimizationPanel'); ?>
+
+  <!-- 5. MODULE UX HARMONIE - Experience enseignant en reunion -->
+  <?!= include('InterfaceV2_UX_Harmonie'); ?>
+
+  <!-- Menu Paramètres SUPPRIMÉ - Tout le contenu est maintenant dans le Menu Admin -->
+
+  <!-- Menu Régler dropdown (Menu B - officiel) -->
+  <div id="dropdownRegler" data-menu-root role="menu" aria-labelledby="btnRegler"
+    class="fixed w-80 max-h-[70vh] overflow-y-auto bg-slate-50 dark:bg-slate-900 rounded-xl shadow-xl border border-slate-300 dark:border-slate-700 dark:shadow-[0_20px_60px_rgba(0,0,0,0.8)] hidden p-3 dropdown-menu"
+    style="z-index: var(--z-dropdown)">
+
+    <!-- CARTE 0 : Préréglages rapides (EN PREMIER) -->
+    <div class="cardRegler">
+      <div class="cardHeader">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"><i
+            class="fas fa-magic mr-2 text-purple-600"></i>Préréglages</div>
+        <div class="text-[11px] text-slate-400 dark:text-slate-500">1 clic</div>
+      </div>
+
+      <div class="cardBody space-y-1">
+        <button
+          class="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left rounded-lg border border-transparent hover:border-blue-200 dark:hover:border-blue-800"
+          id="presetProjection">
+          <div
+            class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-tv text-blue-600 dark:text-blue-400 text-sm"></i>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-gray-800 dark:text-slate-100">Projection</div>
+            <div class="text-[10px] text-slate-500 dark:text-slate-400">Grand texte, contraste fort, sans scores</div>
+          </div>
+        </button>
+        <button
+          class="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors text-left rounded-lg border border-transparent hover:border-green-200 dark:hover:border-green-800"
+          id="presetImpression">
+          <div
+            class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-print text-green-600 dark:text-green-400 text-sm"></i>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-gray-800 dark:text-slate-100">Impression</div>
+            <div class="text-[10px] text-slate-500 dark:text-slate-400">Fond blanc, texte compact, badges visibles</div>
+          </div>
+        </button>
+        <button
+          class="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left rounded-lg border border-transparent hover:border-purple-200 dark:hover:border-purple-800"
+          id="presetAccessibilite">
+          <div
+            class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-universal-access text-purple-600 dark:text-purple-400 text-sm"></i>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-gray-800 dark:text-slate-100">Accessibilit&eacute;</div>
+            <div class="text-[10px] text-slate-500 dark:text-slate-400">Contraste maximum, texte XL, symboles genre
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- CARTE 1 : Densité + Affichage rapide -->
+    <div class="cardRegler">
+      <div class="cardHeader">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"><i
+            class="fas fa-eye mr-2 text-emerald-600"></i>Affichage</div>
+        <div class="text-[11px] text-slate-400 dark:text-slate-500">Alt+D</div>
+      </div>
+
+      <div class="cardBody space-y-2">
+        <!-- Densité inline -->
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-[13px] font-medium text-slate-800 dark:text-slate-100">Barre d'outils</div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400">Compact / Confort</div>
+          </div>
+          <button id="btnToggleDensityInMenu" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-[12px] font-semibold
+                       bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700
+                       transition-colors" onclick="toggleHeaderDensity()">
+            Basculer
+          </button>
+        </div>
+
+        <div class="border-t border-slate-100 dark:border-slate-700 pt-2 mt-1"></div>
+
+        <!-- Toggles d'affichage -->
+        <label
+          class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
+          <input type="checkbox" id="showPrenoms" class="w-4 h-4 cursor-pointer" checked>
+          <span>Prénoms</span>
+        </label>
+        <label
+          class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
+          <input type="checkbox" id="showClasseOrigine" class="w-4 h-4 cursor-pointer" checked>
+          <span>Classe d'origine</span>
+        </label>
+        <label
+          class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
+          <input type="checkbox" id="showScores" class="w-4 h-4 cursor-pointer" checked>
+          <span>Scores</span>
+        </label>
+        <label
+          class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
+          <input type="checkbox" id="showGenderBadges" class="w-4 h-4 cursor-pointer">
+          <span>Badges sexe</span>
+        </label>
+        <label
+          class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded border-l-2 border-indigo-400 pl-3 ml-1 bg-indigo-50/50 dark:bg-indigo-900/10">
+          <input type="checkbox" id="showMicroCharts"
+            class="w-4 h-4 cursor-pointer text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-indigo-800 dark:text-indigo-300">Jauges Visuelles (Scores)</span>
+        </label>
+        <label
+          class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
+          <input type="checkbox" id="whiteBackground" class="w-4 h-4 cursor-pointer">
+          <span>Fond blanc</span>
+        </label>
+
+        <div class="border-t border-slate-100 dark:border-slate-700 pt-2 mt-1 space-y-1">
+          <button
+            class="w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left rounded"
+            id="btnPleinEcran">
+            <i class="fas fa-expand text-gray-500 dark:text-slate-400 text-sm"></i>
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-200">Plein écran</span>
+          </button>
+          <button
+            class="w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left rounded"
+            id="btnModeSombre">
+            <i class="fas fa-moon text-gray-500 dark:text-slate-400 text-sm"></i>
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-200">Mode sombre</span>
+          </button>
+          <button
+            class="w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left rounded"
+            id="btnZoomCartes">
+            <i class="fas fa-search-plus text-gray-500 dark:text-slate-400 text-sm"></i>
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-200">Zoom cartes</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARTE 2 : Lisibilité avancée (repliée par défaut) -->
+    <div class="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 mb-3">
+      <button
+        class="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors rounded-t-lg"
+        onclick="toggleSection('lisibiliteSection')">
+        <span class="font-semibold text-gray-700 dark:text-slate-200"><i
+            class="fas fa-sliders-h mr-2 text-blue-600"></i>Réglages fins</span>
+        <i class="fas fa-chevron-down text-gray-400 transition-transform" id="lisibiliteSectionIcon"></i>
+      </button>
+      <div id="lisibiliteSection" class="px-4 pb-3 space-y-3 hidden">
+
+        <!-- Taille des noms avec aperçus visuels -->
+        <div>
+          <label class="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-2 block">Taille des
+            noms</label>
+          <div class="space-y-1.5">
+            <label
+              class="flex items-center justify-between px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              data-size="small">
+              <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300">S</span>
+              <span class="text-[11px] text-slate-800 dark:text-white font-semibold leading-none">DUPONT Léa</span>
+              <input type="radio" name="fontSize" value="small" class="w-4 h-4">
+            </label>
+            <label
+              class="flex items-center justify-between px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors bg-blue-50 border-blue-500 dark:bg-blue-900/30"
+              data-size="medium">
+              <span class="text-[12px] font-medium text-slate-600 dark:text-slate-300">M</span>
+              <span class="text-[13px] text-slate-800 dark:text-white font-semibold leading-none">DUPONT Léa</span>
+              <input type="radio" name="fontSize" value="medium" class="w-4 h-4" checked>
+            </label>
+            <label
+              class="flex items-center justify-between px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              data-size="large">
+              <span class="text-[13px] font-medium text-slate-600 dark:text-slate-300">L</span>
+              <span class="text-[14px] text-slate-800 dark:text-white font-semibold leading-none">DUPONT Léa</span>
+              <input type="radio" name="fontSize" value="large" class="w-4 h-4">
+            </label>
+            <label
+              class="flex items-center justify-between px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              data-size="xlarge">
+              <span class="text-[14px] font-medium text-slate-600 dark:text-slate-300">XL</span>
+              <span class="text-[16px] text-slate-800 dark:text-white font-semibold leading-none">DUPONT Léa</span>
+              <input type="radio" name="fontSize" value="xlarge" class="w-4 h-4">
+            </label>
+          </div>
+        </div>
+
+        <!-- Style -->
+        <div>
+          <label class="text-xs font-semibold text-gray-500 uppercase mb-2 block">Style</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label
+              class="flex items-center justify-center px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors bg-blue-50 border-blue-500"
+              data-style="normal">
+              <input type="radio" name="fontStyle" value="normal" class="hidden" checked>
+              <span class="text-sm font-medium text-blue-700">Normal</span>
+            </label>
+            <label
+              class="flex items-center justify-center px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
+              data-style="bold">
+              <input type="radio" name="fontStyle" value="bold" class="hidden">
+              <span class="text-sm font-medium">Gras</span>
+            </label>
+            <label
+              class="flex items-center justify-center px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
+              data-style="highlight">
+              <input type="radio" name="fontStyle" value="highlight" class="hidden">
+              <span class="text-sm font-medium">Surligné</span>
+            </label>
+            <label
+              class="flex items-center justify-center px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
+              data-style="outline">
+              <input type="radio" name="fontStyle" value="outline" class="hidden">
+              <span class="text-sm font-medium">Contour</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Contraste -->
+        <div>
+          <label class="text-xs font-semibold text-gray-500 uppercase mb-2 block">Contraste</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label
+              class="flex items-center justify-center px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors bg-blue-50 border-blue-500"
+              data-contrast="normal">
+              <input type="radio" name="contrast" value="normal" class="hidden" checked>
+              <span class="text-sm font-medium text-blue-700">Normal</span>
+            </label>
+            <label
+              class="flex items-center justify-center px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
+              data-contrast="high">
+              <input type="radio" name="contrast" value="high" class="hidden">
+              <span class="text-sm font-medium">Élevé</span>
+            </label>
+            <label
+              class="flex items-center justify-center px-3 py-2 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
+              data-contrast="max">
+              <input type="radio" name="contrast" value="max" class="hidden">
+              <span class="text-sm font-medium">Maximum</span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- CARTE 3 : Légende -->
+    <div class="cardRegler">
+      <div class="cardHeader">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"><i
+            class="fas fa-info-circle mr-2 text-purple-600"></i>Légende</div>
+      </div>
+
+      <div class="cardBody space-y-2">
+
+        <div class="border-t border-slate-100 dark:border-slate-700 pt-2"></div>
+
+        <!-- Légende des badges -->
+        <div class="bg-purple-50 dark:bg-purple-900/20 p-2 rounded border border-purple-200 dark:border-purple-800">
+          <div class="text-[10px] font-bold text-purple-900 dark:text-purple-200 mb-1.5 uppercase tracking-wide">Badges
+          </div>
+          <div class="space-y-1 text-[11px] text-gray-700 dark:text-slate-300">
+            <div class="flex items-center gap-2">
+              <span
+                class="px-1.5 py-0.5 rounded-md bg-red-500 text-white text-[10px] font-bold leading-none flex-shrink-0">D</span>
+              <span>Les codes identiques doivent être séparés</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span
+                class="px-1.5 py-0.5 rounded-md bg-yellow-500 text-white text-[10px] font-bold leading-none flex-shrink-0">A</span>
+              <span>Les codes A identiques doivent être regroupés</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barème des scores -->
+        <div class="bg-slate-50 dark:bg-slate-800/50 p-2 rounded border border-slate-200 dark:border-slate-700">
+          <div
+            class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+            <i class="fas fa-chart-bar text-[9px]"></i>
+            <span>Barème des scores</span>
+          </div>
+          <div class="space-y-1 text-[11px] text-gray-700 dark:text-slate-300">
+            <div class="flex items-center gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-green-700 text-white text-[10px] font-bold leading-none">4</span>
+              <span>Très bon niveau / idéal</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span
+                class="px-1.5 py-0.5 rounded bg-green-400 text-green-900 text-[10px] font-bold leading-none">3</span>
+              <span>Bon niveau / satisfaisant</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span
+                class="px-1.5 py-0.5 rounded bg-yellow-400 text-yellow-900 text-[10px] font-bold leading-none">2</span>
+              <span>Niveau fragile / à surveiller</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold leading-none">1</span>
+              <span>Insuffisant / priorité d'accompagnement</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARTE 4 : Filtrer -->
+    <div class="cardRegler">
+      <div class="cardHeader">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"><i
+            class="fas fa-filter mr-2 text-orange-600"></i>Filtrer</div>
+        <div id="filtreCount" class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Tous</div>
+      </div>
+
+      <div class="cardBody">
+        <div class="grid grid-cols-2 gap-1.5">
+          <button class="filter-btn-compact" data-filter="all" onclick="doReglerFilter('all')">Tous</button>
+          <button class="filter-btn-compact" data-filter="PERMUT" onclick="doReglerFilter('PERMUT')">PERMUT</button>
+          <button class="filter-btn-compact" data-filter="FIXE" onclick="doReglerFilter('FIXE')">FIXE</button>
+          <button class="filter-btn-compact" data-filter="ESP" onclick="doReglerFilter('ESP')">ESP</button>
+          <button class="filter-btn-compact" data-filter="ITA" onclick="doReglerFilter('ITA')">ITA</button>
+          <button class="filter-btn-compact" data-filter="ALL" onclick="doReglerFilter('ALL')">ALL</button>
+          <button class="filter-btn-compact" data-filter="D" onclick="doReglerFilter('D')">Disso</button>
+          <button class="filter-btn-compact" data-filter="A" onclick="doReglerFilter('A')">Asso</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARTE 5 : Aide -->
+    <div class="cardRegler" style="margin-bottom: 0;">
+      <div class="cardHeader">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"><i
+            class="fas fa-question-circle mr-2 text-indigo-600"></i>Aide</div>
+      </div>
+
+      <div class="cardBody space-y-1">
+        <button
+          class="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors rounded text-left text-sm"
+          onclick="doReglerHelp('shortcuts')">
+          <i class="fas fa-keyboard text-gray-500 dark:text-slate-400"></i>
+          <span class="text-gray-700 dark:text-slate-200">Raccourcis</span>
+        </button>
+        <button
+          class="w-full px-3 py-2 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors rounded text-left text-sm"
+          onclick="doReglerHelp('tutorial')">
+          <i class="fas fa-graduation-cap text-gray-500 dark:text-slate-400"></i>
+          <span class="text-gray-700 dark:text-slate-200">Tutoriel</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+  <!-- FIN Menu Régler -->
+
+  <!-- Menu Éditer (déplacé ici pour éviter stacking context du header) -->
+  <div id="dropdownEditer"
+    class="fixed w-80 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 hidden dropdown-menu"
+    style="max-height: 80vh; overflow-y: auto; z-index: var(--z-dropdown);">
+
+    <!-- Mode Permutation -->
+    <div class="border-b border-gray-100">
+      <button id="btnSwapMainMenu"
+        class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+        title="Activer le mode permutation d'élèves">
+        <i class="fas fa-exchange-alt text-gray-600"></i>
+        <span class="text-sm font-medium">Mode Permutation</span>
+        <span id="swapModeIndicator" class="ml-auto text-xs px-2 py-1 rounded bg-gray-200 text-gray-600">OFF</span>
+      </button>
+    </div>
+
+    <!-- Actions Annuler/Rétablir -->
+    <div class="border-b border-gray-100">
+      <div class="flex gap-1 px-2 py-2">
+        <button id="btnUndoMenu"
+          class="flex-1 px-3 py-2 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors rounded border border-gray-200"
+          disabled title="Annuler la dernière action (Ctrl+Z)">
+          <i class="fas fa-undo text-gray-600"></i>
+          <span class="text-sm font-medium">Annuler</span>
+        </button>
+        <button id="btnRedoMenu"
+          class="flex-1 px-3 py-2 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors rounded border border-gray-200"
+          disabled title="Rétablir l'action annulée (Ctrl+Y)">
+          <i class="fas fa-redo text-gray-600"></i>
+          <span class="text-sm font-medium">Rétablir</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Historique -->
+    <div class="border-b border-gray-100">
+      <button id="btnHistoryMenu"
+        class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+        title="Afficher l'historique des actions">
+        <i class="fas fa-history text-gray-600"></i>
+        <span class="text-sm font-medium">Historique</span>
+      </button>
+    </div>
+
+    <!-- Sources -->
+    <div>
+      <button id="btnSourcesMenu"
+        class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+        title="Choisir la source de données">
+        <i class="fas fa-database text-gray-600"></i>
+        <span class="text-sm font-medium">Sources</span>
+      </button>
+    </div>
+
+  </div>
+  <!-- FIN Menu Éditer -->
+
+  <!-- Menu Comparer (déplacé ici pour éviter stacking context du header) -->
+  <div id="dropdownComparer" class="fixed w-80 bg-white rounded-lg shadow-xl border border-gray-200 hidden"
+    style="max-height: 80vh; overflow-y: auto; z-index: var(--z-dropdown);">
+
+    <!-- Statistiques (ouvre le panneau stats) -->
+    <div class="border-b border-gray-100">
+      <button id="btnStatsMenu"
+        class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+        title="Afficher le panneau de statistiques">
+        <i class="fas fa-chart-bar text-gray-600"></i>
+        <span class="text-sm font-medium">Statistiques</span>
+      </button>
+    </div>
+
+    <!-- Tableaux de bord analytiques -->
+    <div>
+      <button id="btnAnalyticsMenu"
+        class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+        title="Ouvrir les tableaux de bord analytiques">
+        <i class="fas fa-chart-line text-gray-600"></i>
+        <span class="text-sm font-medium">Tableaux de bord analytiques</span>
+      </button>
+    </div>
+
+  </div>
+  <!-- FIN Menu Comparer -->
+
+  <!-- Menu Admin (déplacé ici pour éviter stacking context du header) -->
+  <div id="dropdownAdmin" data-menu-root
+    class="fixed w-80 bg-white rounded-lg shadow-xl border border-gray-200 hidden transition-all duration-200 ease-out opacity-0 scale-95"
+    style="max-height: 80vh; overflow-y: auto; transform-origin: top right; z-index: var(--z-dropdown);">
+
+    <!-- Message de verrouillage (affiché si non déverrouillé) -->
+    <div id="adminLockMessage" class="px-4 py-6">
+      <div class="text-center mb-4">
+        <i class="fas fa-lock text-4xl text-gray-400 mb-3"></i>
+        <p class="text-sm text-gray-600">Ce menu est protégé par mot de passe</p>
+      </div>
+
+      <!-- Champ de saisie du mot de passe -->
+      <div class="space-y-3">
+        <div class="relative">
+          <input type="password" id="adminPasswordInput" placeholder="Entrez le mot de passe administrateur"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+            autocomplete="off">
+          <button id="btnTogglePasswordVisibility" type="button"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Afficher/Masquer le mot de passe">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+
+        <button id="btnUnlockAdmin"
+          class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">
+          <i class="fas fa-unlock-alt mr-2"></i>Déverrouiller
+        </button>
+
+        <p id="adminPasswordError" class="text-xs text-red-600 text-center hidden">
+          <i class="fas fa-exclamation-circle mr-1"></i>Mot de passe incorrect
+        </p>
+      </div>
+    </div>
+
+    <!-- Contenu Admin (affiché après déverrouillage) -->
+    <div id="adminContent" class="hidden">
+
+      <!-- Bouton Verrouiller -->
+      <div class="border-b border-gray-100 bg-red-50">
+        <button id="btnLockAdmin"
+          class="w-full px-4 py-3 flex items-center gap-3 hover:bg-red-100 transition-colors text-left">
+          <i class="fas fa-lock text-red-600"></i>
+          <span class="text-sm font-semibold text-red-700">🔒 Verrouiller le menu Admin</span>
+        </button>
+      </div>
+
+      <!-- Mode Admin Force (déplacer n'importe quel élève sans contraintes) -->
+      <div class="border-b border-gray-100 bg-amber-50">
+        <div class="px-4 py-3 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-user-shield text-amber-600"></i>
+            <div>
+              <div class="text-sm font-semibold text-gray-800">Mode Force</div>
+              <div class="text-xs text-gray-600">Ignorer toutes les contraintes (FIXE, PERMUT, CONDI)</div>
+            </div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="toggleAdminForceMode" class="sr-only peer">
+            <div
+              class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600">
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Sources -->
+      <div class="border-b border-gray-100">
+        <button id="btnSourcesAdmin"
+          class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+          title="Choisir la source de données">
+          <i class="fas fa-database text-gray-600"></i>
+          <span class="text-sm font-medium">Sources</span>
+        </button>
+      </div>
+
+      <!-- Optimisation -->
+      <div class="border-b border-gray-100">
+        <button id="btnOptimizationAdmin"
+          class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+          title="Optimisation automatique">
+          <i class="fas fa-magic text-gray-600"></i>
+          <span class="text-sm font-medium">Optimisation</span>
+        </button>
+      </div>
+
+      <!-- Nouvel élève / Affectation -->
+      <div class="border-b border-gray-100">
+        <button id="btnNewStudentAdmin"
+          class="w-full px-4 py-3 flex items-center gap-3 hover:bg-blue-50 transition-colors text-left"
+          title="Ajouter un nouvel élève et l'affecter à une classe">
+          <i class="fas fa-user-plus text-blue-600"></i>
+          <span class="text-sm font-medium">Nouvel élève</span>
+        </button>
+      </div>
+
+      <!-- Groupes -->
+      <div class="border-b border-gray-100">
+        <button class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          onclick="toggleSection('groupesSection')">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-layer-group text-gray-600"></i>
+            <span class="text-sm font-medium">Groupes</span>
+          </div>
+          <i class="fas fa-chevron-down text-gray-400 transition-transform" id="groupesSectionIcon"></i>
+        </button>
+        <div id="groupesSection" class="hidden px-4 pb-3 space-y-2">
+          <label
+            class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm cursor-pointer">
+            <input type="checkbox" id="adminToggleHeaderGroups" class="h-4 w-4">
+            <span>Afficher le bouton Groupes dans le header</span>
+          </label>
+          <button id="menuOpenGroupsAdmin"
+            class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm"
+            onclick="openGroupsInterface('creator')">
+            <i class="fas fa-plus-circle text-gray-600"></i>
+            <span>Créer des groupes</span>
+          </button>
+          <button id="menuManageGroupsAdmin"
+            class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm"
+            onclick="openGroupsInterface('manager')">
+            <i class="fas fa-cog text-gray-600"></i>
+            <span>Gérer les groupes</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Paramètres (tout le contenu actuel) -->
+      <div>
+        <button class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          onclick="toggleSection('parametresSection')">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-cog text-gray-600"></i>
+            <span class="text-sm font-medium">Paramètres</span>
+          </div>
+          <i class="fas fa-chevron-down text-gray-400 transition-transform" id="parametresSectionIcon"></i>
+        </button>
+        <div id="parametresSection" class="hidden px-2 pb-3">
+
+          <!-- Affichage -->
+          <div class="mb-2">
+            <div class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">Affichage</div>
+            <button id="menuDarkModeAdmin"
+              class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm">
+              <i class="fas fa-moon text-gray-600"></i>
+              <span>Mode sombre</span>
+            </button>
+            <button id="menuZoomAdmin"
+              class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm">
+              <i class="fas fa-search-plus text-gray-600"></i>
+              <span>Zoom cartes</span>
+            </button>
+            <button id="menuFullscreenAdmin"
+              class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm">
+              <i class="fas fa-expand text-gray-600"></i>
+              <span>Plein écran</span>
+            </button>
+          </div>
+
+          <!-- Données -->
+          <div class="mb-2">
+            <div class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">Données</div>
+            <button id="menuImportScoresAdmin"
+              class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm">
+              <i class="fas fa-upload text-gray-600"></i>
+              <span>Import Scores</span>
+            </button>
+            <button id="btnExportAdmin"
+              class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm">
+              <i class="fas fa-download text-gray-600"></i>
+              <span>Export</span>
+            </button>
+            <button id="menuRulesAdmin"
+              class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm">
+              <i class="fas fa-edit text-gray-600"></i>
+              <span>Règles</span>
+            </button>
+          </div>
+
+          <!-- FILTRES et AIDE supprimés du menu Admin (déjà présents dans Régler) -->
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+  <!-- FIN Menu Admin -->
+
+  <!-- ========== MODULE GROUPES V4 ========== -->
+  <!-- UI Components (LoadingOverlay, Toast, Tooltips) -->
+  <?!= include('UIComponents'); ?>
+
+  <!-- Styles spécifiques Groups V4 (pastilles score, lisibilité) -->
+  <?!= include('GroupsModuleV4_Styles'); ?>
+
+  <?!= include('GroupsAlgorithmV4'); ?>
+  <?!= include('GroupsInterfaceV4'); ?>
+  <?!= include('InterfaceV2_GroupsModuleV4_Script'); ?>
+
+  <!-- ============================================================ -->
+  <!-- TOOLTIPS SYSTEM -->
+  <!-- ============================================================ -->
+  <?!= include('TooltipRegistry'); ?>
+
+  <!-- ============================================================ -->
+  <!-- FONCTION D'OUVERTURE DU MODULE ANALYTIQUE -->
+  <!-- ============================================================ -->
+  <script>
+    /**
+     * Ouvre le module de tableaux de bord analytiques
+     */
+    function openAnalyticsDashboard() {
+      console.log('📈 Ouverture des tableaux de bord analytiques...');
+
+      // Retirer le focus du bouton avant de fermer le menu (accessibilité)
+      if (document.activeElement) {
+        document.activeElement.blur();
+      }
+
+      // Fermer le menu Paramètres
+      const dropdown = document.getElementById('settingsDropdown');
+      if (dropdown) {
+        dropdown.classList.add('hidden');
+        dropdown.setAttribute('aria-hidden', 'true');
+      }
+
+      // Afficher un spinner
+      const spinner = document.getElementById('loadingSpinner');
+      if (spinner) spinner.classList.remove('hidden');
+
+      // Charger le snapshot analytique
+      google.script.run
+        .withSuccessHandler(function (snapshot) {
+          if (spinner) spinner.classList.add('hidden');
+
+          console.log('✅ Snapshot reçu:', snapshot);
+
+          // getAnalyticsSnapshotForUI() retourne directement le snapshot
+          if (snapshot && snapshot.timestamp) {
+            // Afficher le dashboard dans un modal
+            showAnalyticsDashboard(snapshot);
+          } else {
+            console.error('❌ Snapshot invalide:', snapshot);
+            toast('Erreur: Données analytiques invalides', 'error');
+          }
+        })
+        .withFailureHandler(function (error) {
+          if (spinner) spinner.classList.add('hidden');
+          console.error('❌ Erreur chargement analytics:', error);
+          toast('Erreur: ' + error.message, 'error');
+        })
+        .getAnalyticsSnapshotForUI();
+    }
+
+    /**
+     * Affiche le dashboard analytique dans un modal
+     */
+    function showAnalyticsDashboard(snapshot) {
+      console.log('📊 Affichage du dashboard analytique:', snapshot);
+
+      // Créer le modal
+      const modal = document.createElement('div');
+      modal.id = 'analyticsDashboardModal';
+      modal.className = 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-60';
+      modal.style.zIndex = 'var(--z-modal)';
+      modal.innerHTML = `
+    <div class="bg-white rounded-lg shadow-xl w-11/12 h-5/6 max-w-7xl overflow-hidden flex flex-col">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6 flex justify-between items-center">
+        <div>
+          <h2 class="text-2xl font-bold">📊 Tableaux de bord analytiques</h2>
+          <p class="text-purple-100 text-sm mt-1">Snapshot du ${new Date(snapshot.timestamp).toLocaleString('fr-FR')}</p>
+        </div>
+        <button onclick="closeAnalyticsDashboard()" class="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      
+      <!-- Tabs -->
+      <div class="border-b border-gray-200 bg-gray-50 px-6">
+        <div class="flex gap-4">
+          <button class="analytics-tab active" data-view="overview" onclick="switchAnalyticsView('overview')">
+            <i class="fas fa-chart-pie"></i> Vue d'ensemble
+          </button>
+          <button class="analytics-tab" data-view="classes" onclick="switchAnalyticsView('classes')">
+            <i class="fas fa-users"></i> Par classe
+          </button>
+          <button class="analytics-tab" data-view="risks" onclick="switchAnalyticsView('risks')">
+            <i class="fas fa-exclamation-triangle"></i> Zones de risque
+          </button>
+          <button class="analytics-tab" data-view="history" onclick="switchAnalyticsView('history')">
+            <i class="fas fa-history"></i> Historique
+          </button>
+        </div>
+      </div>
+      
+      <!-- Content -->
+      <div class="flex-1 overflow-auto p-6" id="analyticsContent">
+        ${renderAnalyticsOverview(snapshot)}
+      </div>
+      
+      <!-- Footer -->
+      <div class="border-t border-gray-200 bg-gray-50 p-4 flex justify-between items-center">
+        <div class="text-sm text-gray-600">
+          <i class="fas fa-info-circle"></i> Pipeline: ${snapshot.pipeline || 'N/A'} | Mode: ${snapshot.config?.mode?.selected || 'N/A'}
+        </div>
+        <div class="flex gap-2">
+          <button onclick="exportAnalyticsPDF()" class="btn btn-secondary">
+            <i class="fas fa-file-pdf"></i> Export PDF
+          </button>
+          <button onclick="exportAnalyticsCSV()" class="btn btn-secondary">
+            <i class="fas fa-file-csv"></i> Export CSV
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+      // Ajouter les styles pour les tabs
+      const style = document.createElement('style');
+      style.textContent = `
+    .analytics-tab {
+      padding: 1rem 1.5rem;
+      border-bottom: 3px solid transparent;
+      color: #6B7280;
+      font-weight: 500;
+      transition: all 0.2s;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      cursor: pointer;
+    }
+    .analytics-tab:hover {
+      color: #4F46E5;
+      background: rgba(79, 70, 229, 0.05);
+    }
+    .analytics-tab.active {
+      color: #4F46E5;
+      border-bottom-color: #4F46E5;
+      background: white;
+    }
+    .metric-card {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border: 1px solid #E5E7EB;
+    }
+    .metric-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1F2937;
+    }
+    .metric-label {
+      font-size: 0.875rem;
+      color: #6B7280;
+      margin-top: 0.25rem;
+    }
+  `;
+      document.head.appendChild(style);
+
+      document.body.appendChild(modal);
+
+      // Stocker le snapshot pour les autres vues
+      window.currentAnalyticsSnapshot = snapshot;
+    }
+
+    /**
+     * Render la vue d'ensemble
+     */
+    function renderAnalyticsOverview(snapshot) {
+      const global = snapshot.global || {};
+      const risks = snapshot.risks || [];
+      const recommendations = snapshot.recommendations || [];
+
+      return `
+    <div class="space-y-6">
+      <!-- Métriques globales -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="metric-card">
+          <div class="metric-value">${global.totalEleves || 0}</div>
+          <div class="metric-label">Élèves total</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">${global.pariteGlobale?.toFixed(1) || 0}%</div>
+          <div class="metric-label">Parité F/M</div>
+          <div class="text-xs mt-1 ${global.pariteRespecteePartout ? 'text-green-600' : 'text-orange-600'}">
+            <i class="fas fa-${global.pariteRespecteePartout ? 'check' : 'exclamation-triangle'}"></i>
+            ${global.pariteRespecteePartout ? 'Respectée partout' : 'Non respectée'}
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">${global.varianceEffectifs?.toFixed(2) || 0}</div>
+          <div class="metric-label">Variance effectifs</div>
+          <div class="text-xs mt-1 text-gray-600">
+            <i class="fas fa-info-circle"></i> Plus c'est bas, mieux c'est
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value ${global.quotasRespectesPartout ? 'text-green-600' : 'text-orange-600'}">
+            <i class="fas fa-${global.quotasRespectesPartout ? 'check-circle' : 'exclamation-circle'}"></i>
+          </div>
+          <div class="metric-label">Quotas</div>
+          <div class="text-xs mt-1">
+            ${global.quotasRespectesPartout ? 'Tous respectés' : 'Dépassements détectés'}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Zones de risque -->
+      ${risks.length > 0 ? `
+        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <h3 class="text-lg font-semibold text-orange-800 mb-3">
+            <i class="fas fa-exclamation-triangle"></i> Zones de risque (${risks.length})
+          </h3>
+          <div class="space-y-2">
+            ${risks.slice(0, 5).map(risk => `
+              <div class="flex items-start gap-3 bg-white p-3 rounded border border-orange-200">
+                <div class="flex-shrink-0">
+                  <span class="inline-block px-2 py-1 text-xs font-semibold rounded ${risk.severity === 'HIGH' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
+        }">
+                    ${risk.severity}
+                  </span>
+                </div>
+                <div class="flex-1">
+                  <div class="font-medium text-gray-900">${risk.classe}</div>
+                  <div class="text-sm text-gray-600">${risk.message}</div>
+                </div>
+              </div>
+            `).join('')}
+            ${risks.length > 5 ? `<div class="text-sm text-gray-600 text-center mt-2">... et ${risks.length - 5} autre(s)</div>` : ''}
+          </div>
+        </div>
+      ` : `
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+          <i class="fas fa-check-circle text-green-600 text-3xl mb-2"></i>
+          <div class="text-green-800 font-semibold">Aucune zone de risque détectée</div>
+          <div class="text-green-600 text-sm mt-1">Toutes les contraintes sont respectées</div>
+        </div>
+      `}
+      
+      <!-- Recommandations -->
+      ${recommendations.length > 0 ? `
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 class="text-lg font-semibold text-blue-800 mb-3">
+            <i class="fas fa-lightbulb"></i> Recommandations (${recommendations.length})
+          </h3>
+          <div class="space-y-2">
+            ${recommendations.slice(0, 5).map(rec => `
+              <div class="flex items-start gap-3 bg-white p-3 rounded border border-blue-200">
+                <div class="flex-shrink-0 text-blue-600">
+                  <i class="fas fa-arrow-right"></i>
+                </div>
+                <div class="flex-1">
+                  <div class="font-medium text-gray-900">${rec.classe}</div>
+                  <div class="text-sm text-gray-600">${rec.action}</div>
+                </div>
+              </div>
+            `).join('')}
+            ${recommendations.length > 5 ? `<div class="text-sm text-gray-600 text-center mt-2">... et ${recommendations.length - 5} autre(s)</div>` : ''}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+    }
+
+    /**
+     * Ferme le dashboard analytique
+     */
+    function closeAnalyticsDashboard() {
+      const modal = document.getElementById('analyticsDashboardModal');
+      if (modal) {
+        modal.remove();
+      }
+      window.currentAnalyticsSnapshot = null;
+    }
+
+    /**
+     * Change de vue dans le dashboard
+     */
+    function switchAnalyticsView(view) {
+      // Mettre à jour les tabs
+      document.querySelectorAll('.analytics-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.view === view);
+      });
+
+      // Afficher le contenu correspondant
+      const content = document.getElementById('analyticsContent');
+      const snapshot = window.currentAnalyticsSnapshot;
+
+      if (!snapshot) {
+        content.innerHTML = '<div class="text-center text-gray-500">Aucune donnée disponible</div>';
+        return;
+      }
+
+      switch (view) {
+        case 'overview':
+          content.innerHTML = renderAnalyticsOverview(snapshot);
+          break;
+        case 'classes':
+          content.innerHTML = renderAnalyticsClasses(snapshot);
+          break;
+        case 'risks':
+          content.innerHTML = renderAnalyticsRisks(snapshot);
+          break;
+        case 'history':
+          loadAnalyticsHistory();
+          break;
+      }
+    }
+
+    /**
+     * Render la vue par classe
+     */
+    function renderAnalyticsClasses(snapshot) {
+      const classes = snapshot.classes || {};
+
+      return `
+    <div class="grid grid-cols-2 gap-4">
+      ${Object.keys(classes).map(classe => {
+        const data = classes[classe];
+        return `
+          <div class="metric-card">
+            <h3 class="text-lg font-semibold mb-3">${classe}</h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div class="text-gray-600">Effectif</div>
+                <div class="font-semibold">${data.effectif || 0} / ${data.target || 0}</div>
+                <div class="text-xs ${data.gapToTarget > 0 ? 'text-green-600' : data.gapToTarget < 0 ? 'text-orange-600' : 'text-gray-500'}">
+                  ${data.gapToTarget > 0 ? '+' : ''}${data.gapToTarget || 0}
+                </div>
+              </div>
+              <div>
+                <div class="text-gray-600">Parité F/M</div>
+                <div class="font-semibold">${data.femmes || 0} / ${data.hommes || 0}</div>
+                <div class="text-xs ${data.parityOK ? 'text-green-600' : 'text-orange-600'}">
+                  ${data.parityRatio?.toFixed(1) || 0}% F
+                </div>
+              </div>
+              <div>
+                <div class="text-gray-600">Score COM</div>
+                <div class="font-semibold">${data.scores?.com?.toFixed(2) || 'N/A'}</div>
+                <div class="text-xs text-gray-500">
+                  TRA: ${data.scores?.tra?.toFixed(2) || 'N/A'}
+                </div>
+              </div>
+              <div>
+                <div class="text-gray-600">Quotas</div>
+                <div class="font-semibold ${data.quotasOK ? 'text-green-600' : 'text-orange-600'}">
+                  <i class="fas fa-${data.quotasOK ? 'check' : 'exclamation-triangle'}"></i>
+                  ${data.quotasOK ? 'OK' : 'Dépassés'}
+                </div>
+                ${data.quotasViolations && data.quotasViolations.length > 0 ? `
+                  <div class="text-xs text-orange-600 mt-1">
+                    ${data.quotasViolations.map(v => `${v.option}: +${v.excess}`).join(', ')}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+            ${Object.keys(data.lv2 || {}).length > 0 || Object.keys(data.opt || {}).length > 0 ? `
+              <div class="mt-3 pt-3 border-t border-gray-200 text-xs">
+                ${Object.keys(data.lv2 || {}).length > 0 ? `
+                  <div class="mb-1"><span class="font-semibold">LV2:</span> ${Object.entries(data.lv2).map(([k, v]) => `${k}(${v})`).join(', ')}</div>
+                ` : ''}
+                ${Object.keys(data.opt || {}).length > 0 ? `
+                  <div><span class="font-semibold">OPT:</span> ${Object.entries(data.opt).map(([k, v]) => `${k}(${v})`).join(', ')}</div>
+                ` : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+    }
+
+    /**
+     * Render la vue des risques
+     */
+    function renderAnalyticsRisks(snapshot) {
+      const risks = snapshot.risks || [];
+      const recommendations = snapshot.recommendations || [];
+
+      if (risks.length === 0 && recommendations.length === 0) {
+        return `
+      <div class="text-center text-gray-500 py-12">
+        <i class="fas fa-check-circle text-green-500 text-6xl mb-4"></i>
+        <div class="text-xl font-semibold text-green-700">Aucune zone de risque</div>
+        <div class="text-gray-600 mt-2">Toutes les contraintes sont respectées</div>
+      </div>
+    `;
+      }
+
+      return `
+    <div class="space-y-6">
+      ${risks.length > 0 ? `
+        <div>
+          <h3 class="text-xl font-bold mb-4 text-red-700">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Zones de risque (${risks.length})
+          </h3>
+          <div class="space-y-3">
+            ${risks.map(risk => `
+              <div class="flex items-start gap-4 p-4 rounded-lg border-2 ${risk.severity === 'HIGH'
+          ? 'bg-red-50 border-red-300'
+          : 'bg-orange-50 border-orange-300'
+        }">
+                <div class="flex-shrink-0">
+                  <span class="inline-block px-3 py-1 text-sm font-bold rounded ${risk.severity === 'HIGH' ? 'bg-red-200 text-red-900' : 'bg-orange-200 text-orange-900'
+        }">
+                    ${risk.severity}
+                  </span>
+                </div>
+                <div class="flex-1">
+                  <div class="font-bold text-lg mb-1">${risk.class || risk.classe || 'Global'}</div>
+                  <div class="text-gray-700">${risk.message}</div>
+                  ${risk.details ? `<div class="text-sm text-gray-600 mt-2">${risk.details}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+      
+      ${recommendations.length > 0 ? `
+        <div>
+          <h3 class="text-xl font-bold mb-4 text-blue-700">
+            <i class="fas fa-lightbulb mr-2"></i>Recommandations (${recommendations.length})
+          </h3>
+          <div class="space-y-3">
+            ${recommendations.map(rec => `
+              <div class="flex items-start gap-4 p-4 rounded-lg border-2 bg-blue-50 border-blue-300">
+                <div class="flex-shrink-0">
+                  <span class="inline-block px-3 py-1 text-sm font-bold rounded bg-blue-200 text-blue-900">
+                    ${rec.priority || 'MEDIUM'}
+                  </span>
+                </div>
+                <div class="flex-1">
+                  <div class="font-bold text-lg mb-1">${rec.message}</div>
+                  ${rec.action ? `<div class="text-gray-700 mt-2"><i class="fas fa-arrow-right mr-2"></i>${rec.action}</div>` : ''}
+                  ${rec.details ? `<div class="text-sm text-gray-600 mt-2">${rec.details}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+    }
+
+    /**
+     * Charger l'historique analytique
+     */
+    function loadAnalyticsHistory() {
+      const content = document.getElementById('analyticsContent');
+      content.innerHTML = '<div class="text-center py-12"><i class="fas fa-spinner fa-spin text-4xl text-purple-600"></i><br><span class="text-gray-600 mt-2">Chargement de l\'historique...</span></div>';
+
+      google.script.run
+        .withSuccessHandler(function (history) {
+          content.innerHTML = renderAnalyticsHistory(history);
+        })
+        .withFailureHandler(function (error) {
+          content.innerHTML = '<div class="text-center text-red-500 py-12"><i class="fas fa-exclamation-triangle text-4xl mb-4"></i><br>Erreur: ' + error.message + '</div>';
+        })
+        .getAnalyticsHistoryForUI();
+    }
+
+    /**
+     * Render la vue historique
+     */
+    function renderAnalyticsHistory(history) {
+      if (!history || history.length === 0) {
+        return `
+      <div class="text-center text-gray-500 py-12">
+        <i class="fas fa-history text-6xl mb-4"></i>
+        <div class="text-xl font-semibold">Aucun historique disponible</div>
+        <div class="text-gray-600 mt-2">Lancez une optimisation pour générer le premier snapshot</div>
+      </div>
+    `;
+      }
+
+      // Trier par date (plus récent en premier)
+      const sorted = history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const latest = sorted[0];
+      const previous = sorted[1];
+
+      return `
+    <div class="space-y-6">
+      <!-- Comparaison avec précédent -->
+      ${previous ? `
+        <div class="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-lg border-2 border-purple-200">
+          <h3 class="text-xl font-bold mb-4 text-purple-800">
+            <i class="fas fa-chart-line mr-2"></i>Évolution depuis la dernière optimisation
+          </h3>
+          <div class="grid grid-cols-4 gap-4">
+            ${renderEvolutionMetric('Variance effectifs', previous.global.varianceEffectifs, latest.global.varianceEffectifs, true)}
+            ${renderEvolutionMetric('Parité globale', previous.global.pariteGlobale, latest.global.pariteGlobale, false, '%')}
+            ${renderEvolutionMetric('Classes à risque', previous.risks.length, latest.risks.length, true)}
+            ${renderEvolutionMetric('Quotas OK', previous.global.quotasRespectesPartout ? 1 : 0, latest.global.quotasRespectesPartout ? 1 : 0, false)}
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Liste des snapshots -->
+      <div>
+        <h3 class="text-xl font-bold mb-4">
+          <i class="fas fa-list mr-2"></i>Historique des optimisations (${history.length})
+        </h3>
+        <div class="space-y-3">
+          ${sorted.map((snap, index) => `
+            <div class="metric-card ${index === 0 ? 'border-2 border-purple-400 bg-purple-50' : ''
+        }">
+              <div class="flex justify-between items-start mb-3">
+                <div>
+                  <div class="font-bold text-lg">
+                    ${new Date(snap.timestamp).toLocaleString('fr-FR')}
+                    ${index === 0 ? '<span class="ml-2 px-2 py-1 text-xs bg-purple-600 text-white rounded">ACTUEL</span>' : ''}
+                  </div>
+                  <div class="text-sm text-gray-600">
+                    Pipeline: ${snap.pipeline || 'N/A'} | Mode: ${snap.config?.mode?.selected || 'N/A'}
+                  </div>
+                </div>
+                <button onclick="viewSnapshotDetails(${index})" class="btn btn-sm btn-secondary">
+                  <i class="fas fa-eye"></i> Détails
+                </button>
+              </div>
+              <div class="grid grid-cols-4 gap-3 text-sm">
+                <div>
+                  <div class="text-gray-600">Élèves</div>
+                  <div class="font-semibold">${snap.global.totalEleves || 0}</div>
+                </div>
+                <div>
+                  <div class="text-gray-600">Variance</div>
+                  <div class="font-semibold">${snap.global.varianceEffectifs?.toFixed(2) || 'N/A'}</div>
+                </div>
+                <div>
+                  <div class="text-gray-600">Parité</div>
+                  <div class="font-semibold">${snap.global.pariteGlobale?.toFixed(1) || 0}%</div>
+                </div>
+                <div>
+                  <div class="text-gray-600">Risques</div>
+                  <div class="font-semibold ${snap.risks.length > 0 ? 'text-orange-600' : 'text-green-600'}">
+                    ${snap.risks.length}
+                  </div>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+    }
+
+    /**
+     * Render une métrique d'évolution
+     */
+    function renderEvolutionMetric(label, oldVal, newVal, lowerIsBetter, unit = '') {
+      const diff = newVal - oldVal;
+      const isImprovement = lowerIsBetter ? diff < 0 : diff > 0;
+      const color = diff === 0 ? 'text-gray-600' : isImprovement ? 'text-green-600' : 'text-red-600';
+      const icon = diff === 0 ? 'minus' : isImprovement ? 'arrow-up' : 'arrow-down';
+
+      return `
+    <div class="bg-white p-4 rounded-lg border border-gray-200">
+      <div class="text-gray-600 text-sm mb-1">${label}</div>
+      <div class="font-bold text-2xl">${typeof newVal === 'number' ? newVal.toFixed(2) : newVal}${unit}</div>
+      <div class="${color} text-sm font-semibold mt-1">
+        <i class="fas fa-${icon}"></i>
+        ${diff > 0 ? '+' : ''}${typeof diff === 'number' ? diff.toFixed(2) : diff}${unit}
+      </div>
+    </div>
+  `;
+    }
+
+    /**
+     * Voir les détails d'un snapshot
+     */
+    function viewSnapshotDetails(index) {
+      // Stocker l'index et afficher les détails
+      const history = window.analyticsHistory || [];
+      if (history[index]) {
+        window.currentAnalyticsSnapshot = history[index];
+        switchAnalyticsView('overview');
+      }
+    }
+
+    /**
+     * Export PDF
+     */
+    function exportAnalyticsPDF() {
+      const snapshot = window.currentAnalyticsSnapshot;
+      if (!snapshot) {
+        toast('Aucun snapshot à exporter', 'warning');
+        return;
+      }
+
+      toast('📝 Génération du PDF...', 'info');
+
+      // Générer le contenu texte
+      let content = `TABLEAU DE BORD ANALYTIQUE\n`;
+      content += `Date: ${new Date(snapshot.timestamp).toLocaleString('fr-FR')}\n`;
+      content += `Pipeline: ${snapshot.pipeline || 'N/A'}\n\n`;
+
+      content += `MÉTRIQUES GLOBALES\n`;
+      content += `Élèves total: ${snapshot.global.totalEleves}\n`;
+      content += `Parité globale: ${snapshot.global.pariteGlobale?.toFixed(1)}%\n`;
+      content += `Variance effectifs: ${snapshot.global.varianceEffectifs?.toFixed(2)}\n\n`;
+
+      content += `CLASSES\n`;
+      for (const [classe, data] of Object.entries(snapshot.classes || {})) {
+        content += `${classe}: ${data.effectif} élèves (${data.femmes}F/${data.hommes}M)\n`;
+      }
+
+      if (snapshot.risks.length > 0) {
+        content += `\nZONES DE RISQUE (${snapshot.risks.length})\n`;
+        snapshot.risks.forEach(risk => {
+          content += `[${risk.severity}] ${risk.class}: ${risk.message}\n`;
+        });
+      }
+
+      if (snapshot.recommendations.length > 0) {
+        content += `\nRECOMMANDATIONS (${snapshot.recommendations.length})\n`;
+        snapshot.recommendations.forEach(rec => {
+          content += `[${rec.priority}] ${rec.message}\n`;
+        });
+      }
+
+      // Télécharger comme fichier texte (PDF nécessite une bibliothèque)
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics_${new Date().toISOString().split('T')[0]}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast('✅ Export terminé', 'success');
+    }
+
+    /**
+     * Export CSV
+     */
+    function exportAnalyticsCSV() {
+      const snapshot = window.currentAnalyticsSnapshot;
+      if (!snapshot) {
+        toast('Aucun snapshot à exporter', 'warning');
+        return;
+      }
+
+      toast('📊 Génération du CSV...', 'info');
+
+      // Générer le CSV
+      let csv = 'Classe,Effectif,Cible,Ecart,Femmes,Hommes,Parite%,PariteOK,COM,TRA,PART,ABS,QuotasOK\n';
+
+      for (const [classe, data] of Object.entries(snapshot.classes || {})) {
+        csv += `${classe},${data.effectif},${data.target},${data.gapToTarget},${data.femmes},${data.hommes},${data.parityRatio},${data.parityOK ? 'OUI' : 'NON'},${data.scores.com},${data.scores.tra},${data.scores.part},${data.scores.abs},${data.quotasOK ? 'OUI' : 'NON'}\n`;
+      }
+
+      // Télécharger
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast('✅ Export CSV terminé', 'success');
+    }
+  </script>
+
+  <script>
+    // Version unifiée et tolérante pour accordéons (data-attributes + fallback IDs)
+    window.toggleSection = function (sectionKey, triggerEl) {
+      console.log('toggleSection called for key:', sectionKey);
+      try {
+        if (triggerEl && triggerEl.stopPropagation) triggerEl.stopPropagation();
+        var root = (triggerEl && triggerEl.closest && triggerEl.closest('[data-menu-root]')) || document;
+        console.log('  Root:', root.id || 'document');
+
+        // Nouveau schéma (data-attributes)
+        var section = root.querySelector('[data-section-id="' + sectionKey + '"]');
+        var icon = root.querySelector('[data-section-icon="' + sectionKey + '"]');
+
+        // Ancien schéma (fallback IDs)
+        if (!section) section = root.querySelector('#' + sectionKey + 'Section') || root.querySelector('#' + sectionKey);
+        if (!icon) icon = root.querySelector('#' + sectionKey + 'SectionIcon') || root.querySelector('#' + sectionKey + 'Icon');
+
+        if (section) {
+          section.classList.toggle('hidden');
+          console.log('  Section toggled, hidden:', section.classList.contains('hidden'));
+        } else {
+          console.warn('  Section not found for key:', sectionKey);
+        }
+
+        if (icon) {
+          icon.classList.toggle('rotate-180');
+          console.log('  Icon rotated:', icon.classList.contains('rotate-180'));
+        } else {
+          console.warn('  Icon not found for key:', sectionKey);
+        }
+      } catch (e) {
+        console.error('toggleSection error:', e);
+      }
+    };
+
+  </script>
+
+  <script>
+    // Toggle Admin > Groupes: afficher/cacher le bouton Groupes dans le header
+    document.addEventListener('DOMContentLoaded', function () {
+      const cb = document.getElementById('adminToggleHeaderGroups');
+      if (!cb) return;
+
+      // Initialiser l'état depuis le serveur
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function (settings) {
+            if (settings) cb.checked = !!settings.SHOW_GROUPS_BUTTON;
+          })
+          .withFailureHandler(function (err) { console.error('Erreur getUiSettings:', err); })
+          .getUiSettings();
+      }
+
+      // Appliquer au changement
+      cb.addEventListener('change', function () {
+        const enabled = !!cb.checked;
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler(function () {
+              if (enabled) {
+                if (typeof window.addGroupsButton === 'function') window.addGroupsButton();
+              } else {
+                if (typeof window.removeGroupsButton === 'function') window.removeGroupsButton();
+              }
+              if (typeof window.toast === 'function') {
+                toast(enabled ? 'Bouton Groupes activé' : 'Bouton Groupes désactivé', 'success');
+              }
+            })
+            .withFailureHandler(function (err) {
+              console.error('Erreur setUiSettings:', err);
+              if (typeof window.toast === 'function') toast('Erreur: ' + err.message, 'error');
+            })
+            .setUiSettings({ SHOW_GROUPS_BUTTON: enabled });
+        }
+      });
+    });
+  </script>
+  <script>
+    // Pont "Régler" -> "Paramètres (Admin)" + fallback direct
+    (function () {
+      window.doReglerFilter = function (filter) {
+        try {
+          // 1) Essayer de relayer vers le bouton Admin correspondant (s'il existe)
+          var adminBtn = document.querySelector('#parametresSection .filter-btn-compact[data-filter="' + filter + '"]');
+          if (adminBtn) { adminBtn.click(); }
+
+          // 2) Sinon, appliquer le filtre directement (fonction globale déjà présente)
+          if (typeof window.applyQuickFilter === 'function') { window.applyQuickFilter(filter); }
+          else if (window.FilterManager && typeof window.FilterManager.applyQuickFilter === 'function') {
+            window.FilterManager.applyQuickFilter(filter);
+          } else {
+            console.warn('Aucune méthode de filtrage trouvée pour', filter);
+          }
+
+          // 3) Appliquer l'effet dimmed sur les cartes élèves
+          var allStudents = document.querySelectorAll('.student-card, .board-student, [data-student]');
+          var matchCount = 0;
+
+          allStudents.forEach(function (card) {
+            var matches = false;
+
+            if (filter === 'all') {
+              matches = true;
+            } else {
+              // Vérifier si la carte correspond au filtre
+              var cardData = card.dataset;
+              var cardText = card.textContent || '';
+
+              if (filter === 'PERMUT' && (cardData.permut || cardText.includes('PERMUT'))) matches = true;
+              if (filter === 'FIXE' && (cardData.fixe || cardText.includes('FIXE'))) matches = true;
+              if (filter === 'ESP' && (cardData.esp || cardText.includes('ESP'))) matches = true;
+              if (filter === 'ITA' && (cardData.ita || cardText.includes('ITA'))) matches = true;
+              if (filter === 'ALL' && (cardData.all || cardText.includes('ALL'))) matches = true;
+              if (filter === 'D' && (cardData.codeD || card.querySelector('[data-code="D"]'))) matches = true;
+              if (filter === 'A' && (cardData.codeA || card.querySelector('[data-code="A"]'))) matches = true;
+            }
+
+            if (matches) {
+              card.classList.remove('dimmed');
+              matchCount++;
+            } else {
+              card.classList.add('dimmed');
+            }
+          });
+
+          // 4) Mettre à jour le compteur
+          var countEl = document.getElementById('filtreCount');
+          if (countEl) {
+            if (filter === 'all') {
+              countEl.textContent = 'Tous';
+            } else {
+              countEl.textContent = matchCount + ' élève' + (matchCount > 1 ? 's' : '');
+            }
+          }
+
+          console.log(' Filtre appliqué:', filter, '→', matchCount, 'élève(s)');
+
+        } catch (e) {
+          console.error('doReglerFilter error:', e);
+          if (typeof window.toast === 'function') { toast('Erreur filtre: ' + e.message, 'error'); }
+        }
+      };
+
+      window.doReglerHelp = function (kind) {
+        try {
+          if (kind === 'shortcuts') {
+            // Appeler directement toggleKeyboardHelp si disponible
+            if (typeof window.toggleKeyboardHelp === 'function') {
+              window.toggleKeyboardHelp();
+            } else {
+              // Fallback: basculer le panneau directement
+              const panel = document.getElementById('keyboardShortcuts');
+              if (panel) panel.classList.toggle('hidden');
+            }
+          } else if (kind === 'tutorial') {
+            // Appeler la fonction globale showTutorial
+            if (typeof window.showTutorial === 'function') {
+              window.showTutorial();
+            } else {
+              console.warn('showTutorial function not found');
+            }
+          }
+        } catch (e) {
+          console.error('doReglerHelp error:', e);
+        } finally {
+          // Fermer les menus déroulants
+          ['dropdownAdmin', 'dropdownRegler', 'dropdownEditer', 'dropdownComparer'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+          });
+        }
+      };
+
+      // Délégation de clics dans Régler et Admin pour Filtres & Aide
+      document.addEventListener('DOMContentLoaded', function () {
+        ['#dropdownRegler', '#dropdownAdmin'].forEach(function (rootSel) {
+          var root = document.querySelector(rootSel);
+          if (!root) return;
+          root.addEventListener('click', function (e) {
+            var btn = e.target.closest('.filter-btn-compact');
+            if (btn) {
+              e.preventDefault();
+              var filter = btn.dataset.filter;
+              if (typeof window.applyQuickFilter === 'function') { window.applyQuickFilter(filter); return; }
+              if (window.FilterManager && typeof window.FilterManager.applyQuickFilter === 'function') { window.FilterManager.applyQuickFilter(filter); return; }
+              return;
+            }
+            if (e.target.closest('[data-action="shortcuts"]')) {
+              e.preventDefault();
+              if (typeof window.toggleKeyboardHelp === 'function') {
+                window.toggleKeyboardHelp();
+              } else {
+                const panel = document.getElementById('keyboardShortcuts');
+                if (panel) panel.classList.toggle('hidden');
+              }
+              // Fermer le menu courant
+              if (root) root.classList.add('hidden');
+              return;
+            }
+            if (e.target.closest('[data-action="tutorial"]')) {
+              e.preventDefault();
+              if (typeof window.showTutorial === 'function') window.showTutorial();
+              if (root) root.classList.add('hidden');
+              return;
+            }
+          });
+        });
+      });
+    })();
+  </script>
+
+  <script>
+
+  </script>
+
+  <script>
+    // Ponts manquants pour Paramètres → Données (Import/Export/Règles)
+    (function () {
+      // Aliases sûrs (si déjà définis ailleurs, on ne remplace pas)
+      window.openImportScoresModal = window.openImportScoresModal || function () {
+        try {
+          if (typeof window.addSubjectScores === 'function') return window.addSubjectScores();
+          if (window.ScoreImporter && typeof window.ScoreImporter.importScoresFromINT === 'function') return window.ScoreImporter.importScoresFromINT();
+          console.warn('Import Scores: aucune implémentation trouvée');
+        } catch (e) { console.error('openImportScoresModal error:', e); }
+      };
+
+      window.openExportModal = window.openExportModal || function () {
+        try {
+          var modal = document.getElementById('exportModal');
+          var overlay = document.getElementById('overlay');
+          if (modal) modal.classList.remove('hidden');
+          if (overlay) { overlay.classList.remove('hidden'); overlay.classList.add('active'); }
+        } catch (e) { console.error('openExportModal error:', e); }
+      };
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var dropdown = document.getElementById('dropdownAdmin');
+
+        var btnImport = document.getElementById('menuImportScoresAdmin');
+        if (btnImport) btnImport.addEventListener('click', function () {
+          if (typeof window.openImportScoresModal === 'function') window.openImportScoresModal();
+          if (dropdown) dropdown.classList.add('hidden');
+        });
+
+        var btnExport = document.getElementById('btnExportAdmin');
+        if (btnExport) btnExport.addEventListener('click', function () {
+          if (typeof window.openExportModal === 'function') window.openExportModal();
+          if (dropdown) dropdown.classList.add('hidden');
+        });
+
+        var btnRules = document.getElementById('menuRulesAdmin');
+        if (btnRules) btnRules.addEventListener('click', function () {
+          if (typeof window.openRulesModal === 'function') window.openRulesModal();
+          var overlay = document.getElementById('overlay');
+          if (overlay) { overlay.classList.remove('hidden'); overlay.classList.add('active'); }
+          if (dropdown) dropdown.classList.add('hidden');
+        });
+
+        // Bouton "Nouvel élève" dans le menu admin
+        var btnNewStudent = document.getElementById('btnNewStudentAdmin');
+        if (btnNewStudent) btnNewStudent.addEventListener('click', function () {
+          if (typeof NewStudentModule !== 'undefined' && NewStudentModule.open) {
+            NewStudentModule.open();
+            if (dropdown) dropdown.classList.add('hidden');
+          } else {
+            console.warn('[InterfaceV2.html] NewStudentModule not found');
+          }
+        });
+      });
+    })();
+  </script>
+
+  <!-- RACCOURCIS CLAVIER OVERLAY -->
+  <div id="shortcutsOverlay" role="dialog" aria-modal="true" aria-label="Raccourcis clavier">
+    <div class="shortcuts-panel">
+      <div class="flex items-center justify-between mb-4">
+        <h3><i class="fas fa-keyboard"></i> Raccourcis clavier</h3>
+        <button onclick="document.getElementById('shortcutsOverlay').classList.remove('show')"
+          class="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center"
+          aria-label="Fermer">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Navigation</div>
+        <div class="shortcut-row"><span class="action">Ouvrir les raccourcis</span><span class="kbd">Ctrl + ?</span>
+        </div>
+        <div class="shortcut-row"><span class="action">Rechercher un élève</span><span class="kbd">Ctrl + K</span></div>
+        <div class="shortcut-row"><span class="action">Fermer popup / modal</span><span class="kbd">Échap</span></div>
+        <div class="shortcut-row"><span class="action">Tutoriel guidé</span><span class="kbd">H</span></div>
+      </div>
+      <div class="mb-4">
+        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Affichage</div>
+        <div class="shortcut-row"><span class="action">Densité compact / XL</span><span class="kbd">Alt + D</span></div>
+        <div class="shortcut-row"><span class="action">Mode sombre</span><span class="kbd">Alt + N</span></div>
+        <div class="shortcut-row"><span class="action">Plein écran</span><span class="kbd">F11</span></div>
+      </div>
+      <div>
+        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Actions</div>
+        <div class="shortcut-row"><span class="action">Sauvegarder brouillon</span><span class="kbd">Ctrl + S</span>
+        </div>
+        <div class="shortcut-row"><span class="action">Annuler (si disponible)</span><span class="kbd">Ctrl + Z</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hint discret raccourcis -->
+  <div id="shortcutsHint" onclick="document.getElementById('shortcutsOverlay').classList.add('show')"
+    title="Afficher les raccourcis clavier">
+    <i class="fas fa-keyboard" style="margin-right: 4px;"></i>Ctrl+?
+  </div>
+
+  <!-- SCRIPT : Raccourcis clavier + Indicateur modifications -->
+  <script>
+    (function () {
+      'use strict';
+
+      // ─── Raccourcis clavier ───
+      document.addEventListener('keydown', function (e) {
+        // Ctrl+? ou Ctrl+/ → toggle raccourcis
+        if (e.ctrlKey && (e.key === '?' || e.key === '/')) {
+          e.preventDefault();
+          var overlay = document.getElementById('shortcutsOverlay');
+          if (overlay) overlay.classList.toggle('show');
+        }
+
+        // Échap → fermer raccourcis
+        if (e.key === 'Escape') {
+          var overlay = document.getElementById('shortcutsOverlay');
+          if (overlay && overlay.classList.contains('show')) {
+            overlay.classList.remove('show');
+          }
+        }
+
+        // Ctrl+K → focus recherche
+        if (e.ctrlKey && e.key === 'k') {
+          e.preventDefault();
+          var search = document.getElementById('search');
+          if (search) search.focus();
+        }
+      });
+
+      // ─── Indicateur modifications non sauvegardées ───
+      var badge = document.getElementById('autosaveBadge');
+      if (badge) {
+        // Observer les mutations du badge pour détecter le texte "Jamais" ou timestamp
+        var origMarkUserAction = window.markUserAction;
+        window.markUserAction = function () {
+          if (typeof origMarkUserAction === 'function') origMarkUserAction();
+          // Ajouter la classe has-unsaved
+          if (badge && !badge.classList.contains('has-unsaved')) {
+            badge.classList.add('has-unsaved');
+            badge.style.position = 'relative'; // pour le ::before
+          }
+        };
+
+        // Observer quand la sauvegarde réussit (badge mis à jour avec timestamp)
+        var observer = new MutationObserver(function (mutations) {
+          mutations.forEach(function (m) {
+            if (m.type === 'childList' || m.type === 'characterData') {
+              var text = badge.textContent || '';
+              if (text.includes('Sauvegardé') || text.includes('sauvegardé')) {
+                badge.classList.remove('has-unsaved');
+              }
+            }
+          });
+        });
+        observer.observe(badge, { childList: true, characterData: true, subtree: true });
+      }
+
+      console.log('✅ Raccourcis clavier (Ctrl+?) et indicateur modifications initialisés');
+    })();
+  </script>
+
+</body>
+
+</html>

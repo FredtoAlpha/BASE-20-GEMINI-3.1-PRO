@@ -1,0 +1,825 @@
+<script>
+/**
+ * UI COMPONENTS - LoadingOverlay & Toast Notifications
+ * Composants UI réutilisables pour feedback utilisateur
+ */
+
+const UIComponents = (function() {
+  'use strict';
+
+  // ════════════════════════════════════════════════════════════════
+  // LOADING OVERLAY - Progression des étapes
+  // ════════════════════════════════════════════════════════════════
+
+  const LoadingOverlay = {
+    element: null,
+    currentStep: 0,
+    totalSteps: 7,
+
+    /**
+     * Affiche l'overlay de chargement avec progression
+     * @param {string} title - Titre principal
+     * @param {Array} steps - Tableau des étapes [{label, icon}]
+     */
+    show(title = 'Génération en cours...', steps = null) {
+      // Steps par défaut (algorithme V4)
+      if (!steps) {
+        steps = [
+          { label: 'Consolidation des données', icon: '📋' },
+          { label: 'Normalisation statistique (z-scores)', icon: '📊' },
+          { label: 'Calcul des indices pondérés', icon: '⚖️' },
+          { label: 'Distribution des élèves', icon: '🔀' },
+          { label: 'Équilibrage de la parité F/M', icon: '👥' },
+          { label: 'Calcul des statistiques', icon: '📈' },
+          { label: 'Validation finale', icon: '✅' }
+        ];
+      }
+
+      this.totalSteps = steps.length;
+      this.currentStep = 0;
+
+      // Créer l'élément si nécessaire
+      if (!this.element) {
+        this.element = document.createElement('div');
+        this.element.id = 'loading-overlay';
+        this.element.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 10003;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          animation: fadeIn 0.2s ease-out;
+        `;
+        document.body.appendChild(this.element);
+      }
+
+      // Contenu de l'overlay
+      this.element.innerHTML = `
+        <div style="
+          background: white;
+          border-radius: 16px;
+          padding: 32px;
+          max-width: 500px;
+          width: 90%;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          animation: slideUp 0.3s ease-out;
+        ">
+          <!-- Titre -->
+          <div style="
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 24px;
+            text-align: center;
+          ">
+            ${title}
+          </div>
+
+          <!-- Barre de progression globale -->
+          <div style="
+            margin-bottom: 24px;
+            background: #e5e7eb;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+          ">
+            <div id="progress-bar" style="
+              width: 0%;
+              height: 100%;
+              background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+              transition: width 0.3s ease-out;
+            "></div>
+          </div>
+
+          <!-- Liste des étapes -->
+          <div id="steps-list" style="
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+          ">
+            ${steps.map((step, i) => `
+              <div class="step-item" data-step="${i}" style="
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px;
+                border-radius: 8px;
+                background: #f9fafb;
+                transition: all 0.3s ease;
+              ">
+                <div class="step-icon" style="
+                  font-size: 24px;
+                  width: 32px;
+                  text-align: center;
+                  opacity: 0.3;
+                  transition: opacity 0.3s ease;
+                ">${step.icon}</div>
+                <div class="step-label" style="
+                  flex: 1;
+                  font-size: 14px;
+                  color: #6b7280;
+                  transition: color 0.3s ease;
+                ">${step.label}</div>
+                <div class="step-status" style="
+                  width: 24px;
+                  height: 24px;
+                  border-radius: 50%;
+                  border: 2px solid #d1d5db;
+                  transition: all 0.3s ease;
+                "></div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Temps écoulé -->
+          <div style="
+            margin-top: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: #9ca3af;
+          ">
+            <span id="elapsed-time">0s</span>
+          </div>
+        </div>
+
+        <style>
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        </style>
+      `;
+
+      this.element.style.display = 'flex';
+
+      // Démarrer le chronomètre
+      this.startTime = Date.now();
+      this.updateTimer();
+    },
+
+    /**
+     * Met à jour l'étape en cours
+     * @param {number} stepIndex - Index de l'étape (0-based)
+     */
+    setStep(stepIndex) {
+      if (stepIndex < 0 || stepIndex >= this.totalSteps) return;
+
+      this.currentStep = stepIndex;
+
+      // Mettre à jour la barre de progression
+      const progress = ((stepIndex + 1) / this.totalSteps) * 100;
+      const progressBar = document.getElementById('progress-bar');
+      if (progressBar) {
+        progressBar.style.width = progress + '%';
+      }
+
+      // Mettre à jour les étapes
+      const steps = document.querySelectorAll('.step-item');
+      steps.forEach((step, i) => {
+        const icon = step.querySelector('.step-icon');
+        const label = step.querySelector('.step-label');
+        const status = step.querySelector('.step-status');
+
+        if (i < stepIndex) {
+          // Étape terminée
+          step.style.background = '#f0fdf4';
+          icon.style.opacity = '1';
+          label.style.color = '#059669';
+          label.style.fontWeight = '500';
+          status.style.background = '#10b981';
+          status.style.borderColor = '#10b981';
+          status.innerHTML = '<div style="width: 12px; height: 6px; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) translateY(-2px);"></div>';
+        } else if (i === stepIndex) {
+          // Étape en cours
+          step.style.background = '#eff6ff';
+          step.style.borderLeft = '4px solid #3b82f6';
+          icon.style.opacity = '1';
+          label.style.color = '#1f2937';
+          label.style.fontWeight = '600';
+          status.style.borderColor = '#3b82f6';
+          status.style.borderTopColor = 'transparent';
+          status.style.animation = 'spin 1s linear infinite';
+        } else {
+          // Étape à venir
+          step.style.background = '#f9fafb';
+          step.style.borderLeft = 'none';
+          icon.style.opacity = '0.3';
+          label.style.color = '#6b7280';
+          label.style.fontWeight = '400';
+          status.style.background = 'transparent';
+          status.style.borderColor = '#d1d5db';
+          status.style.animation = 'none';
+          status.innerHTML = '';
+        }
+      });
+    },
+
+    /**
+     * Met à jour le chronomètre
+     */
+    updateTimer() {
+      if (!this.element || this.element.style.display === 'none') return;
+
+      const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+      const timerEl = document.getElementById('elapsed-time');
+      if (timerEl) {
+        timerEl.textContent = elapsed + 's';
+      }
+
+      requestAnimationFrame(() => this.updateTimer());
+    },
+
+    /**
+     * Masque l'overlay
+     */
+    hide() {
+      if (this.element) {
+        this.element.style.display = 'none';
+      }
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // TOAST NOTIFICATIONS - Système de notifications non-intrusif
+  // ════════════════════════════════════════════════════════════════
+
+  const Toast = {
+    container: null,
+    queue: [],
+    activeToasts: [],
+
+    /**
+     * Initialise le container de toasts
+     */
+    init() {
+      if (this.container) return;
+
+      this.container = document.createElement('div');
+      this.container.id = 'toast-container';
+      this.container.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 10004;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        pointer-events: none;
+      `;
+      document.body.appendChild(this.container);
+    },
+
+    /**
+     * Affiche un toast
+     * @param {string} message - Message à afficher
+     * @param {string} type - Type: 'success' | 'error' | 'warning' | 'info'
+     * @param {number} duration - Durée en ms (0 = permanent)
+     */
+    show(message, type = 'info', duration = 5000) {
+      this.init();
+
+      const toast = {
+        id: Date.now() + Math.random(),
+        message,
+        type,
+        duration
+      };
+
+      // Config par type
+      const configs = {
+        success: {
+          icon: '✅',
+          bg: '#f0fdf4',
+          border: '#10b981',
+          text: '#065f46'
+        },
+        error: {
+          icon: '❌',
+          bg: '#fef2f2',
+          border: '#ef4444',
+          text: '#991b1b'
+        },
+        warning: {
+          icon: '⚠️',
+          bg: '#fffbeb',
+          border: '#f59e0b',
+          text: '#92400e'
+        },
+        info: {
+          icon: 'ℹ️',
+          bg: '#eff6ff',
+          border: '#3b82f6',
+          text: '#1e40af'
+        }
+      };
+
+      const config = configs[type] || configs.info;
+
+      // Créer l'élément
+      const element = document.createElement('div');
+      element.className = 'toast-item';
+      element.style.cssText = `
+        background: ${config.bg};
+        border-left: 4px solid ${config.border};
+        border-radius: 8px;
+        padding: 16px 20px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        max-width: 400px;
+        pointer-events: auto;
+        animation: slideInRight 0.3s ease-out;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      `;
+
+      element.innerHTML = `
+        <div style="font-size: 20px;">${config.icon}</div>
+        <div style="flex: 1; font-size: 14px; color: ${config.text}; line-height: 1.5;">
+          ${message}
+        </div>
+        <button class="toast-close" style="
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 18px;
+          color: ${config.text};
+          opacity: 0.5;
+          padding: 4px 8px;
+          transition: opacity 0.2s;
+        " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">
+          ✕
+        </button>
+        <style>
+          @keyframes slideInRight {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+          }
+        </style>
+      `;
+
+      // Événement de fermeture
+      element.querySelector('.toast-close').addEventListener('click', () => {
+        this.remove(toast.id, element);
+      });
+
+      // Ajouter au container
+      this.container.appendChild(element);
+      this.activeToasts.push({ ...toast, element });
+
+      // Auto-suppression
+      if (duration > 0) {
+        setTimeout(() => {
+          this.remove(toast.id, element);
+        }, duration);
+      }
+
+      return toast.id;
+    },
+
+    /**
+     * Supprime un toast
+     */
+    remove(toastId, element) {
+      element.style.animation = 'slideOutRight 0.3s ease-out';
+      setTimeout(() => {
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+        this.activeToasts = this.activeToasts.filter(t => t.id !== toastId);
+      }, 300);
+    },
+
+    /**
+     * Raccourcis pour chaque type
+     */
+    success(message, duration = 5000) {
+      return this.show(message, 'success', duration);
+    },
+
+    error(message, duration = 7000) {
+      return this.show(message, 'error', duration);
+    },
+
+    warning(message, duration = 6000) {
+      return this.show(message, 'warning', duration);
+    },
+
+    info(message, duration = 5000) {
+      return this.show(message, 'info', duration);
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // TOOLTIPS - Système de tooltips explicatifs
+  // ════════════════════════════════════════════════════════════════
+
+  const Tooltip = {
+    element: null,
+
+    /**
+     * Initialise les tooltips sur les éléments avec data-tooltip
+     */
+    init() {
+      // Créer l'élément tooltip global
+      if (!this.element) {
+        this.element = document.createElement('div');
+        this.element.id = 'global-tooltip';
+        this.element.style.cssText = `
+          position: fixed;
+          z-index: 10005;
+          background: #1f2937;
+          color: white;
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 13px;
+          max-width: 300px;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.2s;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        `;
+        document.body.appendChild(this.element);
+      }
+
+      // Attacher les événements sur tous les éléments avec data-tooltip
+      document.addEventListener('mouseover', (e) => {
+        const target = e.target.closest('[data-tooltip]');
+        if (target) {
+          this.show(target.getAttribute('data-tooltip'), e);
+        }
+      });
+
+      document.addEventListener('mouseout', (e) => {
+        const target = e.target.closest('[data-tooltip]');
+        if (target) {
+          this.hide();
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (this.element.style.opacity === '1') {
+          this.position(e);
+        }
+      });
+    },
+
+    /**
+     * Affiche le tooltip
+     */
+    show(text, event) {
+      this.element.textContent = text;
+      this.element.style.opacity = '1';
+      this.position(event);
+    },
+
+    /**
+     * Positionne le tooltip
+     */
+    position(event) {
+      const x = event.clientX + 10;
+      const y = event.clientY + 10;
+
+      // Ajuster si hors écran
+      const rect = this.element.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width - 10;
+      const maxY = window.innerHeight - rect.height - 10;
+
+      this.element.style.left = Math.min(x, maxX) + 'px';
+      this.element.style.top = Math.min(y, maxY) + 'px';
+    },
+
+    /**
+     * Masque le tooltip
+     */
+    hide() {
+      this.element.style.opacity = '0';
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // SKELETON LOADERS - Composants de chargement
+  // ════════════════════════════════════════════════════════════════
+
+  const Skeleton = {
+    /**
+     * Crée un skeleton loader pour grilles (tables/data grids)
+     * @param {Object} options - Configuration
+     * @param {number} options.rows - Nombre de lignes (défaut: 5)
+     * @param {number} options.columns - Nombre de colonnes (défaut: 4)
+     * @param {boolean} options.hasHeader - Inclure une ligne d'en-tête (défaut: true)
+     * @returns {HTMLElement}
+     */
+    grid(options = {}) {
+      const { rows = 5, columns = 4, hasHeader = true } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-grid';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement des données');
+      container.style.cssText = `
+        width: 100%;
+        border-radius: 8px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      `;
+
+      // En-tête (optionnel)
+      if (hasHeader) {
+        const header = document.createElement('div');
+        header.style.cssText = `
+          display: grid;
+          grid-template-columns: repeat(${columns}, 1fr);
+          gap: 12px;
+          padding: 16px;
+          background: #f9fafb;
+          border-bottom: 1px solid #e5e7eb;
+        `;
+
+        for (let i = 0; i < columns; i++) {
+          const cell = this._createPulse(80, 20);
+          header.appendChild(cell);
+        }
+        container.appendChild(header);
+      }
+
+      // Lignes de données
+      for (let r = 0; r < rows; r++) {
+        const row = document.createElement('div');
+        row.style.cssText = `
+          display: grid;
+          grid-template-columns: repeat(${columns}, 1fr);
+          gap: 12px;
+          padding: 16px;
+          border-bottom: 1px solid #f3f4f6;
+        `;
+
+        for (let c = 0; c < columns; c++) {
+          const cell = this._createPulse(60 + Math.random() * 40, 16);
+          row.appendChild(cell);
+        }
+        container.appendChild(row);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un skeleton loader pour listes verticales
+     * @param {Object} options - Configuration
+     * @param {number} options.items - Nombre d'items (défaut: 6)
+     * @param {boolean} options.hasAvatar - Inclure des avatars (défaut: true)
+     * @param {boolean} options.hasSecondary - Ligne secondaire (défaut: true)
+     * @returns {HTMLElement}
+     */
+    list(options = {}) {
+      const { items = 6, hasAvatar = true, hasSecondary = true } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-list';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement de la liste');
+      container.style.cssText = `
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      `;
+
+      for (let i = 0; i < items; i++) {
+        const item = document.createElement('div');
+        item.style.cssText = `
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 16px;
+          border-bottom: ${i < items - 1 ? '1px solid #f3f4f6' : 'none'};
+        `;
+
+        // Avatar (optionnel)
+        if (hasAvatar) {
+          const avatar = this._createPulse(48, 48, '50%');
+          item.appendChild(avatar);
+        }
+
+        // Contenu texte
+        const content = document.createElement('div');
+        content.style.cssText = 'flex: 1; display: flex; flex-direction: column; gap: 8px;';
+
+        const primary = this._createPulse(70 + Math.random() * 30, 16);
+        content.appendChild(primary);
+
+        if (hasSecondary) {
+          const secondary = this._createPulse(50 + Math.random() * 30, 14);
+          content.appendChild(secondary);
+        }
+
+        item.appendChild(content);
+        container.appendChild(item);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un skeleton loader pour formulaires
+     * @param {Object} options - Configuration
+     * @param {number} options.fields - Nombre de champs (défaut: 4)
+     * @param {boolean} options.hasButton - Inclure un bouton (défaut: true)
+     * @returns {HTMLElement}
+     */
+    form(options = {}) {
+      const { fields = 4, hasButton = true } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-form';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement du formulaire');
+      container.style.cssText = `
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      `;
+
+      for (let i = 0; i < fields; i++) {
+        const field = document.createElement('div');
+        field.style.cssText = 'margin-bottom: 20px;';
+
+        // Label
+        const label = this._createPulse(30 + Math.random() * 20, 14);
+        label.style.marginBottom = '8px';
+        field.appendChild(label);
+
+        // Input
+        const input = this._createPulse(100, 40, '4px');
+        field.appendChild(input);
+
+        container.appendChild(field);
+      }
+
+      // Bouton (optionnel)
+      if (hasButton) {
+        const button = this._createPulse(120, 40, '6px');
+        button.style.marginTop = '8px';
+        container.appendChild(button);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un skeleton loader pour cartes (cards/panels)
+     * @param {Object} options - Configuration
+     * @param {number} options.cards - Nombre de cartes (défaut: 3)
+     * @param {boolean} options.hasImage - Inclure une image (défaut: true)
+     * @param {number} options.textLines - Lignes de texte (défaut: 3)
+     * @returns {HTMLElement}
+     */
+    cards(options = {}) {
+      const { cards = 3, hasImage = true, textLines = 3 } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-cards';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement des cartes');
+      container.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+        width: 100%;
+      `;
+
+      for (let i = 0; i < cards; i++) {
+        const card = document.createElement('div');
+        card.style.cssText = `
+          background: white;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        `;
+
+        // Image (optionnel)
+        if (hasImage) {
+          const image = this._createPulse(100, 160, '0');
+          card.appendChild(image);
+        }
+
+        // Contenu
+        const content = document.createElement('div');
+        content.style.cssText = 'padding: 16px;';
+
+        // Titre
+        const title = this._createPulse(80, 20);
+        title.style.marginBottom = '12px';
+        content.appendChild(title);
+
+        // Lignes de texte
+        for (let t = 0; t < textLines; t++) {
+          const line = this._createPulse(
+            t === textLines - 1 ? 60 : 100,
+            14
+          );
+          line.style.marginBottom = '8px';
+          content.appendChild(line);
+        }
+
+        card.appendChild(content);
+        container.appendChild(card);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un élément pulse (animation de chargement)
+     * @private
+     */
+    _createPulse(widthPercent, height, borderRadius = '4px') {
+      const element = document.createElement('div');
+      element.style.cssText = `
+        width: ${widthPercent}%;
+        height: ${height}px;
+        background: linear-gradient(
+          90deg,
+          #e5e7eb 25%,
+          #f3f4f6 50%,
+          #e5e7eb 75%
+        );
+        background-size: 200% 100%;
+        border-radius: ${borderRadius};
+        animation: skeleton-pulse 1.5s ease-in-out infinite;
+      `;
+      return element;
+    },
+
+    /**
+     * Injecte les styles CSS pour les animations
+     */
+    _injectStyles() {
+      if (document.getElementById('skeleton-styles')) return;
+
+      const style = document.createElement('style');
+      style.id = 'skeleton-styles';
+      style.textContent = `
+        @keyframes skeleton-pulse {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        .skeleton-grid:focus,
+        .skeleton-list:focus,
+        .skeleton-form:focus,
+        .skeleton-cards:focus {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  };
+
+  // Injecter les styles au chargement
+  Skeleton._injectStyles();
+
+  // ════════════════════════════════════════════════════════════════
+  // API PUBLIQUE
+  // ════════════════════════════════════════════════════════════════
+
+  return {
+    LoadingOverlay,
+    Toast,
+    Tooltip,
+    Skeleton
+  };
+
+})();
+
+// Initialiser les tooltips au chargement
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => UIComponents.Tooltip.init());
+} else {
+  UIComponents.Tooltip.init();
+}
+</script>

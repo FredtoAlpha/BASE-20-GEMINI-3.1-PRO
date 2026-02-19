@@ -1,0 +1,1355 @@
+<script>
+/**
+ * GROUPS MODULE V4 - LOADER
+ * Connecte l'interface triptyque au bouton Groupes du header
+ * et fait le pont avec l'algorithme de répartition
+ */
+
+(function() {
+  'use strict';
+
+  console.log('🔌 Initialisation du module Groupes V4...');
+
+  // Container plein écran pour l'interface
+  let moduleContainer = null;
+
+  // Cache pour les données FIN
+  let finSheetsDataCache = null;
+
+  const DEFAULT_CRITERIA_WEIGHTS = { com: 1, tra: 1, part: 1, abs: 1 };
+
+  function sanitizeCriteriaWeights(weights = {}) {
+    const sanitized = { ...DEFAULT_CRITERIA_WEIGHTS };
+
+    if (!weights || typeof weights !== 'object') {
+      return sanitized;
+    }
+
+    ['com', 'tra', 'part', 'abs'].forEach(key => {
+      const value = parseFloat(weights[key]);
+      if (!Number.isNaN(value) && Number.isFinite(value)) {
+        sanitized[key] = value;
+      }
+    });
+
+    return sanitized;
+  }
+
+  /**
+   * Charge les données depuis les onglets FIN avec scores (colonnes U et V)
+   */
+  async function loadFINData() {
+    if (finSheetsDataCache) {
+      console.log('📦 Utilisation du cache FIN');
+      return finSheetsDataCache;
+    }
+
+    console.log('📡 Chargement des onglets FIN avec SCORE F (col U) et SCORE M (col V)...');
+
+    try {
+      const result = await gsRun('loadFINSheetsWithScores');
+
+      if (!result || !result.success || !result.data) {
+        console.error('❌ loadFINSheetsWithScores a retourné un format invalide:', result);
+        return null;
+      }
+
+      // Extraire les données (result.data contient { "6°1FIN": { eleves: [...] }, ... })
+      finSheetsDataCache = result.data;
+      console.log('✅ Données FIN chargées:', Object.keys(result.data));
+      return result.data;
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement des onglets FIN:', error);
+      return null;
+    }
+  }
+
+  // ========== SYSTÈME DE REPORTING CENTRALISÉ ==========
+  const ErrorReporter = {
+    errors: [],
+    warnings: [],
+    uiBannerElement: null,
+
+    error(context, message, data = null) {
+      const entry = { context, message, data, timestamp: new Date().toISOString(), type: 'error' };
+      this.errors.push(entry);
+      console.error(`❌ [${context}] ${message}`, data || '');
+      this.updateUIBanner();
+      return entry;
+    },
+
+    warn(context, message, data = null) {
+      const entry = { context, message, data, timestamp: new Date().toISOString(), type: 'warning' };
+      this.warnings.push(entry);
+      console.warn(`⚠️ [${context}] ${message}`, data || '');
+      this.updateUIBanner();
+      return entry;
+    },
+
+    info(context, message, data = null) {
+      console.log(`ℹ️ [${context}] ${message}`, data || '');
+    },
+
+    getReport() {
+      return {
+        errors: this.errors,
+        warnings: this.warnings,
+        summary: `${this.errors.length} erreur(s), ${this.warnings.length} avertissement(s)`
+      };
+    },
+
+    clear() {
+      this.errors = [];
+      this.warnings = [];
+      this.updateUIBanner();
+    },
+
+    /**
+     * Crée ou met à jour le bandeau UI d'erreurs/avertissements
+     * Bandeau contextualisé pour utilisateurs non-techniques
+     */
+    updateUIBanner() {
+      // Si aucune erreur/warning, masquer le bandeau
+      if (this.errors.length === 0 && this.warnings.length === 0) {
+        if (this.uiBannerElement) {
+          this.uiBannerElement.style.display = 'none';
+        }
+        return;
+      }
+
+      // Si le bandeau n'existe pas, le créer
+      if (!this.uiBannerElement) {
+        this.uiBannerElement = document.createElement('div');
+        this.uiBannerElement.id = 'error-reporter-banner';
+        this.uiBannerElement.style.cssText = `
+          position: fixed;
+          top: 16px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 10001;
+          max-width: 800px;
+          width: 90%;
+          border-radius: 8px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+          font-family: Arial, sans-serif;
+          animation: slideDown 0.3s ease-out;
+        `;
+
+        // Animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+          @keyframes slideDown {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+          }
+        `;
+        document.head.appendChild(style);
+
+        document.body.appendChild(this.uiBannerElement);
+      }
+
+      // Déterminer la sévérité (erreur > warning)
+      const hasErrors = this.errors.length > 0;
+      const severity = hasErrors ? 'error' : 'warning';
+
+      // Couleurs selon sévérité
+      const colors = {
+        error: {
+          bg: '#fef2f2',
+          border: '#ef4444',
+          text: '#991b1b',
+          icon: '❌'
+        },
+        warning: {
+          bg: '#fffbeb',
+          border: '#f59e0b',
+          text: '#92400e',
+          icon: '⚠️'
+        }
+      };
+
+      const color = colors[severity];
+      const report = this.getReport();
+
+      // Construire le HTML du bandeau
+      this.uiBannerElement.innerHTML = `
+        <div style="
+          background: ${color.bg};
+          border: 2px solid ${color.border};
+          border-radius: 8px;
+          padding: 16px 20px;
+        ">
+          <!-- En-tête avec résumé -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 24px;">${color.icon}</span>
+              <div>
+                <div style="font-weight: 700; font-size: 16px; color: ${color.text};">
+                  ${hasErrors ? 'Erreurs de chargement' : 'Avertissements'}
+                </div>
+                <div style="font-size: 14px; color: ${color.text}; opacity: 0.8;">
+                  ${report.summary}
+                </div>
+              </div>
+            </div>
+            <button id="banner-close-btn" style="
+              background: transparent;
+              border: none;
+              cursor: pointer;
+              font-size: 20px;
+              color: ${color.text};
+              padding: 4px 8px;
+              opacity: 0.7;
+              transition: opacity 0.2s;
+            " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">
+              ✕
+            </button>
+          </div>
+
+          <!-- Détails (max 5 premiers messages) -->
+          <div style="
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 13px;
+            color: #374151;
+          ">
+            ${this.errors.slice(0, 5).map(e => `
+              <div style="margin-bottom: 8px; padding: 8px; background: #fef2f2; border-left: 3px solid #ef4444; border-radius: 4px;">
+                <strong style="color: #991b1b;">Erreur:</strong> ${this.escapeHtml(e.message)}
+              </div>
+            `).join('')}
+            ${this.warnings.slice(0, 5).map(w => `
+              <div style="margin-bottom: 8px; padding: 8px; background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px;">
+                <strong style="color: #92400e;">Avertissement:</strong> ${this.escapeHtml(w.message)}
+              </div>
+            `).join('')}
+            ${(this.errors.length + this.warnings.length > 5) ? `
+              <div style="text-align: center; margin-top: 8px; color: #6b7280; font-size: 12px;">
+                ... et ${this.errors.length + this.warnings.length - 5} autre(s) message(s) (voir console)
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Actions -->
+          <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
+            <button id="banner-console-btn" style="
+              padding: 6px 12px;
+              background: #f3f4f6;
+              border: 1px solid #d1d5db;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 12px;
+              color: #374151;
+              transition: all 0.2s;
+            " onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">
+              📋 Voir console
+            </button>
+            ${hasErrors ? `
+              <button id="banner-reload-btn" style="
+                padding: 6px 12px;
+                background: #ef4444;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                color: white;
+                font-weight: 600;
+                transition: all 0.2s;
+              " onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+                🔄 Réessayer
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+
+      this.uiBannerElement.style.display = 'block';
+
+      // Attacher les événements
+      const closeBtn = this.uiBannerElement.querySelector('#banner-close-btn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          this.uiBannerElement.style.display = 'none';
+        });
+      }
+
+      const consoleBtn = this.uiBannerElement.querySelector('#banner-console-btn');
+      if (consoleBtn) {
+        consoleBtn.addEventListener('click', () => {
+          console.group('📊 Rapport ErrorReporter détaillé');
+          console.log('Résumé:', report.summary);
+          if (this.errors.length > 0) {
+            console.group('❌ Erreurs (' + this.errors.length + ')');
+            this.errors.forEach(e => console.error(`[${e.context}]`, e.message, e.data || ''));
+            console.groupEnd();
+          }
+          if (this.warnings.length > 0) {
+            console.group('⚠️ Avertissements (' + this.warnings.length + ')');
+            this.warnings.forEach(w => console.warn(`[${w.context}]`, w.message, w.data || ''));
+            console.groupEnd();
+          }
+          console.groupEnd();
+        });
+      }
+
+      const reloadBtn = this.uiBannerElement.querySelector('#banner-reload-btn');
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => {
+          this.clear();
+          if (window.openModuleGroupsV4) {
+            // Fermer et réouvrir le module
+            if (window.closeModuleGroupsV4) {
+              window.closeModuleGroupsV4();
+            }
+            setTimeout(() => window.openModuleGroupsV4(), 300);
+          }
+        });
+      }
+    },
+
+    /**
+     * Échappe les caractères HTML pour éviter XSS
+     */
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    },
+
+    displayToUser() {
+      // Cette méthode est maintenant remplacée par updateUIBanner()
+      // mais on la garde pour compatibilité
+      this.updateUIBanner();
+    }
+  };
+
+  // ========== VALIDATION ET NORMALISATION DES DONNÉES ==========
+
+  /**
+   * Vérifie si un objet ressemble à un élève valide
+   * @param {*} obj - Objet à vérifier
+   * @returns {boolean} true si l'objet est un élève valide
+   */
+  function isStudentLike(obj) {
+    if (!obj || typeof obj !== 'object') {
+      return false;
+    }
+
+    // Un élève DOIT avoir un ID
+    if (!obj.id || typeof obj.id !== 'string' || obj.id.trim() === '') {
+      return false;
+    }
+
+    // Optionnel mais recommandé : nom et prénom
+    const hasName = (obj.nom || obj.prenom);
+
+    // Accepter si au moins l'ID est présent
+    return true;
+  }
+
+  /**
+   * Collecte récursivement tous les objets élèves dans une structure de données
+   * Parcourt en profondeur pour gérer des imbrications complexes (Apps Script)
+   * @param {*} data - Structure de données à parcourir
+   * @param {Set} seen - Set des IDs déjà vus (pour déduplication)
+   * @param {number} depth - Profondeur actuelle (limite à 10 pour éviter boucles infinies)
+   * @returns {Array} Tableau d'objets élèves dédupliqués
+   */
+  function collectStudentsRecursive(data, seen = new Set(), depth = 0) {
+    const MAX_DEPTH = 10;
+    const students = [];
+
+    // Garde contre récursion infinie
+    if (depth > MAX_DEPTH) {
+      ErrorReporter.warn('collectStudentsRecursive', `Profondeur maximale atteinte (${MAX_DEPTH})`);
+      return students;
+    }
+
+    // Cas null/undefined
+    if (data == null) {
+      return students;
+    }
+
+    // Cas primitif (string, number, boolean)
+    if (typeof data !== 'object') {
+      return students;
+    }
+
+    // Cas tableau
+    if (Array.isArray(data)) {
+      data.forEach((item, index) => {
+        // Si c'est un élève, l'ajouter
+        if (isStudentLike(item)) {
+          // Déduplication par ID
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            students.push(item);
+          }
+        } else {
+          // Sinon, parcourir récursivement
+          const nested = collectStudentsRecursive(item, seen, depth + 1);
+          students.push(...nested);
+        }
+      });
+      return students;
+    }
+
+    // Cas objet
+    if (typeof data === 'object') {
+      // Si l'objet lui-même est un élève
+      if (isStudentLike(data)) {
+        if (!seen.has(data.id)) {
+          seen.add(data.id);
+          students.push(data);
+        }
+        return students;
+      }
+
+      // Sinon, parcourir toutes les propriétés
+      Object.keys(data).forEach(key => {
+        const value = data[key];
+        const nested = collectStudentsRecursive(value, seen, depth + 1);
+        students.push(...nested);
+      });
+
+      return students;
+    }
+
+    return students;
+  }
+
+  /**
+   * Prépare un élève pour l'algorithme V4 avec gardes renforcées et valeurs de repli
+   * TOUS les champs critiques pour l'algorithme sont validés et normalisés
+   * @param {Object} student - Objet élève brut
+   * @param {string} className - Nom de la classe (pour contexte)
+   * @returns {Object} Élève normalisé avec tous les champs requis
+   */
+  function prepareStudentForAlgorithm(student, className) {
+    // ========== CHAMPS IDENTITÉ ==========
+    const id = String(student.id || '').trim();
+    const firstName = String(student.prenom || student.firstName || '').trim();
+    const lastName = String(student.nom || student.lastName || '').trim();
+
+    // ========== SEXE (CRITIQUE POUR PARITÉ) ==========
+    let sexe = String(student.sexe || student.gender || 'M').trim().toUpperCase();
+    // Normaliser : accepter F/M/FEMME/HOMME/FILLE/GARCON
+    if (sexe.startsWith('F') || sexe === 'FEMME' || sexe === 'FILLE') {
+      sexe = 'F';
+    } else if (sexe.startsWith('M') || sexe === 'HOMME' || sexe === 'GARCON') {
+      sexe = 'M';
+    } else {
+      // Valeur invalide → warning et fallback M
+      ErrorReporter.warn('prepareStudentForAlgorithm',
+        `Classe ${className}: élève ${id} a un sexe invalide "${sexe}", fallback sur M`
+      );
+      sexe = 'M';
+    }
+
+    // ========== SCORES ACADÉMIQUES (CRITIQUES POUR Z-SCORES V4) ==========
+    // Extraction multi-source avec VALIDATION STRICTE et reporting
+    const extractScore = (sources, fieldName, defaultValue = 0, min = 0, max = 4) => {
+      for (const source of sources) {
+        const value = parseFloat(source);
+        if (!isNaN(value) && isFinite(value)) {
+          // VALIDATION STRICTE : valeur dans les bornes ?
+          const originalValue = value;
+          const clampedValue = Math.max(min, Math.min(max, value));
+
+          // AVERTISSEMENT si valeur hors bornes (aberration)
+          if (originalValue !== clampedValue) {
+            ErrorReporter.warn('extractScore',
+              `Classe ${className}, élève ${id}: ${fieldName} hors bornes [${min}, ${max}] → valeur ${originalValue.toFixed(2)} clampée à ${clampedValue.toFixed(2)}`,
+              { studentId: id, field: fieldName, original: originalValue, clamped: clampedValue }
+            );
+          }
+
+          // AVERTISSEMENT si valeur aberrante (négative pour scores positifs)
+          if (min >= 0 && originalValue < 0) {
+            ErrorReporter.warn('extractScore',
+              `Classe ${className}, élève ${id}: ${fieldName} négatif (${originalValue.toFixed(2)}) → risque de biais dans z-scores`,
+              { studentId: id, field: fieldName, value: originalValue }
+            );
+          }
+
+          // AVERTISSEMENT si valeur extrême (> 2x max)
+          if (originalValue > max * 2) {
+            ErrorReporter.warn('extractScore',
+              `Classe ${className}, élève ${id}: ${fieldName} valeur extrême (${originalValue.toFixed(2)}, max attendu ${max}) → risque de corruption données`,
+              { studentId: id, field: fieldName, value: originalValue }
+            );
+          }
+
+          return clampedValue;
+        }
+      }
+      return defaultValue;
+    };
+
+    const scoreF = extractScore([
+      student.scoreF,
+      student.scores?.F,
+      student.scores?.SCOREF,
+      student.besoinsF
+    ], 'scoreF');
+
+    const scoreM = extractScore([
+      student.scoreM,
+      student.scores?.M,
+      student.scores?.SCOREM,
+      student.besoinsM
+    ], 'scoreM');
+
+    // ========== CRITÈRES COMPORTEMENTAUX (POUR Z-SCORES V4) ==========
+    const com = extractScore([student.scores?.COM, student.com], 'COM');
+    const tra = extractScore([student.scores?.TRA, student.tra], 'TRA');
+    const part = extractScore([student.scores?.PART, student.part], 'PART');
+    const abs = extractScore([student.scores?.ABS, student.abs], 'ABS');
+
+    // ========== LV2 (POUR CRITÈRES OPTIONNELS) ==========
+    let lv2 = String(student.lv2 || student.LV2 || 'ESP').trim().toUpperCase();
+    // Normaliser les abréviations
+    const lv2Map = {
+      'ESPAGNOL': 'ESP', 'ESPA': 'ESP', 'SPA': 'ESP',
+      'ALLEMAND': 'ALL', 'ALLEM': 'ALL', 'GER': 'ALL',
+      'ITALIEN': 'ITA', 'ITAL': 'ITA',
+      'ANGLAIS': 'ANG', 'ANGL': 'ANG', 'ENG': 'ANG'
+    };
+    lv2 = lv2Map[lv2] || lv2;
+
+    // ========== OPTIONS (POUR QUOTAS) ==========
+    let options = student.options || [];
+    if (!Array.isArray(options)) {
+      if (typeof options === 'string') {
+        options = options.split(',').map(o => o.trim()).filter(Boolean);
+      } else {
+        options = [];
+      }
+    }
+    // Normaliser en majuscules
+    options = options.map(opt => String(opt).toUpperCase());
+
+    // ========== CONSTRUIRE L'OBJET NORMALISÉ ==========
+    const normalized = {
+      // Identité
+      id,
+      firstName,
+      lastName,
+      class: className,
+
+      // Sexe (format dual pour compatibilité)
+      sexe,
+      gender: sexe,
+
+      // Scores académiques (CRITIQUES)
+      scoreF,
+      scoreM,
+      score: scoreF,  // Alias pour compatibilité
+
+      // Critères comportementaux
+      com,
+      tra,
+      part,
+      abs,
+
+      // Autres
+      lv2,
+      options,
+      SOURCE: student.SOURCE || student.source || student._SOURCE_CLASS || className, // ✅ Classe d'origine (colonne O)
+
+      // Objet scores consolidé
+      scores: {
+        F: scoreF,
+        M: scoreM,
+        COM: com,
+        TRA: tra,
+        PART: part,
+        ABS: abs
+      }
+    };
+
+    // ========== VALIDATIONS FINALES ==========
+    // Avertir si scores académiques absents
+    if (scoreF === 0 && scoreM === 0) {
+      ErrorReporter.warn('prepareStudentForAlgorithm',
+        `Classe ${className}: élève ${id} sans scores académiques (scoreF et scoreM à 0) → impact z-scores V4 nul`
+      );
+    }
+
+    // Avertir si nom/prénom manquants
+    if (!firstName && !lastName) {
+      ErrorReporter.warn('prepareStudentForAlgorithm',
+        `Classe ${className}: élève ${id} sans nom ni prénom`
+      );
+    }
+
+    return normalized;
+  }
+
+  /**
+   * Harmonise les propriétés critiques d'un élève pour l'affichage/export
+   * (alias nom/prénom, LV2 normalisée, options en tableau, SOURCE fiable, scores numériques)
+   * @param {Object} student
+   * @returns {Object|null}
+   */
+  function normalizeStudentForResults(student) {
+    if (!student) return null;
+
+    const coerceNumber = (...values) => {
+      for (const value of values) {
+        if (value === undefined || value === null || value === '') continue;
+        const num = parseFloat(value);
+        if (!isNaN(num) && isFinite(num)) {
+          return num;
+        }
+      }
+      return 0;
+    };
+
+    const normalizeOptionsArray = () => {
+      if (Array.isArray(student.options)) {
+        return student.options;
+      }
+      if (Array.isArray(student.optionsList)) {
+        return student.optionsList;
+      }
+      const rawOptions = student.opt || student.optionsRaw || student.optionsString || student.options;
+      if (typeof rawOptions === 'string' && rawOptions.trim() !== '') {
+        return rawOptions.split(/[;,/]/).map(opt => opt.trim()).filter(Boolean);
+      }
+      return [];
+    };
+
+    const lastName = String(student.lastName || student.nom || '').trim();
+    const firstName = String(student.firstName || student.prenom || '').trim();
+    const classe = String(student.class || student.classe || student.className || '').trim();
+    const sourceClass = String(student.SOURCE || student.source || student._SOURCE_CLASS || classe).trim() || classe;
+    const lv2 = (student.lv2 || student.LV2 || '').toString().trim().toUpperCase() || 'ESP';
+    const sexe = (student.sexe || student.gender || '').toString().trim().toUpperCase();
+
+    const optionsArray = normalizeOptionsArray().map(opt => opt.toString().trim()).filter(Boolean);
+    const normalizedOptions = optionsArray.map(opt => opt.toUpperCase());
+    const optionsString = typeof student.opt === 'string' && student.opt.trim() !== ''
+      ? student.opt.trim()
+      : normalizedOptions.join(';');
+
+    const scoreF = coerceNumber(student.scoreF, student.scores?.F, student.scores?.SCOREF, student.besoinsF);
+    const scoreM = coerceNumber(student.scoreM, student.scores?.M, student.scores?.SCOREM, student.besoinsM);
+    const com = coerceNumber(student.com, student.scores?.COM);
+    const tra = coerceNumber(student.tra, student.scores?.TRA);
+    const part = coerceNumber(student.part, student.scores?.PART);
+    const abs = coerceNumber(student.abs, student.scores?.ABS);
+
+    return {
+      ...student,
+      id: (student.id || '').toString().trim(),
+      lastName,
+      nom: lastName,
+      firstName,
+      prenom: firstName,
+      sexe,
+      gender: sexe,
+      class: classe,
+      classe,
+      className: student.className || classe,
+      SOURCE: sourceClass,
+      source: sourceClass,
+      _SOURCE_CLASS: sourceClass,
+      lv2,
+      LV2: lv2,
+      opt: optionsString,
+      options: normalizedOptions,
+      optionsList: normalizedOptions,
+      scores: {
+        F: scoreF,
+        M: scoreM,
+        COM: com,
+        TRA: tra,
+        PART: part,
+        ABS: abs
+      },
+      scoreF,
+      scoreM,
+      com,
+      tra,
+      part,
+      abs
+    };
+  }
+
+  if (typeof window !== 'undefined') {
+    window.GroupsModuleV4Utils = window.GroupsModuleV4Utils || {};
+    window.GroupsModuleV4Utils.normalizeStudentForResults = normalizeStudentForResults;
+  }
+
+  /**
+   * Normalise les données d'une classe depuis le format FIN
+   * UTILISE COLLECTE RÉCURSIVE pour gérer les structures complexes
+   * @param {string} className - Nom de la classe
+   * @param {*} classData - Données brutes de la classe
+   * @returns {Array|null} Tableau d'élèves normalisés ou null si invalide
+   */
+  function normalizeClassStudents(className, classData) {
+    if (!classData) {
+      ErrorReporter.error('normalizeClassStudents', `Classe ${className}: données nulles ou undefined`);
+      return null;
+    }
+
+    // ========== COLLECTE RÉCURSIVE ET DÉDUPLIQUÉE ==========
+    ErrorReporter.info('normalizeClassStudents', `Classe ${className}: début collecte récursive`);
+    const students = collectStudentsRecursive(classData);
+
+    if (students.length === 0) {
+      ErrorReporter.error('normalizeClassStudents',
+        `Classe ${className}: aucun élève trouvé après collecte récursive`,
+        { dataType: typeof classData, isArray: Array.isArray(classData) }
+      );
+      return null;
+    }
+
+    ErrorReporter.info('normalizeClassStudents',
+      `Classe ${className}: ${students.length} élève(s) collecté(s) (dédupliqués)`
+    );
+
+    // ========== PRÉPARATION POUR ALGORITHME V4 ==========
+    const normalized = [];
+    let skippedCount = 0;
+
+    students.forEach((student, index) => {
+      try {
+        const prepared = prepareStudentForAlgorithm(student, className);
+        normalized.push(prepared);
+      } catch (error) {
+        ErrorReporter.error('normalizeClassStudents',
+          `Classe ${className}: erreur préparation élève #${index} (${student.id || 'ID inconnu'})`,
+          { error: error.message, stack: error.stack }
+        );
+        skippedCount++;
+      }
+    });
+
+    // ========== RAPPORT FINAL ==========
+    if (skippedCount > 0) {
+      ErrorReporter.warn('normalizeClassStudents',
+        `Classe ${className}: ${skippedCount} élève(s) ignoré(s) sur ${students.length} (erreur préparation)`
+      );
+    }
+
+    ErrorReporter.info('normalizeClassStudents',
+      `Classe ${className}: ${normalized.length} élève(s) prêts pour algorithme V4`
+    );
+
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  /**
+   * Récupère les données des classes depuis les onglets FIN (avec scores académiques)
+   * IMPORTANT: Cette fonction charge DIRECTEMENT depuis les onglets FIN pour avoir
+   * accès aux colonnes SCORE F (U) et SCORE M (V)
+   */
+  function getClassesData() {
+    // Réinitialiser le rapport d'erreurs
+    ErrorReporter.clear();
+
+    // Si nous avons déjà chargé les données FIN en cache, les utiliser
+    if (finSheetsDataCache) {
+      ErrorReporter.info('getClassesData', 'Utilisation des données FIN en cache');
+
+      const formattedData = {};
+
+      Object.keys(finSheetsDataCache).forEach(className => {
+        const classData = finSheetsDataCache[className];
+
+        // Utiliser la fonction de normalisation
+        const normalizedStudents = normalizeClassStudents(className, classData);
+
+        if (normalizedStudents && normalizedStudents.length > 0) {
+          formattedData[className] = normalizedStudents;
+        } else {
+          ErrorReporter.warn('getClassesData',
+            `Classe ${className} ignorée (aucun élève valide après normalisation)`
+          );
+        }
+      });
+
+      // Afficher le rapport
+      ErrorReporter.info('getClassesData',
+        `Données FIN formatées: ${Object.keys(formattedData).length} classe(s)`
+      );
+      ErrorReporter.info('getClassesData',
+        'Détail: ' + Object.entries(formattedData).map(([c, eleves]) => `${c}: ${eleves.length} élèves`).join(', ')
+      );
+
+      // Afficher les erreurs/warnings à l'utilisateur si nécessaire
+      if (ErrorReporter.errors.length > 0) {
+        ErrorReporter.displayToUser();
+      }
+
+      return formattedData;
+    }
+
+    // Sinon, fallback sur STATE.students (mode legacy)
+    if (!window.STATE || !window.STATE.students) {
+      console.error('❌ window.STATE.students non disponible et pas de cache FIN');
+      return null;
+    }
+
+    console.warn('⚠️ Fallback sur STATE.students (peut ne pas contenir les scores académiques)');
+
+    // Extraire les classes depuis les zones droppables du DOM
+    const zones = document.querySelectorAll('.droppable-zone[data-classe]');
+    const classesData = {};
+
+    zones.forEach(zone => {
+      const className = zone.getAttribute('data-classe');
+      if (!className) return;
+
+      classesData[className] = [];
+
+      // Récupérer les cartes élèves dans cette zone
+      const cards = zone.querySelectorAll('.student-card');
+
+      cards.forEach(card => {
+        const studentId = card.getAttribute('data-id') || card.getAttribute('data-student-id');
+        if (!studentId) return;
+
+        // Récupérer les données complètes depuis STATE
+        const student = window.STATE.students[studentId];
+
+        if (student) {
+          // Extraire TOUS les champs nécessaires pour l'algorithme V4
+          classesData[className].push({
+            id: student.id || studentId,
+            firstName: student.firstName || student.prenom || '',
+            lastName: student.lastName || student.nom || '',
+            class: className,
+
+            // SEXE (colonne E)
+            sexe: (student.sexe || student.gender || 'M').toUpperCase(),
+            gender: student.gender || student.sexe || 'M',
+
+            // CRITÈRES COMPORTEMENTAUX
+            com: student.com || student.COM || 0,        // Colonne H
+            tra: student.tra || student.TRA || 0,        // Colonne I
+            part: student.part || student.PART || 0,     // Colonne J
+            abs: student.abs || student.ABS || 0,        // Colonne K
+
+            // SCORES ACADÉMIQUES
+            scoreF: student.scoreF || student.scores?.F || 0,  // Colonne U (1-4)
+            scoreM: student.scoreM || student.scores?.M || 0,  // Colonne V (1-4)
+            score: student.score || student.scoreF || student.scoreM || 0,
+
+            // AUTRES DONNÉES
+            // Colonne F : LV2 (ESP par défaut si vide)
+            lv2: (student.lv2 || student.LV2 || 'ESP').toUpperCase(),
+            options: student.options || [],
+            scores: student.scores || {}
+          });
+        }
+      });
+    });
+
+    console.log('📊 Données des classes extraites:', Object.keys(classesData));
+    console.log('📊 Détail:', Object.entries(classesData).map(([c, eleves]) => `${c}: ${eleves.length} élèves`));
+
+    return classesData;
+  }
+
+  /**
+   * Vérifie que les données sont disponibles
+   */
+  function validateData() {
+    const classesData = getClassesData();
+
+    if (!classesData || Object.keys(classesData).length === 0) {
+      console.error('❌ Aucune classe trouvée dans STATE');
+      console.log('Diagnostic :');
+      console.log('- STATE existe :', !!window.STATE);
+      console.log('- STATE.students existe :', !!window.STATE?.students);
+      console.log('- Nombre d\'élèves :', Object.keys(window.STATE?.students || {}).length);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Ouvre l'interface du module Groupes V4
+   * CHARGE AUTOMATIQUEMENT LES ONGLETS FIN AVEC SCORES (colonnes U et V)
+   */
+  async function openModuleGroupsV4(mode) {
+    // 🔒 GARDE : Empêcher ouvertures multiples simultanées
+    if (moduleContainer && moduleContainer.style.display !== 'none') {
+      console.warn('⚠️ Module Groupes déjà ouvert, abandon');
+      return;
+    }
+
+    console.log('🚀 Ouverture du module Groupes V4, mode:', mode);
+
+    // Vérifier les dépendances
+    if (!window.GroupsInterfaceV4) {
+      console.error('❌ GroupsInterfaceV4 non chargé');
+      alert('Erreur : Interface Groupes V4 non disponible');
+      return;
+    }
+
+    if (!window.GroupsAlgorithmV4) {
+      console.error('❌ GroupsAlgorithmV4 non chargé');
+      alert('Erreur : Algorithme Groupes V4 non disponible');
+      return;
+    }
+
+    // 🧹 NETTOYAGE : Supprimer l'ancien container s'il existe
+    if (moduleContainer) {
+      moduleContainer.remove();
+      moduleContainer = null;
+    }
+
+    // Créer le container plein écran
+    if (!moduleContainer) {
+      moduleContainer = document.createElement('div');
+      moduleContainer.id = 'groups-v4-container';
+      moduleContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+        background: white;
+      `;
+
+      // Ajouter un bouton de fermeture
+      const closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '<i class="fas fa-times"></i> Fermer';
+      closeBtn.style.cssText = `
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        z-index: 10000;
+        padding: 8px 16px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+      `;
+      closeBtn.addEventListener('click', closeModuleGroupsV4);
+
+      moduleContainer.appendChild(closeBtn);
+      document.body.appendChild(moduleContainer);
+    }
+
+    // Afficher un loader pendant le chargement des données
+    const loaderId = 'groups-data-loader';
+    if (!document.getElementById(loaderId)) {
+      const loader = document.createElement('div');
+      loader.id = loaderId;
+      loader.innerHTML = `
+        <div style="
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          font-family: Arial, sans-serif;
+        ">
+          <div style="
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #4A90E2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+          "></div>
+          <p style="color: #6b7280; font-size: 16px;">Chargement des données des élèves...</p>
+          <p style="color: #9ca3af; font-size: 14px; margin-top: 8px;">Extraction des scores depuis les onglets FIN</p>
+        </div>
+        <style>
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        </style>
+      `;
+      moduleContainer.appendChild(loader);
+    }
+
+    // Afficher le container immédiatement avec le loader
+    moduleContainer.style.display = 'block';
+    console.log('✅ Interface affichée immédiatement avec loader');
+
+    // 🔑 CHARGER LES DONNÉES FIN EN ARRIÈRE-PLAN (non bloquant)
+    console.log('📡 Chargement des onglets FIN avec SCORE F (colonne U) et SCORE M (colonne V)...');
+
+    loadFINData().then(finData => {
+      // Supprimer le loader
+      const loaderElement = document.getElementById(loaderId);
+      if (loaderElement) {
+        loaderElement.remove();
+      }
+
+      if (!finData || Object.keys(finData).length === 0) {
+        console.error('❌ Aucune donnée FIN chargée');
+
+        // Fallback sur STATE.students
+        console.warn('⚠️ Fallback sur STATE.students...');
+
+        // Vérifier que STATE.students est chargé
+        if (!window.STATE || !window.STATE.students || Object.keys(window.STATE.students).length === 0) {
+          alert('Erreur : Les données des élèves ne sont pas encore chargées. Veuillez attendre la fin du chargement et réessayer.');
+          console.error('❌ STATE.students vide ou non chargé');
+          closeModuleGroupsV4();
+          return;
+        }
+
+        // Valider les données
+        if (!validateData()) {
+          alert('Erreur : Aucune classe disponible. Veuillez charger des données d\'abord.');
+          closeModuleGroupsV4();
+          return;
+        }
+      } else {
+        console.log('✅ Données FIN chargées avec succès:', Object.keys(finData).length, 'classes');
+      }
+
+      // Rendre l'interface triptyque une fois les données chargées
+      window.GroupsInterfaceV4.renderInitialStructure(moduleContainer);
+
+      // Initialiser les tooltips sur les critères
+      if (window.UIComponents && window.UIComponents.Tooltip) {
+        window.UIComponents.Tooltip.init();
+        console.log('✅ Tooltips initialisés');
+      }
+
+      // Initialiser les contrôles de lisibilité (pastilles, taille police, zoom)
+      if (window.GroupsInterfaceV4.initLisibilityControls) {
+        window.GroupsInterfaceV4.initLisibilityControls();
+        console.log('✅ Contrôles de lisibilité initialisés');
+      }
+
+      // Initialiser les contrôles des paramètres (panneaux dépliants + joystick)
+      if (window.GroupsInterfaceV4.initParametersControls) {
+        window.GroupsInterfaceV4.initParametersControls();
+        console.log('✅ Contrôles des paramètres initialisés');
+      }
+
+      console.log('✅ Module Groupes V4 prêt');
+
+    }).catch(error => {
+      console.error('❌ Erreur lors du chargement des données FIN:', error);
+
+      // Supprimer le loader
+      const loaderElement = document.getElementById(loaderId);
+      if (loaderElement) {
+        loaderElement.remove();
+      }
+
+      alert('Erreur lors du chargement des données : ' + error.message);
+      closeModuleGroupsV4();
+    });
+  }
+
+  /**
+   * Ferme l'interface du module
+   */
+  function closeModuleGroupsV4() {
+    if (moduleContainer) {
+      // Réinitialiser l'état global avant de fermer (évite les regroupements fantômes)
+      if (typeof window.resetGroupsV4State === 'function') {
+        window.resetGroupsV4State(false); // Ne pas conserver le swapDashboard
+        console.log('🔄 État du module réinitialisé avant fermeture');
+      }
+
+      moduleContainer.remove();  // ← Supprimer du DOM
+      moduleContainer = null;    // ← Réinitialiser la variable
+      console.log('✅ Module Groupes V4 fermé et nettoyé');
+    }
+  }
+
+  /**
+   * Gère l'événement de génération des groupes
+   */
+  function handleGenerateGroups(event) {
+    const { scenario, mode, selectedLanguage, regroupements, criteriaWeights } = event.detail;
+
+    console.log('🎯 Génération des groupes demandée:', { scenario, mode, selectedLanguage, regroupements });
+
+    if (criteriaWeights) {
+      console.log('🎛️ Pondérations personnalisées reçues:', criteriaWeights);
+    }
+
+    // Afficher le LoadingOverlay
+    if (window.UIComponents && window.UIComponents.LoadingOverlay) {
+      window.UIComponents.LoadingOverlay.show('Génération des groupes en cours...');
+    }
+
+    // Écouter les événements de progression
+    const progressHandler = (e) => {
+      if (window.UIComponents && window.UIComponents.LoadingOverlay) {
+        window.UIComponents.LoadingOverlay.setStep(e.detail.step);
+      }
+    };
+    document.addEventListener('algorithm:progress', progressHandler);
+
+    try {
+      // Pour chaque regroupement, générer les groupes
+      const allResults = regroupements.map(regroupement => {
+        // Récupérer les élèves des classes du regroupement
+        const classesData = getClassesData();
+        let students = [];
+
+        // Si aucune classe spécifiée, prendre toutes les classes
+        const classesToUse = regroupement.classes.length > 0
+          ? regroupement.classes
+          : Object.keys(classesData);
+
+        classesToUse.forEach(className => {
+          if (classesData[className]) {
+            students.push(...classesData[className]);
+          }
+        });
+
+        console.log(`📚 Regroupement "${regroupement.name}" : ${students.length} élèves (avant filtrage)`);
+
+        // FILTRAGE PAR LANGUE pour le scénario LV2
+        if (scenario === 'lv2' && selectedLanguage) {
+          const beforeFilter = students.length;
+          students = students.filter(student => {
+            const studentLang = (student.lv2 || 'ESP').toUpperCase();
+            return studentLang === selectedLanguage;
+          });
+          console.log(`🌍 Filtrage LV2 (${selectedLanguage}): ${beforeFilter} → ${students.length} élèves`);
+        }
+
+        if (students.length === 0) {
+          console.warn(`⚠️ Aucun élève pour "${regroupement.name}" après filtrage`);
+          return null;
+        }
+
+        console.log(`📚 Regroupement "${regroupement.name}" : ${students.length} élèves (après filtrage)`);
+
+        // ✨ Utiliser les pondérations transmises par l'événement
+        if (criteriaWeights) {
+          console.log('🎛️ Utilisation des pondérations personnalisées:', criteriaWeights);
+        }
+
+        // Appeler l'algorithme avec les pondérations personnalisées
+        const result = window.GroupsAlgorithmV4.distribute({
+          students,
+          mode,
+          numGroups: regroupement.numGroups,
+          scenario,
+          criteriaWeights // ✨ Pondérations de l'événement (shorthand)
+        });
+
+        return {
+          regroupement: regroupement.name,
+          result
+        };
+      });
+
+      // Filtrer les résultats null (regroupements vides)
+      const validResults = allResults.filter(r => r !== null);
+
+      if (validResults.length === 0) {
+        throw new Error('Aucun élève trouvé après filtrage. Vérifiez la langue sélectionnée et les classes.');
+      }
+
+      // Combiner les résultats avec NUMÉROTATION GLOBALE continue
+      let globalGroupCounter = 1; // Compteur global pour tous les regroupements
+
+      const combinedResults = {
+        groups: validResults.flatMap(r =>
+          r.result.groups.map(group => {
+            const globalId = globalGroupCounter++;
+            return {
+              ...group,
+              id: globalId, // ID global numérique
+              name: `Groupe ${globalId}`, // Nom global
+              originalId: group.id, // Conserver l'ID original du regroupement
+              originalName: group.name, // Conserver le nom original
+              regroupementName: r.regroupement, // Ajouter le nom du regroupement
+              regroupementId: r.regroupement.replace(/\s+/g, '-').toLowerCase()
+            };
+          })
+        ),
+        stats: validResults.flatMap(r => r.result.stats),
+        metadata: {
+          scenario,
+          scenarioApplied: scenario,
+          mode,
+          selectedLanguage,
+          totalRegroupements: validResults.length,
+          totalStudents: validResults.reduce((sum, r) => sum + r.result.metadata.totalStudents, 0),
+          totalGroups: globalGroupCounter - 1, // Nombre total de groupes créés
+          timestamp: new Date().toISOString(),
+          criteriaWeights: criteriaWeights || null, // ✨ Utiliser criteriaWeights de l'événement
+          criteriaWeightsSource: null, // Sera écrasé par firstMetadata plus bas
+          criteriaWeightsOverridesApplied: false // Sera écrasé par firstMetadata plus bas
+        }
+      };
+
+      combinedResults.groups = combinedResults.groups.map(group => {
+        const normalizedStudents = (group.students || [])
+          .map(normalizeStudentForResults)
+          .filter(student => student !== null);
+        return {
+          ...group,
+          students: normalizedStudents
+        };
+      });
+
+      combinedResults.metadata.totalStudents = combinedResults.groups.reduce(
+        (sum, group) => sum + (group.students ? group.students.length : 0),
+        0
+      );
+
+      const firstMetadata = validResults[0]?.result?.metadata || {};
+      combinedResults.metadata = {
+        ...combinedResults.metadata,
+        scenarioApplied: firstMetadata.scenarioApplied || combinedResults.metadata.scenarioApplied,
+        criteriaWeights: firstMetadata.criteriaWeights || combinedResults.metadata.criteriaWeights,
+        criteriaWeightsSource: firstMetadata.criteriaWeightsSource || combinedResults.metadata.criteriaWeightsSource,
+        criteriaWeightsOverridesApplied: firstMetadata.criteriaWeightsOverridesApplied ?? combinedResults.metadata.criteriaWeightsOverridesApplied
+      };
+
+      // Émettre l'événement de succès
+      const successEvent = new CustomEvent('groups:generated', {
+        detail: combinedResults
+      });
+      document.dispatchEvent(successEvent);
+
+      console.log('✅ Groupes générés avec succès', combinedResults);
+
+      // Masquer le LoadingOverlay après un court délai
+      setTimeout(() => {
+        if (window.UIComponents && window.UIComponents.LoadingOverlay) {
+          window.UIComponents.LoadingOverlay.hide();
+        }
+        document.removeEventListener('algorithm:progress', progressHandler);
+
+        // Toast de succès
+        if (window.UIComponents && window.UIComponents.Toast) {
+          window.UIComponents.Toast.success(
+            `✨ ${combinedResults.metadata.totalGroups} groupe(s) créé(s) avec succès !`
+          );
+        }
+      }, 500);
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la génération:', error);
+
+      // Masquer le LoadingOverlay
+      if (window.UIComponents && window.UIComponents.LoadingOverlay) {
+        window.UIComponents.LoadingOverlay.hide();
+      }
+      document.removeEventListener('algorithm:progress', progressHandler);
+
+      // Toast d'erreur
+      if (window.UIComponents && window.UIComponents.Toast) {
+        window.UIComponents.Toast.error(`❌ Erreur : ${error.message}`);
+      }
+
+      // Émettre l'événement d'erreur
+      const errorEvent = new CustomEvent('groups:error', {
+        detail: { message: error.message }
+      });
+      document.dispatchEvent(errorEvent);
+    }
+  }
+
+  /**
+   * Gère l'événement de résultats générés
+   */
+  function handleGroupsGenerated(event) {
+    console.log('📊 Résultats reçus:', event.detail);
+
+    // Afficher les résultats dans l'interface
+    if (window.GroupsInterfaceV4) {
+      window.GroupsInterfaceV4.displayResults(event.detail);
+    }
+  }
+
+  /**
+   * Gère l'événement d'erreur
+   */
+  function handleGroupsError(event) {
+    console.error('❌ Erreur reçue:', event.detail);
+
+    // Afficher l'erreur dans l'interface
+    if (window.GroupsInterfaceV4) {
+      window.GroupsInterfaceV4.displayError(event.detail);
+    }
+  }
+
+  /**
+   * Remplace la fonction openGroupsInterface existante
+   */
+  function replaceOpenGroupsInterface() {
+    // Sauvegarder l'ancienne fonction si elle existe
+    if (window.openGroupsInterface) {
+      window._oldOpenGroupsInterface = window.openGroupsInterface;
+      console.log('💾 Ancienne openGroupsInterface sauvegardée');
+    }
+
+    // Remplacer par la nouvelle
+    window.openGroupsInterface = function(mode) {
+      console.log('🔄 openGroupsInterface appelée avec mode:', mode);
+
+      // Rediriger vers le module V4
+      openModuleGroupsV4(mode);
+    };
+
+    console.log('✅ openGroupsInterface remplacée par la version V4');
+  }
+
+  /**
+   * Restaure l'ancienne fonction openGroupsInterface
+   */
+  function restoreOpenGroupsInterface() {
+    if (window._oldOpenGroupsInterface) {
+      window.openGroupsInterface = window._oldOpenGroupsInterface;
+      delete window._oldOpenGroupsInterface;
+      console.log('✅ openGroupsInterface restaurée');
+    }
+  }
+
+  /**
+   * Initialisation du module
+   */
+  function init() {
+    // Écouter les événements
+    document.addEventListener('groups:generate', handleGenerateGroups);
+    document.addEventListener('groups:generated', handleGroupsGenerated);
+    document.addEventListener('groups:error', handleGroupsError);
+
+    // Remplacer la fonction du header
+    replaceOpenGroupsInterface();
+
+    // Exposer les fonctions globalement
+    window.openModuleGroupsV4 = openModuleGroupsV4;
+    window.closeModuleGroupsV4 = closeModuleGroupsV4;
+
+    console.log('✅ Module Groupes V4 initialisé et connecté au header');
+  }
+
+  // Initialiser au chargement du DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // DOM déjà chargé
+    setTimeout(init, 100);
+  }
+
+  // Nettoyer à la fermeture
+  window.addEventListener('beforeunload', () => {
+    restoreOpenGroupsInterface();
+  });
+
+})();
+</script>

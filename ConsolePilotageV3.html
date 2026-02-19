@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <title>PILOTAGE EXPERT V3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg-dark: #0f172a;
+            --text: #f8fafc;
+            --card: #1e293b;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            margin: 0;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 200px 1fr 280px; /* Gauche/Droite réduites, Centre LARGE */
+            overflow: hidden;
+            font-size: 16px;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            background: #020617;
+            padding: 20px;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+
+        .nav-item {
+            padding: 18px;
+            margin-bottom: 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 15px;
+            transition: 0.2s;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+        }
+
+        .nav-item.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        /* MAIN */
+        .main {
+            padding: 40px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .phase {
+            display: none;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .phase.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .card {
+            background: var(--card);
+            padding: 30px;
+            border-radius: 16px;
+            border: 1px solid #334155;
+            margin-bottom: 20px;
+        }
+
+        h1 { font-size: 28px; font-weight: 900; margin-bottom: 15px; }
+        h2 { font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 20px; text-transform: uppercase; }
+        h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+        label { display: block; font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase; }
+
+        input, select {
+            width: 100%;
+            background: #0f172a;
+            border: 2px solid #334155;
+            color: white;
+            padding: 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        /* BOUTONS */
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            text-transform: uppercase;
+            transition: 0.2s;
+        }
+
+        .btn:disabled { opacity: 0.6; cursor: wait; }
+        .btn-primary { background: var(--primary); color: white; margin-bottom: 10px; }
+        .btn-primary:hover { background: #4f46e5; }
+        .btn-success { background: var(--success); color: #022c22; }
+        .btn-secondary { background: #334155; color: white; }
+
+        /* TABLEAU ÉDITEUR (Alignement Centré) */
+        .editor-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            table-layout: fixed;
+        }
+
+        .editor-table th {
+            text-align: center;
+            padding: 10px 2px;
+            font-size: 12px;
+            font-weight: 800;
+            border-bottom: 2px solid #334155;
+            vertical-align: bottom;
+            color: #94a3b8;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .editor-table td {
+            padding: 4px 2px;
+            border-bottom: 1px solid #334155;
+            text-align: center;
+        }
+
+        /* INPUTS (Grosses Cases) */
+        .editor-table input {
+            margin: 0 auto;
+            padding: 0;
+            height: 65px;
+            width: 100%;
+            font-size: 18px;
+            font-weight: 900;
+            text-align: center !important;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            color: white;
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+
+        .editor-table input:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .editor-table input:focus {
+            background: #1e293b;
+            border: 2px solid var(--primary);
+            outline: none;
+            transform: scale(1.05);
+            z-index: 10;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+        }
+
+        /* SPINNERS DISCRETS (masqués par défaut, visibles au survol) */
+        .editor-table input[type="number"]::-webkit-inner-spin-button,
+        .editor-table input[type="number"]::-webkit-outer-spin-button {
+            opacity: 0;
+            height: 55px;
+            cursor: pointer;
+            background: rgba(30, 41, 59, 0.5);
+            margin: 0;
+            padding: 0;
+            transition: opacity 0.2s ease, background 0.2s ease;
+        }
+
+        /* Afficher les spinners au survol ou focus de l'input */
+        .editor-table input[type="number"]:hover::-webkit-inner-spin-button,
+        .editor-table input[type="number"]:hover::-webkit-outer-spin-button,
+        .editor-table input[type="number"]:focus::-webkit-inner-spin-button,
+        .editor-table input[type="number"]:focus::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+
+        /* Style au survol des spinners eux-mêmes */
+        .editor-table input[type="number"]::-webkit-inner-spin-button:hover,
+        .editor-table input[type="number"]::-webkit-outer-spin-button:hover {
+            background: rgba(99, 102, 241, 0.4);
+        }
+
+        /* PANEL DROITE */
+        .panel-right {
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            padding: 25px;
+            overflow-y: auto;
+        }
+
+        .status-box {
+            background: #0f172a;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #334155;
+        }
+
+        /* SPINNER CSS */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        .btn.loading .spinner { display: block; }
+        .btn.loading span { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* TOAST */
+        .toast {
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            min-width: 350px; padding: 20px 25px; border-radius: 12px;
+            font-size: 16px; font-weight: 600; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s; display: none;
+        }
+        .toast.show { display: flex; align-items: center; gap: 15px; }
+        .toast.success { background: var(--success); color: #022c22; }
+        .toast.error { background: var(--danger); color: white; }
+        .toast.info { background: var(--primary); color: white; }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); z-index: 10000;
+            display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px); animation: fadeIn 0.2s;
+        }
+        .modal-overlay.show { display: flex; }
+        .welcome-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); z-index: 10001;
+            display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px); animation: fadeIn 0.2s;
+        }
+        .welcome-overlay.show { display: flex; }
+        .modal {
+            background: var(--card); border-radius: 20px; padding: 40px;
+            max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: modalSlideIn 0.3s; border: 1px solid #334155;
+        }
+        .modal-icon { font-size: 48px; margin-bottom: 20px; text-align: center; }
+        .modal-icon.success { color: var(--success); }
+        .modal-icon.error { color: var(--danger); }
+        .modal-icon.warning { color: var(--warning); }
+        .modal-icon.info { color: var(--primary); }
+        .modal-title { font-size: 24px; font-weight: 900; margin-bottom: 15px; text-align: center; color: white; }
+        .modal-message { font-size: 17px; color: #94a3b8; text-align: center; line-height: 1.6; margin-bottom: 30px; }
+        .modal-buttons { display: flex; gap: 15px; justify-content: center; }
+        .modal-btn { padding: 15px 35px; border: none; border-radius: 8px; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; text-transform: uppercase; }
+        .modal-btn-primary { background: var(--primary); color: white; }
+        .modal-btn-secondary { background: #334155; color: white; }
+        @keyframes modalSlideIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+
+<body>
+
+    <div id="toast" class="toast"></div>
+
+    <div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div id="modal-icon" class="modal-icon"></div>
+            <h2 id="modal-title" class="modal-title"></h2>
+            <p id="modal-message" class="modal-message"></p>
+            <div id="modal-buttons" class="modal-buttons"></div>
+        </div>
+    </div>
+
+    <div id="welcome-overlay" class="welcome-overlay">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-icon info"><i class="fas fa-hand-sparkles"></i></div>
+            <h2 class="modal-title">Bienvenue dans le Pilotage V3</h2>
+            <p class="modal-message">Choisissez comment démarrer : reprendre une session existante ou repartir de zéro.</p>
+            <div class="modal-buttons" style="gap: 10px;">
+                <button id="btn-new-config" class="modal-btn modal-btn-secondary" onclick="handleNewConfiguration()">
+                    <i class="fas fa-plus-circle"></i> NOUVELLE CONFIGURATION
+                </button>
+                <button id="btn-resume-session" class="modal-btn modal-btn-primary" onclick="handleResumeSession()" style="display:none;">
+                    <i class="fas fa-history"></i> REPRENDRE LA SESSION
+                </button>
+            </div>
+            <div id="welcome-status" style="text-align:center;color:#94a3b8;margin-top:10px;font-size:13px;"></div>
+        </div>
+    </div>
+
+    <aside class="sidebar">
+        <div class="brand"><i class="fas fa-rocket"></i> PILOTE V3</div>
+        <nav>
+            <div class="nav-item active" onclick="goTo(1)" id="nav-1"><i class="fas fa-hammer"></i> INIT</div>
+            <div class="nav-item" onclick="goTo(2)" id="nav-2"><i class="fas fa-database"></i> DATA</div>
+            <div class="nav-item" onclick="goTo(3)" id="nav-3"><i class="fas fa-chart-bar"></i> STATS</div>
+            <div class="nav-item" onclick="goTo(4)" id="nav-4"><i class="fas fa-chess-board"></i> STRUCTURE</div>
+            <div class="nav-item" onclick="goTo(5)" id="nav-5"><i class="fas fa-cogs"></i> MOTEUR</div>
+            <div class="nav-item" onclick="goTo(6)" id="nav-6"><i class="fas fa-check"></i> FINAL</div>
+        </nav>
+    </aside>
+
+    <main class="main">
+
+        <div id="phase-1" class="phase active">
+            <h1>CONFIGURATION & INITIALISATION</h1>
+            <div class="card">
+                <h2>Paramètres du Système</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div><label> Mot de Passe Admin</label><input type="password" id="pwd" value="admin123"></div>
+                    <div>
+                        <label> Niveau Scolaire</label>
+                        <select id="niv">
+                            <optgroup label="École Primaire">
+                                <option value="CM2">CM2</option>
+                            </optgroup>
+                            <optgroup label="Collège">
+                                <option value="6°">6ème</option>
+                                <option value="5°" selected>5ème</option>
+                                <option value="4°">4ème</option>
+                                <option value="3°">3ème</option>
+                            </optgroup>
+                            <optgroup label="Lycée">
+                                <option value="2nde">2nde</option>
+                                <option value="1ère">1ère</option>
+                                <option value="Term">Terminale</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div></div>
+                    <div><label>📂 Nb Classes Sources</label><input type="number" id="src" value="6" min="1" max="30"></div>
+                    <div><label>🎯 Nb Classes Cibles</label><input type="number" id="dest" value="6" min="1" max="20"></div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;">
+
+                <h2>2. Dictionnaire des Codes</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                    <div><label>🌍 Langues (LV1/LV2)</label><input type="text" id="lv2" value="ANG, ALL, ESP, ITA"></div>
+                    <div><label>🚀 Options</label><input type="text" id="opt" value="LATIN, CHAV"></div>
+                    <div><label>📋 Dispositifs</label><input type="text" id="dispo" value="PAI, PPRE, ULIS, UPE2A"></div>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #334155; margin: 30px 0;">
+
+                <h2 style="color: var(--success);">Actions</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h3 style="font-size: 16px; color: #94a3b8; margin-bottom: 10px;">💾 Sauvegarde Config</h3>
+                        <button onclick="saveConfigOnly()" id="btn-save-config" class="btn btn-success">
+                            <div class="spinner"></div>
+                            <span><i class="fas fa-save"></i> SAUVEGARDER CONFIG</span>
+                        </button>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 16px; color: #94a3b8; margin-bottom: 10px;">🔥 Initialisation Complète</h3>
+                        <button onclick="runInit()" id="btn-init" class="btn" style="background: var(--danger);">
+                            <div class="spinner"></div>
+                            <span><i class="fas fa-exclamation-triangle"></i> INITIALISER SYSTÈME</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="phase-2" class="phase">
+            <h1>REMPLISSAGE DES DONNÉES</h1>
+            <div class="card">
+                <h2>Saisie Manuelle</h2>
+                <p style="color: #94a3b8; margin-bottom: 20px;">Fermez la console, remplissez les onglets sources créés, puis revenez consolider.</p>
+                <button onclick="google.script.host.close()" class="btn btn-secondary" style="margin-bottom: 20px;">
+                    <i class="fas fa-door-open"></i> QUITTER POUR REMPLIR
+                </button>
+
+                <h2>Consolidation</h2>
+                <button onclick="runConso()" id="btn-conso" class="btn btn-primary">
+                    <div class="spinner"></div>
+                    <span>CONSOLIDER & VÉRIFIER</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="phase-3" class="phase">
+            <h1>📊 ANALYSE DES EFFECTIFS</h1>
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>Statistiques</h2>
+                    <button onclick="loadStats()" id="btn-refresh-stats" class="btn btn-secondary" style="width: auto; padding: 10px 20px;">
+                        <i class="fas fa-sync"></i> Actualiser
+                    </button>
+                </div>
+
+                <div id="stats-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="card" style="background: #0f172a; padding: 25px;">
+                        <h3 style="color: var(--primary); font-size: 16px; font-weight: 700; margin-bottom: 12px;">📌 EFFECTIFS</h3>
+                        <div id="stats-effectifs" style="font-size: 42px; font-weight: 900;">-</div>
+                    </div>
+                    <div class="card" style="background: #0f172a; padding: 25px;">
+                        <h3 style="color: var(--primary); font-size: 16px; font-weight: 700; margin-bottom: 12px;">⚖️ PARITÉ F/M</h3>
+                        <div id="stats-parite" style="font-size: 18px; font-weight: 600;">-</div>
+                    </div>
+                    <div class="card" style="background: #0f172a; padding: 25px;">
+                        <h3 style="color: var(--primary); font-size: 16px; font-weight: 700; margin-bottom: 12px;">🌍 LV2 SEULES</h3>
+                        <table id="stats-lv2" style="width: 100%; font-size: 17px;"></table>
+                    </div>
+                    <div class="card" style="background: #0f172a; padding: 25px;">
+                        <h3 style="color: var(--primary); font-size: 16px; font-weight: 700; margin-bottom: 12px;">🎯 OPTIONS SEULES</h3>
+                        <table id="stats-options" style="width: 100%; font-size: 17px;"></table>
+                    </div>
+                    <div class="card" style="background: #0f172a; padding: 25px;">
+                        <h3 style="color: var(--warning); font-size: 16px; font-weight: 700; margin-bottom: 12px;">⚡ PROFILS DOUBLES</h3>
+                        <table id="stats-combos" style="width: 100%; font-size: 17px;"></table>
+                    </div>
+                    <div class="card" style="background: #0f172a; padding: 25px;">
+                        <h3 style="color: var(--primary); font-size: 16px; font-weight: 700; margin-bottom: 12px;">📋 DISPOSITIFS</h3>
+                        <table id="stats-dispositifs" style="width: 100%; font-size: 17px;"></table>
+                    </div>
+                </div>
+
+                <button onclick="goTo(4)" class="btn btn-success" style="margin-top: 30px;">
+                    <span><i class="fas fa-arrow-right"></i> DÉFINIR LA STRUCTURE</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="phase-4" class="phase">
+            <h1>STRATÉGIE DE RÉPARTITION</h1>
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <h2>Définition des Classes Cibles</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="loadStructure()" id="btn-load-struct" class="btn btn-secondary" style="width: auto; padding: 10px 20px;">
+                            <i class="fas fa-sync"></i> Actualiser
+                        </button>
+                    </div>
+                </div>
+
+                <div style="margin: 20px 0; border: 1px solid #334155; border-radius: 8px;">
+                    <table class="editor-table" id="struct-table">
+                        <thead id="struct-header"></thead>
+                        <tbody id="struct-body"><tr><td style="padding:30px">Chargement...</td></tr></tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                    <div style="color: var(--warning); font-size: 13px; font-weight: 600;">
+                        <i class="fas fa-info-circle"></i> Total Places : <span id="total-cap">0</span>
+                    </div>
+                    <button onclick="saveStructure()" id="btn-save-struct" class="btn btn-success" style="width: 200px;">
+                        <div class="spinner"></div>
+                        <span>VALIDER</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="phase-5" class="phase">
+            <h1>OPTIMISATION</h1>
+            <div class="card">
+                <h2>Lancement du Moteur</h2>
+                <p style="color: #94a3b8; margin-bottom: 20px;">L'algorithme va répartir les élèves selon votre structure.</p>
+                <button onclick="runEngine()" id="btn-engine" class="btn btn-primary">
+                    <div class="spinner"></div>
+                    <span>LANCER CALCUL</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="phase-6" class="phase">
+            <h1>FINALISATION</h1>
+            <div class="card">
+                <h2>Accès à l'Interface V2</h2>
+                <p style="color: #94a3b8; margin-bottom: 20px;">
+                    Les onglets FIN ont déjà été générés par le pipeline LEGACY.<br>
+                    Vous pouvez maintenant ouvrir l'Interface V2 pour visualiser et affiner les répartitions.
+                </p>
+                <button onclick="openInterfaceV2()" id="btn-interface-v2" class="btn btn-primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <span><i class="fas fa-external-link-alt"></i> OUVRIR INTERFACE V2</span>
+                </button>
+                <p style="color: #64748b; font-size: 13px; margin-top: 15px; text-align: center;">
+                    L'interface s'ouvrira dans un nouvel onglet de votre navigateur
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <aside class="panel-right" style="background: #1e293b; border-left: 1px solid #334155; padding: 20px; overflow-y: auto;">
+        
+        <h2 style="font-size: 14px; color: #64748b; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">ÉTAT SYSTÈME</h2>
+        
+        <div id="metric-places" class="status-box" style="background: #0f172a; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+            <div style="text-align:center; color:#64748b; font-size:12px;">Chargement...</div>
+        </div>
+
+        <h2 style="font-size: 14px; color: #64748b; margin: 30px 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">SUIVI DES QUOTAS</h2>
+        
+        <div style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px;">🌍 QUOTAS LANGUES</div>
+            <div id="quota-lv2"></div>
+        </div>
+
+        <div style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px;">🎯 QUOTAS OPTIONS</div>
+            <div id="quota-options"></div>
+        </div>
+
+        <div style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--warning); margin-bottom: 10px;">⚡ PROFILS DOUBLES</div>
+            <div id="quota-combos"></div>
+        </div>
+
+    </aside>
+
+    <script>
+    // ===================================================================
+        // 0. UTILITAIRE SÉCURITÉ - ÉCHAPPEMENT HTML
+        // ===================================================================
+        function escapeHtml(str) {
+          if (str === null || str === undefined) return '';
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        // ===================================================================
+        // 1. VARIABLES GLOBALES & SÉCURITÉ (ANTI-CRASH)
+        // ===================================================================
+        let currentStructure = null;
+        // Initialisation vide pour éviter "undefined" au démarrage
+        let cachedStats = { 
+            effectifs: { total: 0 }, 
+            global: {}, 
+            lv2: {}, 
+            options: {}, 
+            combos: {}, 
+            dispositifs: {},
+            asso: { eleves: 0 },
+            disso: { eleves: 0 }
+        };
+        let lastKnownProgress = null;
+
+        const sessionRoutes = {
+            status: '/pilotageV3/session/status',
+            load: '/pilotageV3/session/load',
+            reset: '/pilotageV3/session/reset'
+        };
+
+        const sessionFunctionMap = {
+            [sessionRoutes.status]: 'v3_getSessionStatus',
+            [sessionRoutes.load]: 'v3_loadSessionState',
+            [sessionRoutes.reset]: 'v3_resetSessionState'
+        };
+
+        // ===================================================================
+        // 2. UTILITAIRES
+        // ===================================================================
+        function runServerCall(functionName, args, onSuccess, onError) {
+            google.script.run
+                .withSuccessHandler(onSuccess)
+                .withFailureHandler(onError)
+                [functionName](...args);
+        }
+
+        function callSessionEndpoint(url) {
+            if (typeof google !== 'undefined' && google.script) {
+                const functionName = sessionFunctionMap[url];
+                return new Promise((resolve, reject) => {
+                    google.script.run
+                        .withSuccessHandler(resolve)
+                        .withFailureHandler(err => reject(new Error(err && err.message ? err.message : err)))
+                        [functionName]();
+                });
+            }
+            return Promise.reject("Environnement Google non détecté");
+        }
+
+        // ===================================================================
+        // 3. INITIALISATION
+        // ===================================================================
+        window.onload = function() {
+            console.log("🚀 Console Pilotage V3 chargée");
+            toggleWelcomeModal(true); // Affiche immédiatement l'écran de choix
+            initializeWelcomeFlow();
+            goTo(1); // Force l'affichage immédiat pour éviter l'écran blanc
+        };
+
+        async function initializeWelcomeFlow() {
+            const statusEl = document.getElementById('welcome-status');
+            const btnResume = document.getElementById('btn-resume-session');
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Vérification des sessions enregistrées...';
+
+            try {
+                const status = await getSessionStatus();
+                if (btnResume) btnResume.style.display = status.hasBackup ? 'flex' : 'none';
+                if (statusEl) statusEl.innerHTML = status.hasBackup
+                    ? '<i class="fas fa-check-circle"></i> Session précédente détectée.'
+                    : '<i class="fas fa-info-circle"></i> Aucune session précédente trouvée. Démarrez une nouvelle configuration.';
+            } catch (e) {
+                console.error("Erreur session", e);
+                if (btnResume) btnResume.style.display = 'none';
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Impossible de vérifier les sessions. Vous pouvez démarrer une nouvelle configuration.';
+            }
+        }
+
+        async function getSessionStatus() {
+            try {
+                const data = await callSessionEndpoint(sessionRoutes.status);
+                return { hasBackup: data && (data.hasBackup || data.success) };
+            } catch (e) { return { hasBackup: false }; }
+        }
+
+        // ===================================================================
+        // 4. NAVIGATION
+        // ===================================================================
+        function goTo(n) {
+            document.querySelectorAll('.phase').forEach(p => {
+                p.classList.remove('active');
+                p.style.display = 'none';
+            });
+            
+            const next = document.getElementById('phase-' + n);
+            if (next) {
+                next.style.display = 'block';
+                setTimeout(() => next.classList.add('active'), 10);
+            }
+
+            document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+            const nav = document.getElementById('nav-' + n);
+            if (nav) nav.classList.add('active');
+
+            if (n === 3) loadStats();
+            if (n === 4) {
+                // S'assurer que les stats sont chargées avant d'afficher la structure
+                if (!cachedStats || !cachedStats.effectifs || cachedStats.effectifs.total === 0) {
+                    loadStats();
+                }
+                loadStructure();
+            }
+        }
+
+        function showModal(msg, type = 'info') {
+            const overlay = document.getElementById('modal-overlay');
+            const icon = document.getElementById('modal-icon');
+            const title = document.getElementById('modal-title');
+            const txt = document.getElementById('modal-message');
+            const btns = document.getElementById('modal-buttons');
+
+            const icons = { success: 'check-circle', error: 'times-circle', info: 'info-circle' };
+            icon.innerHTML = `<i class="fas fa-${icons[type] || 'info-circle'}"></i>`;
+            icon.className = `modal-icon ${type}`;
+            title.innerText = type === 'error' ? 'Erreur' : 'Information';
+            txt.innerHTML = msg;
+            btns.innerHTML = `<button class="modal-btn modal-btn-primary" onclick="closeModal()">OK</button>`;
+            overlay.classList.add('show');
+        }
+
+        function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); }
+        function toggleWelcomeModal(show) { 
+            const el = document.getElementById('welcome-overlay');
+            if (el) { if (show) el.classList.add('show'); else el.classList.remove('show'); }
+        }
+
+        function showToast(msg, type = 'info') {
+            const t = document.getElementById('toast');
+            t.className = `toast ${type} show`;
+            t.innerHTML = msg;
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function setLoading(btnId, isLoading) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.disabled = isLoading;
+            if (isLoading) btn.classList.add('loading'); else btn.classList.remove('loading');
+        }
+
+        // ===================================================================
+        // 5. ACTIONS (Init, Conso, Session)
+        // ===================================================================
+        async function handleResumeSession() {
+            const statusEl = document.getElementById('welcome-status');
+            setLoading('btn-resume-session', true);
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Chargement de la session...';
+
+            try {
+                const data = await callSessionEndpoint(sessionRoutes.load);
+                setLoading('btn-resume-session', false);
+                if (statusEl) statusEl.innerHTML = '';
+
+                if (data && data.success) {
+                    loadConfigIntoForm(data.config);
+                    toggleWelcomeModal(false);
+                    showToast('Session restaurée', 'success');
+                    // Toujours revenir à INIT pour éviter la confusion de l'utilisateur
+                    goTo(1);
+                } else {
+                    showModal("Impossible de reprendre la session.", 'error');
+                }
+            } catch (e) {
+                setLoading('btn-resume-session', false);
+                if (statusEl) statusEl.innerHTML = '';
+                showModal(e.message, 'error');
+            }
+        }
+
+        async function handleNewConfiguration() {
+            await callSessionEndpoint(sessionRoutes.reset);
+            toggleWelcomeModal(false);
+            goTo(1);
+        }
+
+        function loadConfigIntoForm(cfg) {
+            if (!cfg) return;
+            const c = cfg.config || cfg;
+            if (c.adminPassword) document.getElementById('pwd').value = c.adminPassword;
+            if (c.niveau) document.getElementById('niv').value = c.niveau;
+            if (c.nbSources) document.getElementById('src').value = c.nbSources;
+            if (c.nbDest) document.getElementById('dest').value = c.nbDest;
+            if (c.lv2) document.getElementById('lv2').value = c.lv2;
+            if (c.opt) document.getElementById('opt').value = c.opt;
+            if (c.dispo) document.getElementById('dispo').value = c.dispo;
+        }
+
+        function saveConfigOnly() {
+            const f = getForm();
+            setLoading('btn-save-config', true);
+            runServerCall('v3_saveConfigOnly', [f], res => {
+                setLoading('btn-save-config', false);
+                showToast('Configuration sauvegardée', 'success');
+            }, err => showModal(err.message, 'error'));
+        }
+
+        function runInit() {
+            const f = getForm();
+            setLoading('btn-init', true);
+            runServerCall('v3_runInitializationWithForm', [f], res => {
+                setLoading('btn-init', false);
+                if (res.success) {
+                    showToast('Initialisé !', 'success');
+                    saveProgress(2);
+                    setTimeout(() => goTo(2), 1000);
+                } else showModal(res.error, 'error');
+            }, err => showModal(err.message, 'error'));
+        }
+
+        function runConso() {
+            setLoading('btn-conso', true);
+            runServerCall('v3_genererNomPrenomEtID', [], res => {
+                setLoading('btn-conso', false);
+                if (res.success) {
+                    showToast('Consolidation terminée', 'success');
+                    saveProgress(3);
+                    setTimeout(() => goTo(3), 1000);
+                } else showModal(res.error, 'error');
+            }, err => showModal(err.message, 'error'));
+        }
+
+        function getForm() {
+            return {
+                adminPassword: document.getElementById('pwd').value,
+                niveau: document.getElementById('niv').value,
+                nbSources: parseInt(document.getElementById('src').value),
+                nbDest: parseInt(document.getElementById('dest').value),
+                lv2: document.getElementById('lv2').value,
+                opt: document.getElementById('opt').value,
+                dispo: document.getElementById('dispo').value
+            };
+        }
+
+        function saveProgress(phase, meta) {
+            runServerCall('v3_saveProgress', [phase, meta || {}], () => {}, () => {});
+        }
+
+        // ===================================================================
+        // 6. STATS
+        // ===================================================================
+        function loadStats() {
+            const el = document.getElementById('stats-effectifs');
+            if(el) el.innerHTML = '⏳';
+            
+            runServerCall('v3_getStats', [], stats => {
+                if (!stats.success) return; 
+                
+                cachedStats = stats; // Mise à jour du cache pour l'onglet Structure
+                
+                if(document.getElementById('stats-effectifs')) document.getElementById('stats-effectifs').innerHTML = stats.effectifs.total;
+                if(document.getElementById('metric-eleves')) document.getElementById('metric-eleves').innerHTML = stats.effectifs.total;
+                if(document.getElementById('stats-parite')) document.getElementById('stats-parite').innerHTML = `F: ${stats.parite.F} | M: ${stats.parite.M}`;
+                
+                const render = (obj, id) => {
+                    let h = '<table style="width:100%">';
+                    for(const [k,v] of Object.entries(obj)) h += `<tr><td style="padding:4px">${escapeHtml(k)}</td><td style="text-align:right;font-weight:bold">${escapeHtml(v)}</td></tr>`;
+                    h += '</table>';
+                    const target = document.getElementById(id);
+                    if(target) target.innerHTML = h || 'Aucun';
+                };
+                
+                render(stats.lv2, 'stats-lv2');
+                render(stats.options, 'stats-options');
+                render(stats.combos, 'stats-combos');
+                render(stats.dispositifs, 'stats-dispositifs');
+                
+                if(document.getElementById('stats-asso')) document.getElementById('stats-asso').innerHTML = `<b>${stats.asso.codes}</b> codes<br>${stats.asso.eleves} élèves`;
+                if(document.getElementById('stats-disso')) document.getElementById('stats-disso').innerHTML = `<b>${stats.disso.codes}</b> codes<br>${stats.disso.eleves} élèves`;
+
+            }, err => console.error(err));
+        }
+
+        // ===================================================================
+        // 7. MOTEUR STRUCTURE (LE FIX ESP+LATIN)
+        // ===================================================================
+        function loadStructure() {
+            console.log("📥 Chargement Structure...");
+            runServerCall('v3_getStructureDataForEditor', [], data => {
+                if (!data.success) return showModal(data.error, 'error');
+                
+                currentStructure = data;
+                
+                // Important : si les stats viennent avec la structure, on met à jour le cache
+                if (data.stats && data.stats.global) {
+                    cachedStats = data.stats;
+                }
+                
+                renderStructureTable(data);
+                triggerGlobalUpdate(); // Lancement immédiat du calcul
+            }, err => showModal(err.message, 'error'));
+        }
+
+        function renderStructureTable(data) {
+            const thead = document.getElementById('struct-header');
+            const tbody = document.getElementById('struct-body');
+            if(!thead || !tbody) return;
+            
+            let h = '<th style="text-align:left;padding-left:10px;">CLASSE</th><th>CAPACITÉ</th>';
+            data.lv2.forEach(k => h += `<th>${escapeHtml(k)}</th>`);
+            data.options.forEach(k => h += `<th>${escapeHtml(k)}</th>`);
+            thead.innerHTML = `<tr>${h}</tr>`;
+
+            tbody.innerHTML = '';
+            data.classes.forEach((cls, i) => {
+                const tr = document.createElement('tr');
+
+                let html = `<td><input type="text" value="${escapeHtml(cls.name)}"
+                    onchange="updateData(${i},'name',this.value)"
+                    style="text-align:left!important;padding-left:10px;font-size:14px;font-weight:bold"></td>`;
+
+                html += `<td><input type="number" value="${cls.capacity}"
+                    onchange="updateData(${i},'capacity',this.value)"
+                    style="color:#eab308;font-weight:bold"></td>`;
+
+                [...data.lv2, ...data.options].forEach(k => {
+                    const val = cls.quotas[k] || 0;
+                    const style = val === 0 ? 'color:#475569;font-weight:normal' : 'color:white;font-weight:bold';
+                    html += `<td><input type="number" value="${val}"
+                        onchange="updateQuota(${i},'${escapeHtml(k)}',this.value)"
+                        style="${style}"></td>`;
+                });
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            });
+
+            const totRow = document.createElement('tr');
+            totRow.id = 'totals-row';
+            totRow.style.background = '#0f172a';
+            totRow.style.borderTop = '3px solid #334155';
+            tbody.appendChild(totRow);
+        }
+
+        function updateData(idx, field, val) {
+            if (!currentStructure) return;
+            if (field === 'capacity') val = parseInt(val) || 0;
+            currentStructure.classes[idx][field] = val;
+            triggerGlobalUpdate();
+        }
+
+        function updateQuota(idx, key, val) {
+            if (!currentStructure) return;
+            const v = parseInt(val) || 0;
+            currentStructure.classes[idx].quotas[key] = v;
+            
+            if (event && event.target) {
+                event.target.style.color = v === 0 ? '#475569' : 'white';
+                event.target.style.fontWeight = v === 0 ? 'normal' : 'bold';
+            }
+            triggerGlobalUpdate();
+        }
+
+        // === LE CŒUR DU MOTEUR ===
+        function triggerGlobalUpdate() {
+            if (!currentStructure) return;
+
+            // 1. Calculer les sommes des colonnes
+            const totals = { capacity: 0, counts: {} };
+            [...currentStructure.lv2, ...currentStructure.options].forEach(k => totals.counts[k] = 0);
+
+            currentStructure.classes.forEach(cls => {
+                totals.capacity += parseInt(cls.capacity) || 0;
+                for (const [k, v] of Object.entries(cls.quotas)) {
+                    if (totals.counts[k] !== undefined) totals.counts[k] += (parseInt(v) || 0);
+                }
+            });
+
+            // Mise à jour chiffre global (sous tableau)
+            const capEl = document.getElementById('total-cap');
+            if(capEl) capEl.innerText = totals.capacity;
+
+            // 2. Rendu Ligne Totaux (Blindé contre undefined)
+            const tr = document.getElementById('totals-row');
+            if (tr) {
+                const s = cachedStats || {};
+                const effectifTotal = (s.effectifs && s.effectifs.total) ? s.effectifs.total : 0;
+                const targets = s.global || {}; // Objectifs par matière
+
+                let capCol = '#f8fafc';
+                if (effectifTotal > 0) {
+                    if (totals.capacity === effectifTotal) capCol = '#22c55e';
+                    else if (totals.capacity > effectifTotal) capCol = '#ef4444';
+                }
+
+                let html = `<td style="text-align:right;padding:10px;color:#94a3b8;font-size:12px;font-weight:bold">TOTAUX</td>`;
+                html += `<td style="text-align:center;font-size:20px;font-weight:900;color:${capCol}">${totals.capacity}</td>`;
+
+                [...currentStructure.lv2, ...currentStructure.options].forEach(k => {
+                    const offer = totals.counts[k] || 0;
+                    const demand = targets[k] || 0;
+                    
+                    let col = '#f8fafc';
+                    if (demand > 0) {
+                        if (offer === demand) col = '#22c55e';
+                        else if (offer > demand) col = '#ef4444';
+                    }
+                    html += `<td style="text-align:center;font-size:18px;font-weight:900;color:${col}">${offer}</td>`;
+                });
+                tr.innerHTML = html;
+            }
+
+            // 3. Rendu Panneau Droite
+            renderRightPanel(totals, cachedStats);
+        }
+
+        function renderRightPanel(totals, stats) {
+            const s = stats || { effectifs: { total: 0 }, global: {}, combos: {} };
+            const targets = s.global || {};
+            const effTotal = (s.effectifs && s.effectifs.total) ? s.effectifs.total : 0;
+
+            // En-tête
+            const diff = totals.capacity - effTotal;
+            const col = diff < 0 ? '#eab308' : (diff === 0 ? '#22c55e' : '#ef4444');
+            
+            const plEl = document.getElementById('metric-places');
+            if(plEl) {
+                plEl.innerHTML = `
+                <div style="margin-bottom:5px;">
+                    <div style="font-size:11px;color:#94a3b8;font-weight:700">BESOIN</div>
+                    <div style="font-size:24px;font-weight:900;color:white;">${effTotal}</div>
+                </div>
+                <div style="border-top:1px solid #334155; padding-top:5px;">
+                    <div style="font-size:11px;color:#94a3b8;font-weight:700">OFFRE</div>
+                    <div style="font-size:24px;font-weight:900;color:${col}">${totals.capacity}</div>
+                </div>`;
+            }
+
+            const renderRow = (code, demand, offer) => {
+                let c = '#eab308';
+                if (offer === demand) c = '#22c55e';
+                else if (offer > demand) c = '#ef4444';
+                const w = demand > 0 ? Math.min(100, (offer / demand) * 100) : 0;
+                return `<div style="margin-bottom:5px;padding:5px;background:rgba(255,255,255,0.03);border-radius:4px">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+                        <span style="font-weight:bold;color:white">${escapeHtml(code)}</span>
+                        <span style="color:${c}">${offer} / ${demand}</span>
+                    </div>
+                    <div style="height:4px;background:#1e293b;border-radius:2px;overflow:hidden"><div style="width:${w}%;background:${c};height:100%"></div></div>
+                </div>`;
+            };
+
+            const renderComboRow = (code, students, seats) => {
+                const demand = Math.max(0, parseInt(students) || 0);   // élèves
+                const offer = Math.max(0, parseInt(seats) || 0);        // places compatibles
+                let c = '#eab308';
+                if (demand === offer && offer > 0) c = '#22c55e';
+                else if (demand > offer) c = '#ef4444';
+                const w = offer > 0 ? Math.min(100, (demand / offer) * 100) : 0;
+                return `<div style="margin-bottom:5px;padding:5px;background:rgba(255,255,255,0.03);border-radius:4px">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+                        <span style="font-weight:bold;color:white">${escapeHtml(code)}</span>
+                        <span style="color:${c}">${demand} élèves / ${offer} places</span>
+                    </div>
+                    <div style="height:4px;background:#1e293b;border-radius:2px;overflow:hidden"><div style="width:${w}%;background:${c};height:100%"></div></div>
+                </div>`;
+            };
+
+            // LV2
+            let h = '';
+            currentStructure.lv2.forEach(k => h += renderRow(k, targets[k] || 0, totals.counts[k] || 0));
+            const qLv2 = document.getElementById('quota-lv2');
+            if(qLv2) qLv2.innerHTML = h;
+
+            // OPT
+            h = '';
+            currentStructure.options.forEach(k => h += renderRow(k, targets[k] || 0, totals.counts[k] || 0));
+            const qOpt = document.getElementById('quota-options');
+            if(qOpt) qOpt.innerHTML = h;
+
+            // COMBOS - calcul stricte LV2 × Option sans agrégat cross-LV2
+            h = '';
+
+            // Map normalisée des combos disponibles (évite tout mélange ESP/ITA)
+            const comboMap = {};
+            if (s.combos) {
+                Object.entries(s.combos).forEach(([key, value]) => {
+                    const [lv2Part, optPart] = String(key).split('+').map(p => p.trim().toUpperCase());
+                    if (!lv2Part || !optPart) return;
+                    comboMap[`${lv2Part} + ${optPart}`] = parseInt(value) || 0;
+                });
+            }
+
+            // On parcourt explicitement chaque couple LV2/Option de la structure pour éviter tout cumul involontaire
+            const lv2ListUpper = (currentStructure.lv2 || []).map(c => String(c).trim().toUpperCase());
+            (currentStructure.lv2 || []).forEach(lv2Code => {
+                (currentStructure.options || []).forEach(optCode => {
+                    const lv2Upper = String(lv2Code).trim().toUpperCase();
+                    const optUpper = String(optCode).trim().toUpperCase();
+                    const demand = comboMap[`${lv2Upper} + ${optUpper}`] || 0;
+                    if (demand === 0) return; // n'afficher que les combos réellement présents
+
+                    // Intersection des quotas par classe (places réellement compatibles)
+                    let seats = 0;
+                    currentStructure.classes.forEach(cls => {
+                        const quotasUpper = {};
+                        Object.keys(cls.quotas).forEach(key => {
+                            quotasUpper[key.toUpperCase()] = cls.quotas[key];
+                        });
+
+                        const qLv2 = parseInt(quotasUpper[lv2Upper] || 0);
+                        const qOpt = parseInt(quotasUpper[optUpper] || 0);
+
+                        // Classe incompatible si une autre LV2 a un ratio PARFAIT avec l'option (quotas quasi-identiques)
+                        if (qLv2 <= 0 || qOpt <= 0) return;
+                        const hasConflictingLv2 = lv2ListUpper.some(otherLv2 => {
+                            if (otherLv2 === lv2Upper) return false;
+                            const qOther = parseInt(quotasUpper[otherLv2] || 0);
+                            if (qOther <= 0) return false;
+                            // Une LV2 monopolise l'option si les quotas sont quasi-identiques (différence ≤ 1)
+                            const diff = Math.abs(qOther - qOpt);
+                            return diff <= 1; // Ratio parfait ou presque (ex: 8/8, 11/11, 10/11)
+                        });
+                        if (hasConflictingLv2) return;
+
+                        seats += Math.min(qLv2, qOpt);
+                    });
+
+                    h += renderComboRow(`${lv2Code} + ${optCode}`, demand, seats);
+                });
+            });
+
+            const qComb = document.getElementById('quota-combos');
+            if(qComb) qComb.innerHTML = h || '<div style="color:#64748b;font-size:11px">Aucun</div>';
+        }
+
+        // ===================================================================
+        // 8. FINALISATION
+        // ===================================================================
+        function saveStructure() {
+            setLoading('btn-save-struct', true);
+            runServerCall('v3_saveStructureFromEditor', [currentStructure], res => {
+                setLoading('btn-save-struct', false);
+                if (res.success) {
+                    showToast('Structure sauvegardée !', 'success');
+                    saveProgress(5);
+                    setTimeout(() => goTo(5), 1000);
+                } else showModal(res.error, 'error');
+            }, err => showModal(err.message, 'error'));
+        }
+
+        function runEngine() {
+            setLoading('btn-engine', true);
+            runServerCall('v3_runGeneration', [], res => {
+                setLoading('btn-engine', false);
+                if (res.success) {
+                    showToast('Calcul terminé', 'success');
+                    saveProgress(6);
+                    setTimeout(() => goTo(6), 1000);
+                } else showModal(res.error, 'error');
+            }, err => showModal(err.message, 'error'));
+        }
+
+        /**
+         * Ouvre l'Interface V2 dans une nouvelle fenêtre du navigateur
+         * puis ferme la Console Pilotage
+         */
+        function openInterfaceV2() {
+            const interfaceURL = 'https://script.google.com/macros/s/AKfycbwb6XbvEQjbskiqsMlKUa1EPXicH8bCu6fTxpyiKl0Oh47nRFJKcUy2IsNDWQsbbXltjQ/exec';
+            
+            // Ouvrir l'Interface V2 dans un nouvel onglet
+            window.open(interfaceURL, '_blank');
+            
+            // Afficher un message de confirmation
+            showToast('Interface V2 ouverte dans un nouvel onglet', 'success');
+            
+            // Fermer la Console Pilotage après un court délai
+            setTimeout(() => {
+                google.script.host.close();
+            }, 1500);
+        }
+
+    </script>
+</body>
+</html>

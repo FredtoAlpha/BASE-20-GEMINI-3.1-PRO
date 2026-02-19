@@ -1,0 +1,677 @@
+<script>
+// 🔄 Cache Buster: 2025-01-09 14:35:00 UTC - Force Google Apps Script reload
+/**
+ * GROUPS ALGORITHM V4 - ALGORITHME COMPLET
+ *
+ * Répartition intelligente avec :
+ * - Normalisation statistique (z-scores)
+ * - Indice pondéré par scénario
+ * - Distribution serpentin/tranches
+ * - Équilibrage automatique de parité (F/M)
+ * - Statistiques complètes (COM, TRA, PART, ABS, Scores F/M)
+ *
+ * Données sources (colonnes Excel) :
+ * - E: SEXE (F/M)
+ * - H: COM (comportement)
+ * - I: TRA (travail)
+ * - J: PART (participation)
+ * - K: ABS (absences)
+ * - U: SCORE F (Français, 1-4)
+ * - V: SCORE M (Maths, 1-4)
+ */
+
+const GroupsAlgorithmV4 = (function() {
+  'use strict';
+
+  // ══════════════════════════════════════════════════════════
+  // CONFIGURATION DES COEFFICIENTS PAR SCÉNARIO
+  // ══════════════════════════════════════════════════════════
+
+  const SCENARIO_WEIGHTS = {
+    besoins: {
+      // Groupes de besoins : priorité aux scores académiques
+      scoreF: 3.0,
+      scoreM: 3.0,
+      com: 1.5,
+      tra: 1.5,
+      part: 1.0,
+      abs: -2.0 // Pénalité pour absences
+    },
+    lv2: {
+      // Groupes LV2 : priorité à la participation
+      scoreF: 1.0,
+      scoreM: 1.0,
+      com: 1.5,
+      tra: 1.5,
+      part: 4.0, // PRIORITAIRE
+      abs: -2.5
+    },
+    options: {
+      // Groupes options : équilibré
+      scoreF: 2.0,
+      scoreM: 2.0,
+      com: 2.0,
+      tra: 2.0,
+      part: 2.0,
+      abs: -1.5
+    }
+  };
+
+  const PARITY_TOLERANCE = 0.15; // Tolérance d'écart F/M : 15%
+
+  // ══════════════════════════════════════════════════════════
+  // VALIDATION DES COEFFICIENTS DE PONDÉRATION
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * Valide et sécurise les coefficients de pondération
+   * CONTRÔLE MÉTIER : Les coefficients doivent rester dans [-5, +5]
+   * pour éviter des indices pondérés instables
+   *
+   * @param {Object} weights - Objet contenant les coefficients
+   * @param {string} context - Contexte pour le logging (ex: 'besoins')
+   * @returns {Object} Coefficients validés et clampés
+   */
+  function validateWeights(weights, context = 'unknown') {
+    const MIN_WEIGHT = -5;
+    const MAX_WEIGHT = 5;
+    const validatedWeights = {};
+    let hasWarning = false;
+
+    // Critères obligatoires
+    const requiredFields = ['scoreF', 'scoreM', 'com', 'tra', 'part', 'abs'];
+
+    requiredFields.forEach(field => {
+      const value = parseFloat(weights[field]);
+
+      // Validation 1 : Valeur numérique valide
+      if (isNaN(value) || !isFinite(value)) {
+        console.error(`❌ [validateWeights:${context}] Coefficient "${field}" invalide (${weights[field]}) → fallback 0`);
+        validatedWeights[field] = 0;
+        hasWarning = true;
+        return;
+      }
+
+      // Validation 2 : Bornes métiers [-5, +5]
+      const originalValue = value;
+      const clampedValue = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, value));
+
+      if (originalValue !== clampedValue) {
+        console.warn(`⚠️ [validateWeights:${context}] Coefficient "${field}" hors bornes [${MIN_WEIGHT}, ${MAX_WEIGHT}] → ${originalValue.toFixed(2)} clampé à ${clampedValue.toFixed(2)}`);
+        hasWarning = true;
+      }
+
+      // Validation 3 : Valeurs extrêmes (avertissement si > 80% du max)
+      if (Math.abs(clampedValue) > MAX_WEIGHT * 0.8) {
+        console.warn(`⚠️ [validateWeights:${context}] Coefficient "${field}" très élevé (${clampedValue.toFixed(2)}) → risque de domination sur l'indice pondéré`);
+      }
+
+      validatedWeights[field] = clampedValue;
+    });
+
+    // Validation 4 : Somme des coefficients (avertissement si déséquilibre massif)
+    const sumPositive = Object.values(validatedWeights).filter(v => v > 0).reduce((sum, v) => sum + v, 0);
+    const sumNegative = Math.abs(Object.values(validatedWeights).filter(v => v < 0).reduce((sum, v) => sum + v, 0));
+
+    if (sumPositive === 0) {
+      console.error(`❌ [validateWeights:${context}] Tous les coefficients positifs sont nuls → algorithme ne peut pas fonctionner correctement`);
+    }
+
+    if (sumPositive > 0 && sumNegative / sumPositive > 1.5) {
+      console.warn(`⚠️ [validateWeights:${context}] Déséquilibre coefficients : pénalités (${sumNegative.toFixed(1)}) > 150% des bonus (${sumPositive.toFixed(1)})`);
+    }
+
+    if (hasWarning) {
+      console.warn(`⚠️ [validateWeights:${context}] Coefficients validés avec avertissements:`, validatedWeights);
+    } else {
+      console.log(`✅ [validateWeights:${context}] Coefficients validés:`, validatedWeights);
+    }
+
+    return validatedWeights;
+  }
+
+  // Valider les coefficients au chargement
+  Object.keys(SCENARIO_WEIGHTS).forEach(scenario => {
+    SCENARIO_WEIGHTS[scenario] = validateWeights(SCENARIO_WEIGHTS[scenario], scenario);
+  });
+
+  function resolveCriteriaWeights(scenario, overrides = null, source = 'scenario-default') {
+    const baseWeights = { ...(SCENARIO_WEIGHTS[scenario] || SCENARIO_WEIGHTS.besoins) };
+    let appliedSource = source || 'custom-overrides';
+    let overridesApplied = false;
+
+    if (!overrides || appliedSource === 'scenario-default') {
+      console.log('🎚️ Pondérations résolues', {
+        scenario,
+        source: 'scenario-default',
+        overridesApplied: false,
+        weights: baseWeights
+      });
+      return {
+        weights: baseWeights,
+        source: 'scenario-default',
+        overridesApplied: false
+      };
+    }
+
+    if (typeof overrides === 'object') {
+      const sanitizedOverrides = {};
+      ['com', 'tra', 'part', 'abs'].forEach(key => {
+        if (overrides[key] === undefined || overrides[key] === null || overrides[key] === '') {
+          return;
+        }
+        const value = parseFloat(overrides[key]);
+        if (!isNaN(value) && isFinite(value)) {
+          if (key === 'abs') {
+            sanitizedOverrides[key] = value >= 0 ? -Math.abs(value) : value;
+          } else {
+            sanitizedOverrides[key] = value;
+          }
+        }
+      });
+
+      if (Object.keys(sanitizedOverrides).length > 0) {
+        Object.assign(baseWeights, sanitizedOverrides);
+        overridesApplied = true;
+      }
+    }
+
+    const validated = validateWeights(baseWeights, `${scenario}-${appliedSource}`);
+    if (!overridesApplied) {
+      appliedSource = 'scenario-default';
+    }
+
+    console.log('🎚️ Pondérations résolues', {
+      scenario,
+      source: appliedSource,
+      overridesApplied,
+      weights: validated
+    });
+
+    return {
+      weights: validated,
+      source: appliedSource,
+      overridesApplied
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ÉTAPE 1 : CONSOLIDATION DES DONNÉES
+  // ══════════════════════════════════════════════════════════
+
+  function consolidateStudents(students) {
+    return students.map(student => {
+      // Extraire et valider tous les champs
+      const scoreF = parseFloat(student.scoreF || student.scores?.F || 0);
+      const scoreM = parseFloat(student.scoreM || student.scores?.M || 0);
+      const com = parseFloat(student.com || student.COM || 0);
+      const tra = parseFloat(student.tra || student.TRA || 0);
+      const part = parseFloat(student.part || student.PART || 0);
+      const abs = parseFloat(student.abs || student.ABS || 0);
+      const sexe = (student.sexe || student.gender || 'M').toUpperCase();
+
+      return {
+        ...student,
+        scoreF: isNaN(scoreF) ? 0 : scoreF,
+        scoreM: isNaN(scoreM) ? 0 : scoreM,
+        com: isNaN(com) ? 0 : com,
+        tra: isNaN(tra) ? 0 : tra,
+        part: isNaN(part) ? 0 : part,
+        abs: isNaN(abs) ? 0 : abs,
+        sexe: sexe === 'F' || sexe === 'M' ? sexe : 'M',
+        originalClass: student.class || student.classe || ''
+      };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ÉTAPE 2 : NORMALISATION STATISTIQUE (Z-SCORES)
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * Calcule la moyenne d'un tableau de valeurs
+   */
+  function mean(values) {
+    if (!values || values.length === 0) return 0;
+    return values.reduce((sum, val) => sum + val, 0) / values.length;
+  }
+
+  /**
+   * Calcule l'écart-type d'un tableau de valeurs
+   */
+  function stdDev(values, avg) {
+    if (!values || values.length === 0) return 1;
+    const variance = values.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / values.length;
+    return Math.sqrt(variance) || 1; // Éviter division par zéro
+  }
+
+  /**
+   * Calcule le z-score (écart normalisé)
+   */
+  function zScore(value, avg, std) {
+    if (std === 0) return 0;
+    return (value - avg) / std;
+  }
+
+  /**
+   * Normalise tous les indicateurs en z-scores
+   */
+  function normalizeWithZScores(students) {
+    const fields = ['scoreF', 'scoreM', 'com', 'tra', 'part', 'abs'];
+    const stats = {};
+
+    // Calculer moyenne et écart-type pour chaque champ
+    fields.forEach(field => {
+      const values = students.map(s => s[field]).filter(v => v !== null && v !== undefined);
+      const avg = mean(values);
+      const std = stdDev(values, avg);
+      stats[field] = { avg, std };
+    });
+
+    // Appliquer les z-scores à chaque élève
+    return students.map(student => {
+      const normalized = { ...student };
+
+      fields.forEach(field => {
+        const { avg, std } = stats[field];
+        normalized[`${field}_z`] = zScore(student[field], avg, std);
+      });
+
+      return normalized;
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ÉTAPE 3 : CALCUL DE L'INDICE PONDÉRÉ PAR SCÉNARIO
+  // ══════════════════════════════════════════════════════════
+
+  function calculateWeightedIndex(student, weights) {
+    const resolved = weights || SCENARIO_WEIGHTS.besoins;
+
+    // Indice = somme des (z-score × coefficient)
+    const index =
+      (student.scoreF_z || 0) * resolved.scoreF +
+      (student.scoreM_z || 0) * resolved.scoreM +
+      (student.com_z || 0) * resolved.com +
+      (student.tra_z || 0) * resolved.tra +
+      (student.part_z || 0) * resolved.part +
+      (student.abs_z || 0) * resolved.abs; // Négatif pour pénaliser
+
+    return index;
+  }
+
+  function addWeightedIndices(students, weights) {
+    return students.map(student => ({
+      ...student,
+      weightedIndex: calculateWeightedIndex(student, weights)
+    }));
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ÉTAPE 4 : DISTRIBUTION INITIALE
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * Distribution hétérogène : mélange les niveaux (serpentin)
+   */
+  function distributeHeterogeneous(students, numGroups) {
+    // Trier par indice décroissant
+    const sorted = [...students].sort((a, b) => (b.weightedIndex || 0) - (a.weightedIndex || 0));
+
+    // Initialiser les groupes
+    const groups = Array.from({ length: numGroups }, (_, i) => ({
+      id: i + 1,
+      name: `Groupe ${i + 1}`,
+      students: []
+    }));
+
+    // Distribution en serpentin
+    let groupIndex = 0;
+    let direction = 1; // 1 = vers la droite, -1 = vers la gauche
+
+    sorted.forEach(student => {
+      groups[groupIndex].students.push(student);
+      groupIndex += direction;
+
+      // Inverser aux extrémités
+      if (groupIndex >= numGroups) {
+        groupIndex = numGroups - 1;
+        direction = -1;
+      } else if (groupIndex < 0) {
+        groupIndex = 0;
+        direction = 1;
+      }
+    });
+
+    return groups;
+  }
+
+  /**
+   * Distribution homogène : groupes de niveaux similaires (tranches)
+   */
+  function distributeHomogeneous(students, numGroups) {
+    // Trier par indice décroissant
+    const sorted = [...students].sort((a, b) => (b.weightedIndex || 0) - (a.weightedIndex || 0));
+
+    // Initialiser les groupes
+    const groups = Array.from({ length: numGroups }, (_, i) => ({
+      id: i + 1,
+      name: `Groupe ${i + 1}`,
+      students: []
+    }));
+
+    // Distribution par tranches (round-robin)
+    sorted.forEach((student, index) => {
+      const groupIndex = index % numGroups;
+      groups[groupIndex].students.push(student);
+    });
+
+    return groups;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ÉTAPE 5 : ÉQUILIBRAGE AUTOMATIQUE DE PARITÉ (F/M)
+  // ══════════════════════════════════════════════════════════
+
+  function calculateParityRatio(group) {
+    const total = group.students.length;
+    if (total === 0) return { girls: 0, boys: 0, ratio: 0, total: 0 };
+
+    const girls = group.students.filter(s => s.sexe === 'F').length;
+    const boys = group.students.filter(s => s.sexe === 'M').length;
+    const ratio = girls / total;
+
+    return { girls, boys, ratio, total };
+  }
+
+  function balanceGender(groups) {
+    const maxIterations = 100; // Éviter boucles infinies
+    let iteration = 0;
+    let swapsMade = false;
+
+    do {
+      swapsMade = false;
+      iteration++;
+
+      // Calculer les ratios pour chaque groupe
+      const parityData = groups.map((group, index) => ({
+        index,
+        ...calculateParityRatio(group)
+      }));
+
+      // Trouver les groupes déséquilibrés
+      const targetRatio = mean(parityData.map(p => p.ratio));
+
+      for (let i = 0; i < groups.length; i++) {
+        const groupA = groups[i];
+        const dataA = parityData[i];
+
+        // Si le groupe est trop déséquilibré
+        if (Math.abs(dataA.ratio - targetRatio) > PARITY_TOLERANCE) {
+          // Chercher un groupe avec qui échanger
+          for (let j = i + 1; j < groups.length; j++) {
+            const groupB = groups[j];
+            const dataB = parityData[j];
+
+            // Essayer d'échanger une fille contre un garçon (ou vice-versa)
+            if (dataA.ratio > targetRatio && dataB.ratio < targetRatio) {
+              // Groupe A a trop de filles, groupe B pas assez
+              const girlFromA = groupA.students.find(s => s.sexe === 'F');
+              const boyFromB = groupB.students.find(s => s.sexe === 'M');
+
+              if (girlFromA && boyFromB) {
+                // Swap
+                groupA.students = groupA.students.filter(s => s.id !== girlFromA.id);
+                groupA.students.push(boyFromB);
+                groupB.students = groupB.students.filter(s => s.id !== boyFromB.id);
+                groupB.students.push(girlFromA);
+                swapsMade = true;
+              }
+            } else if (dataA.ratio < targetRatio && dataB.ratio > targetRatio) {
+              // Groupe A a trop de garçons, groupe B trop de filles
+              const boyFromA = groupA.students.find(s => s.sexe === 'M');
+              const girlFromB = groupB.students.find(s => s.sexe === 'F');
+
+              if (boyFromA && girlFromB) {
+                // Swap
+                groupA.students = groupA.students.filter(s => s.id !== boyFromA.id);
+                groupA.students.push(girlFromB);
+                groupB.students = groupB.students.filter(s => s.id !== girlFromB.id);
+                groupB.students.push(boyFromA);
+                swapsMade = true;
+              }
+            }
+          }
+        }
+      }
+    } while (swapsMade && iteration < maxIterations);
+
+    console.log(`✅ Équilibrage de parité terminé après ${iteration} itération(s)`);
+    return groups;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ÉTAPE 6 : CALCUL DES STATISTIQUES COMPLÈTES
+  // ══════════════════════════════════════════════════════════
+
+  function calculateGroupStats(groups) {
+    return groups.map(group => {
+      const students = group.students;
+      const total = students.length;
+
+      if (total === 0) {
+        return {
+          groupId: group.id,
+          name: group.name,
+          totalStudents: 0,
+          girls: 0,
+          boys: 0,
+          parityRatio: 0,
+          avgScoreF: 0,
+          avgScoreM: 0,
+          avgCOM: 0,
+          avgTRA: 0,
+          avgPART: 0,
+          avgABS: 0
+        };
+      }
+
+      const girls = students.filter(s => s.sexe === 'F').length;
+      const boys = students.filter(s => s.sexe === 'M').length;
+
+      return {
+        groupId: group.id,
+        name: group.name,
+        totalStudents: total,
+        girls,
+        boys,
+        parityRatio: (girls / total * 100).toFixed(1) + '%',
+        avgScoreF: mean(students.map(s => s.scoreF)).toFixed(2),
+        avgScoreM: mean(students.map(s => s.scoreM)).toFixed(2),
+        avgCOM: mean(students.map(s => s.com)).toFixed(2),
+        avgTRA: mean(students.map(s => s.tra)).toFixed(2),
+        avgPART: mean(students.map(s => s.part)).toFixed(2),
+        avgABS: mean(students.map(s => s.abs)).toFixed(2)
+      };
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ÉTAPE 7 : VALIDATION FINALE ET ALERTES
+  // ══════════════════════════════════════════════════════════
+
+  function validateAndAlert(groups, stats) {
+    const warnings = [];
+    const alerts = [];
+
+    // Vérifier la parité
+    const parityRatios = stats.map(s => parseFloat(s.parityRatio));
+    const maxParity = Math.max(...parityRatios);
+    const minParity = Math.min(...parityRatios);
+    const parityGap = maxParity - minParity;
+
+    if (parityGap > PARITY_TOLERANCE * 100) {
+      warnings.push(`⚠️ Écart de parité F/M de ${parityGap.toFixed(1)}% entre groupes`);
+    }
+
+    // Vérifier les effectifs
+    const sizes = stats.map(s => s.totalStudents);
+    const maxSize = Math.max(...sizes);
+    const minSize = Math.min(...sizes);
+    const sizeGap = maxSize - minSize;
+
+    if (sizeGap > 2) {
+      warnings.push(`⚠️ Écart d'effectifs de ${sizeGap} élèves entre groupes`);
+    }
+
+    // Vérifier les moyennes de scores
+    const avgScoresF = stats.map(s => parseFloat(s.avgScoreF));
+    const scoreGapF = Math.max(...avgScoresF) - Math.min(...avgScoresF);
+
+    if (scoreGapF > 1.0) {
+      alerts.push(`📊 Écart de moyennes en Français : ${scoreGapF.toFixed(2)} points`);
+    }
+
+    return { warnings, alerts };
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // POINT D'ENTRÉE PRINCIPAL
+  // ══════════════════════════════════════════════════════════
+
+  function distribute(config) {
+    const {
+      students = [],
+      mode = 'heterogeneous', // 'heterogeneous' | 'homogeneous'
+      numGroups = 3,
+      scenario = 'besoins', // 'besoins' | 'lv2' | 'options'
+      criteriaWeights = null,
+      criteriaWeightsSource = 'scenario-default'
+    } = config;
+
+    console.log(`🚀 Algorithme V4 : Distribution ${mode} pour ${students.length} élèves en ${numGroups} groupes (scénario: ${scenario})`);
+
+    // ✨ NOUVEAU : Déterminer les pondérations à utiliser
+    let activeWeights;
+    if (criteriaWeights) {
+      // ✨ STRATÉGIE DE MERGE : Partir du scénario puis appliquer les criteriaWeights
+      // Cela permet au joystick de ne gérer que COM/TRA/PART/ABS
+      // tout en conservant scoreF/scoreM du scénario
+      const baseWeights = SCENARIO_WEIGHTS[scenario] || SCENARIO_WEIGHTS.besoins;
+      const mergedWeights = { ...baseWeights, ...criteriaWeights };
+
+      console.log('🎛️ Merge des pondérations personnalisées avec le scénario:', scenario);
+      console.log('   Base (scénario):', baseWeights);
+      console.log('   Custom (joystick):', criteriaWeights);
+      console.log('   Résultat (merged):', mergedWeights);
+
+      activeWeights = validateWeights(mergedWeights, 'custom');
+    } else {
+      // Utiliser les pondérations par défaut du scénario
+      activeWeights = SCENARIO_WEIGHTS[scenario] || SCENARIO_WEIGHTS.besoins;
+      console.log('📊 Utilisation des pondérations du scénario:', scenario, activeWeights);
+    }
+
+    // Validation
+    if (!students || students.length === 0) {
+      throw new Error('Aucun élève fourni pour la répartition');
+    }
+
+    if (numGroups < 2) {
+      throw new Error('Le nombre de groupes doit être au minimum 2');
+    }
+
+    // Helper pour émettre progression
+    const emitProgress = (step) => {
+      const event = new CustomEvent('algorithm:progress', { detail: { step } });
+      document.dispatchEvent(event);
+    };
+
+    // ÉTAPE 1 : Consolidation
+    emitProgress(0);
+    console.log('📋 Étape 1/7 : Consolidation des données...');
+    const consolidated = consolidateStudents(students);
+
+    // ÉTAPE 2 : Normalisation (z-scores)
+    emitProgress(1);
+    console.log('📊 Étape 2/7 : Normalisation statistique (z-scores)...');
+    const normalized = normalizeWithZScores(consolidated);
+
+    // ÉTAPE 3 : Indice pondéré
+    emitProgress(2);
+    console.log('⚖️ Étape 3/7 : Calcul des indices pondérés...');
+    const resolvedWeights = resolveCriteriaWeights(scenario, criteriaWeights, criteriaWeightsSource);
+    console.log('⚖️ Pondérations appliquées à l\'indice pondéré:', resolvedWeights);
+    const weighted = addWeightedIndices(normalized, resolvedWeights.weights);
+
+    // ÉTAPE 4 : Distribution initiale
+    emitProgress(3);
+    console.log(`🔀 Étape 4/7 : Distribution ${mode}...`);
+    const groups = mode === 'homogeneous'
+      ? distributeHomogeneous(weighted, numGroups)
+      : distributeHeterogeneous(weighted, numGroups);
+
+    // ÉTAPE 5 : Équilibrage de parité
+    emitProgress(4);
+    console.log('👥 Étape 5/7 : Équilibrage de la parité F/M...');
+    const balanced = balanceGender(groups);
+
+    // ÉTAPE 6 : Statistiques
+    emitProgress(5);
+    console.log('📈 Étape 6/7 : Calcul des statistiques...');
+    const stats = calculateGroupStats(balanced);
+
+    // ÉTAPE 7 : Validation
+    emitProgress(6);
+    console.log('✅ Étape 7/7 : Validation finale...');
+    const { warnings, alerts } = validateAndAlert(balanced, stats);
+
+    // Résultat final
+    const result = {
+      groups: balanced,
+      stats,
+      warnings,
+      alerts,
+      metadata: {
+        mode,
+        scenario,
+        numGroups,
+        totalStudents: students.length,
+        timestamp: new Date().toISOString(),
+        algorithm: 'V4-Complete',
+        scenarioApplied: scenario,
+        criteriaWeights: resolvedWeights.weights,
+        criteriaWeightsSource: resolvedWeights.source,
+        criteriaWeightsOverridesApplied: resolvedWeights.overridesApplied
+      }
+    };
+
+    console.log(`✨ Distribution terminée : ${balanced.length} groupes créés`);
+    console.log(`🎛️ Pondérations utilisées:`, activeWeights);
+    return result;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // API PUBLIQUE
+  // ══════════════════════════════════════════════════════════
+
+  return {
+    distribute,
+    // Exposer les sous-fonctions pour tests
+    consolidateStudents,
+    normalizeWithZScores,
+    calculateWeightedIndex,
+    distributeHeterogeneous,
+    distributeHomogeneous,
+    balanceGender,
+    calculateGroupStats,
+    validateAndAlert
+  };
+})();
+
+// Export global
+if (typeof window !== 'undefined') {
+  window.GroupsAlgorithmV4 = GroupsAlgorithmV4;
+  console.log('✅ GroupsAlgorithmV4 (Version Complète) chargé');
+}
+</script>

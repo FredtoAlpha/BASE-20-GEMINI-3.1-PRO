@@ -1,0 +1,313 @@
+<script>
+// Correctifs du panneau statistiques extraits de InterfaceV2.html.
+// ========== NETTOYAGE ET CORRECTION DÉFINITIVE DU PANNEAU STATS ==========
+console.log('🧹 Début du nettoyage du code statistiques...');
+
+// 1. Supprimer TOUTES les protections précédentes qui causent des conflits
+if (window.statsPanelProtection && window.statsPanelProtection.observer) {
+  window.statsPanelProtection.observer.disconnect();
+  window.statsPanelProtection = null;
+  console.log('✅ Protection MutationObserver supprimée');
+}
+
+// 2. Restaurer les méthodes classList originales du panneau
+const statsPanelClean = document.getElementById('statsPanel');
+if (statsPanelClean && statsPanelClean.classList._originalAdd) {
+  // Si on a modifié les méthodes, les restaurer
+  statsPanelClean.classList.add = statsPanelClean.classList._originalAdd;
+  statsPanelClean.classList.remove = statsPanelClean.classList._originalRemove;
+  statsPanelClean.classList.toggle = statsPanelClean.classList._originalToggle;
+  console.log('✅ Méthodes classList restaurées');
+}
+
+
+// 4. Nettoyer updateAllColumnStats pour éviter les appels multiples
+let updateStatsTimeout = null;
+const originalUpdateAllColumnStats = window.updateAllColumnStats;
+
+window.updateAllColumnStats = function() {
+  // Appel immédiat de la fonction originale pour les stats des colonnes
+  document.querySelectorAll('.class-column').forEach(column => {
+    const className = column.querySelector('.classe-name').textContent;
+    
+    if (!isRealClass(className)) return;
+    
+    const dropZone = column.querySelector('.droppable-zone');
+    const cards = Array.from(dropZone.querySelectorAll('.student-card'));
+    const eleves = cards.map(card => STATE.students[card.dataset.id]).filter(Boolean);
+    
+    updateColumnStats(column, eleves);
+  });
+  
+  // Mise à jour des métriques
+  if (typeof updateNewMetrics === 'function') {
+    updateNewMetrics();
+  }
+  
+  // Debounce pour la mise à jour du panneau stats
+  clearTimeout(updateStatsTimeout);
+  updateStatsTimeout = setTimeout(() => {
+    const panel = document.getElementById('statsPanel');
+    if (panel && !panel.classList.contains('translate-x-full')) {
+      console.log('📊 Déclenchement mise à jour panneau stats (debounced)');
+      updateStatsPanel();
+    }
+  }, 100);
+};
+
+// 5. Gestionnaire d'ouverture/fermeture propre
+window.toggleStatsPanel = function() {
+  const panel = document.getElementById('statsPanel');
+  if (!panel) return;
+  
+  const isOpen = !panel.classList.contains('translate-x-full');
+  
+  if (isOpen) {
+    // Fermer
+    panel.classList.add('translate-x-full');
+    document.body.classList.remove('stats-open');
+    console.log('📊 Panneau fermé manuellement');
+  } else {
+    // Ouvrir
+    panel.classList.remove('translate-x-full');
+    document.body.classList.add('stats-open');
+    
+    // Initialiser les graphiques si nécessaire
+    if (!window.areChartsReady()) {
+      console.log('📊 Initialisation des graphiques...');
+      if (typeof initCharts === 'function') {
+        initCharts();
+      }
+    }
+    
+    // Mise à jour après ouverture
+    setTimeout(() => {
+      updateStatsPanel();
+    }, 100);
+    
+    console.log('📊 Panneau ouvert manuellement');
+  }
+};
+
+// 6. Remplacer TOUS les event listeners existants
+document.addEventListener('DOMContentLoaded', () => {
+  // Supprimer les anciens listeners
+  const oldBtnStats = document.getElementById('btnStats');
+  if (oldBtnStats) {
+    const newBtnStats = oldBtnStats.cloneNode(true);
+    oldBtnStats.parentNode.replaceChild(newBtnStats, oldBtnStats);
+    
+    // Nouveau listener propre
+    newBtnStats.addEventListener('click', () => {
+      toggleStatsPanel();
+    });
+  }
+  
+  // Bouton de fermeture
+  const oldCloseStats = document.getElementById('closeStats');
+  if (oldCloseStats) {
+    const newCloseStats = oldCloseStats.cloneNode(true);
+    oldCloseStats.parentNode.replaceChild(newCloseStats, oldCloseStats);
+
+    newCloseStats.addEventListener('click', () => {
+      const panel = document.getElementById('statsPanel');
+      if (panel) {
+        panel.classList.add('translate-x-full');
+        document.body.classList.remove('stats-open');
+        // Mettre à jour aria-expanded
+        const btnStats = document.getElementById('btnStats');
+        if (btnStats) btnStats.setAttribute('aria-expanded', 'false');
+        console.log('📊 Panneau fermé par bouton X');
+      }
+    });
+  }
+  
+  // Raccourci Échap (remplacer l'ancien)
+  const handleEscape = (e) => {
+    if (e.key === 'Escape') {
+      const panel = document.getElementById('statsPanel');
+      if (panel && !panel.classList.contains('translate-x-full')) {
+        panel.classList.add('translate-x-full');
+        document.body.classList.remove('stats-open');
+        // Mettre à jour aria-expanded
+        const btnStats = document.getElementById('btnStats');
+        if (btnStats) btnStats.setAttribute('aria-expanded', 'false');
+        console.log('📊 Panneau fermé par Échap');
+      }
+    }
+  };
+  
+  // Retirer l'ancien listener et ajouter le nouveau
+  document.removeEventListener('keydown', handleEscape);
+  document.addEventListener('keydown', handleEscape);
+});
+
+// 7. CSS pour des transitions douces
+if (!document.getElementById('stats-panel-clean-styles')) {
+  const cleanStyles = document.createElement('style');
+  cleanStyles.id = 'stats-panel-clean-styles';
+  cleanStyles.textContent = `
+    /* Transition douce pour le panneau */
+    #statsPanel {
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    
+    /* Classe de mise à jour - légère opacité */
+    #statsPanel.updating {
+      opacity: 0.95;
+      transition: opacity 0.1s ease;
+    }
+    
+    /* Empêcher le scintillement des graphiques */
+    #statsPanel .chart-container {
+      transition: none !important;
+    }
+    
+    /* Animation subtile pour les valeurs qui changent */
+    .metric-value {
+      transition: color 0.2s ease, transform 0.2s ease;
+    }
+    
+    .metric-value.changed {
+      transform: scale(1.02);
+    }
+  `;
+  document.head.appendChild(cleanStyles);
+}
+
+
+// 9. Protection contre les initialisations multiples des graphiques
+let chartsInitialized = false;
+const originalInitCharts = window.initCharts;
+
+window.initCharts = function() {
+  if (chartsInitialized) {
+    console.log('⚠️ Graphiques déjà initialisés, skip');
+    return;
+  }
+  
+  if (originalInitCharts) {
+    originalInitCharts.call(this);
+    chartsInitialized = true;
+    console.log('✅ Graphiques initialisés une seule fois');
+  }
+};
+
+// 10. Nettoyer les fonctions de swap pour éviter les doubles mises à jour
+const originalPerformSwapClean = window.performSwap;
+window.performSwap = function(id1, id2) {
+  // Appeler la fonction originale sans les mises à jour supplémentaires
+  const card1 = document.querySelector(`.student-card[data-id="${id1}"]`);
+  const card2 = document.querySelector(`.student-card[data-id="${id2}"]`);
+  
+  if (!card1 || !card2) {
+    console.error('Cartes non trouvées pour le swap');
+    return;
+  }
+  
+  const zone1 = card1.closest('.droppable-zone');
+  const zone2 = card2.closest('.droppable-zone');
+  
+  if (!zone1 || !zone2) {
+    console.error('Zones non trouvées pour le swap');
+    return;
+  }
+  
+  // Animation de swap
+  card1.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+  card2.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+  
+  // Échanger les cartes
+  zone2.appendChild(card1);
+  zone1.appendChild(card2);
+  
+  // Ajouter à l'historique
+  STATE.history.push({
+    type: 'swap',
+    id1,
+    id2,
+    classe1: zone1.dataset.classe,
+    classe2: zone2.dataset.classe
+  });
+  STATE.future = [];
+  updateUndoRedoButtons();
+  
+  // UNE SEULE mise à jour des stats
+  updateAllColumnStats();
+  
+  // Sauvegarde
+  if (STATE.currentMode === 'CACHE') {
+    setTimeout(() => saveImmediateCache(), 100);
+  }
+  
+  const eleve1 = STATE.students[id1];
+  const eleve2 = STATE.students[id2];
+  toast(`Swap réussi entre ${eleve1.nom} et ${eleve2.nom}`, 'success');
+};
+
+console.log('✅ Nettoyage terminé - Le panneau stats devrait maintenant rester stable');
+
+// ===== LOGIQUE SIMPLE DE LA VERSION QUI FONCTIONNE =====
+console.log('✅ Application de la logique simple qui fonctionne...');
+
+// Fonctions de mise à jour simplifiées utilisant la variable locale currentScoreType
+window.updateStatsPanel = function() {
+  try {
+    console.log('📊 updateStatsPanel - version simple');
+    
+    const panel = document.getElementById('statsPanel');
+    if (!panel || panel.classList.contains('translate-x-full')) {
+      console.log('📊 Panneau fermé, skip');
+      return;
+    }
+    
+    // Utiliser directement updateCharts qui gère currentScoreType
+    if (typeof updateCharts === 'function') {
+      console.log('📊 Appel de updateCharts...');
+      try {
+        updateCharts();
+        console.log('📊 updateCharts terminé');
+      } catch (error) {
+        console.error('❌ Erreur dans updateCharts:', error);
+      }
+    } else {
+      console.error('❌ updateCharts non définie');
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur dans updateStatsPanel:', error);
+  }
+};
+
+window.updateAdvancedStats = function() {
+  try {
+    console.log('📊 updateAdvancedStats - version simple');
+    
+    const panel = document.getElementById('statsPanel');
+    if (!panel || panel.classList.contains('translate-x-full')) {
+      return;
+    }
+    
+    // Mise à jour des métriques
+    if (typeof updateNewMetrics === 'function') {
+      updateNewMetrics();
+    }
+    
+    // Mise à jour des graphiques
+    if (typeof updateCharts === 'function') {
+      updateCharts();
+    }
+    
+    // Mise à jour LV2
+    if (typeof updateLV2Details === 'function') {
+      updateLV2Details();
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur dans updateAdvancedStats:', error);
+  }
+};
+
+console.log('✅ Logique simple appliquée avec succès');
+// ===== FIN DE LA LOGIQUE SIMPLE =====
+</script>

@@ -1,0 +1,252 @@
+<script>
+/**
+ * Gestion des contrôles du header : Mode édition et Modale Finaliser
+ */
+(function() {
+  'use strict';
+  
+  console.log('🎛️ Initialisation des contrôles du header...');
+  
+  // ============================================
+  // 1. MODE ÉDITION (swap d'élèves)
+  // ============================================
+  
+  let isEditMode = false;
+  
+  /**
+   * Active le mode édition : bouton Éditer devient rouge pulsé
+   */
+  window.enableEditMode = function() {
+    isEditMode = true;
+    document.body.classList.add('mode-edit');
+    console.log('✅ Mode édition activé - Bouton Éditer en rouge pulsé');
+    
+    // Optionnel : afficher un toast
+    if (window.showToast) {
+      showToast('Mode échange activé : cliquez sur deux élèves pour les permuter', 'info');
+    }
+  };
+  
+  /**
+   * Désactive le mode édition
+   */
+  window.disableEditMode = function() {
+    isEditMode = false;
+    document.body.classList.remove('mode-edit');
+    console.log('❌ Mode édition désactivé');
+    
+    // Optionnel : afficher un toast
+    if (window.showToast) {
+      showToast('Mode échange désactivé', 'info');
+    }
+  };
+  
+  /**
+   * Toggle du mode édition
+   */
+  window.toggleEditMode = function() {
+    if (isEditMode) {
+      disableEditMode();
+    } else {
+      enableEditMode();
+    }
+  };
+  
+  /**
+   * Getter pour savoir si le mode édition est actif
+   */
+  window.isEditModeActive = function() {
+    return isEditMode;
+  };
+  
+  // ============================================
+  // 2. MODALE DE CONFIRMATION FINALISER
+  // ============================================
+  
+  const modal = document.getElementById('finalizeConfirmModal');
+  const content = document.getElementById('finalizeConfirmContent');
+  const btnFinalize = document.getElementById('btnFinalize');
+  const btnCancel = document.getElementById('btnCancelFinalize');
+  const btnConfirm = document.getElementById('btnConfirmFinalize');
+  
+  if (!modal || !content || !btnFinalize || !btnCancel || !btnConfirm) {
+    console.warn('⚠️ Éléments de la modale Finaliser non trouvés');
+    return;
+  }
+  
+  /**
+   * Ouvre la modale de confirmation
+   */
+  function openFinalizeModal() {
+    modal.classList.remove('hidden');
+    
+    // Animation d'entrée
+    setTimeout(() => {
+      content.classList.remove('scale-95', 'opacity-0');
+      content.classList.add('scale-100', 'opacity-100');
+    }, 10);
+    
+    // Focus sur le bouton Confirmer pour accessibilité
+    setTimeout(() => {
+      btnConfirm.focus();
+    }, 100);
+    
+    console.log('📋 Modale de confirmation Finaliser ouverte');
+  }
+  
+  /**
+   * Ferme la modale de confirmation
+   */
+  function closeFinalizeModal() {
+    content.classList.remove('scale-100', 'opacity-100');
+    content.classList.add('scale-95', 'opacity-0');
+    
+    setTimeout(() => {
+      modal.classList.add('hidden');
+    }, 300);
+    
+    console.log('📋 Modale de confirmation Finaliser fermée');
+  }
+  
+  /**
+   * Exécute la finalisation réelle (à connecter avec votre fonction existante)
+   */
+  function executeFinalizeProcess() {
+    console.log('🎯 Finalisation confirmée - Appel de la sauvegarde...');
+
+    // 🔍 DIAGNOSTIC : Vérifier le mode actuel
+    const currentMode = window.STATE?.currentMode || localStorage.getItem('mode-selection') || 'CACHE';
+    console.log('📊 Mode actuel détecté:', currentMode);
+    console.log('📊 STATE.currentMode:', window.STATE?.currentMode);
+    console.log('📊 localStorage mode:', localStorage.getItem('mode-selection'));
+
+    // ⚠️ IMPORTANT : Forcer le mode CACHE pour la finalisation
+    // Les onglets FIN doivent être créés depuis les données CACHE (répartition actuelle)
+    const modeToUse = 'CACHE';
+    console.log(`✅ Finalisation depuis le mode: ${modeToUse}`);
+
+    // Appeler la fonction de sauvegarde avec progression depuis CoreScript
+    if (window.lancerSauvegardeAvecProgression) {
+      window.lancerSauvegardeAvecProgression('finalizeClasses', btnFinalize, {
+        title: 'Finalisation des classes...',
+        successMessage: 'Classes finalisées avec succès !',
+        forcedMode: modeToUse  // Passer le mode forcé
+      });
+    } else if (window.finalizeClasses) {
+      // Fallback si lancerSauvegardeAvecProgression n'existe pas
+      console.log('📌 Appel direct à window.finalizeClasses');
+      window.finalizeClasses();
+    } else {
+      console.warn('⚠️ Fonctions de finalisation non trouvées');
+      if (window.showToast) {
+        window.showToast('✅ Répartition finalisée', 'success');
+      }
+    }
+  }
+  
+  /**
+   * Fonction de finalisation par défaut (sera écrasée si vous avez votre propre implémentation)
+   */
+  if (!window.finalizeClasses) {
+    window.finalizeClasses = function() {
+      console.log('📌 Finalisation des classes - Version par défaut');
+      
+      // 1. Sauvegarder l'état courant comme "officiel"
+      // TODO: Implémenter la sauvegarde réelle
+      
+      // 2. Marquer l'état comme finalisé côté storage
+      // TODO: Implémenter le marquage
+      
+      // 3. Mettre à jour l'UI (badge, lock, etc.)
+      // TODO: Implémenter la mise à jour UI
+      
+      if (window.showToast) {
+        showToast('✅ Répartition finalisée comme version présentable', 'success');
+      }
+      
+      console.log('✅ Finalisation effective exécutée');
+    };
+  }
+  
+  // Événements
+  
+  // Clic sur le bouton Finaliser du header
+  btnFinalize.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openFinalizeModal();
+  });
+  
+  // Clic sur Annuler
+  btnCancel.addEventListener('click', function() {
+    closeFinalizeModal();
+  });
+  
+  // Clic sur Confirmer
+  btnConfirm.addEventListener('click', function() {
+    closeFinalizeModal();
+    
+    // Attendre que la modale se ferme avant d'exécuter
+    setTimeout(() => {
+      executeFinalizeProcess();
+    }, 350);
+  });
+  
+  // Fermer si clic sur le fond
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      closeFinalizeModal();
+    }
+  });
+  
+  // Fermer avec Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      closeFinalizeModal();
+    }
+  });
+  
+  // ============================================
+  // 3. BOUTON ÉDITER - DÉSACTIVÉ
+  // ============================================
+  // ⚠️ La gestion du bouton Éditer est maintenant dans InterfaceV2_CoreScript.html
+  // (bloc "1.6 GESTION DU MENU ÉDITER (DROPDOWN)")
+  // Ne pas ajouter de listener ici pour éviter les doublons
+  
+  // ============================================
+  // 4. BOUTON RÉGLER - DÉSACTIVÉ
+  // ============================================
+  // Le bouton Régler est maintenant géré par InterfaceV2_CoreScript.html
+  // qui ouvre le menu dropdown #dropdownRegler (Menu B)
+  // Le panneau plein écran #lisibilite-panel (Menu A) a été supprimé
+  
+  /* DÉSACTIVÉ - Ancien code pour #lisibilite-panel
+  const btnRegler = document.getElementById('btnRegler');
+  const panelLisibilite = document.getElementById('lisibilite-panel');
+  const closeLisibilite = document.getElementById('close-lisibilite-panel');
+  
+  if (btnRegler && panelLisibilite) {
+    btnRegler.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      panelLisibilite.classList.remove('-translate-y-full');
+      console.log('📐 Panneau Régler ouvert');
+    });
+    
+    if (closeLisibilite) {
+      closeLisibilite.addEventListener('click', function() {
+        panelLisibilite.classList.add('-translate-y-full');
+        console.log('📐 Panneau Régler fermé');
+      });
+    }
+    
+    console.log('✅ Bouton Régler connecté au panneau de lisibilité');
+  } else {
+    console.warn('⚠️ Bouton Régler ou panneau de lisibilité non trouvé');
+  }
+  FIN DÉSACTIVÉ */
+  
+  console.log('✅ Contrôles du header initialisés (Régler géré par CoreScript)');
+  
+})();
+</script>

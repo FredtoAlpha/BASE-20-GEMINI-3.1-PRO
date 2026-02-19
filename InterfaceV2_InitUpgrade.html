@@ -1,0 +1,93 @@
+<script>
+// ==============================
+//  Patch Étape 3 — Auto-save conditionnel
+//  - Vérifie que STATE.has_user_action et STATE.last_save_ts existent
+//  - Initialise le badge de sauvegarde au démarrage
+//  - Force has_user_action à false au boot pour éviter une sauvegarde immédiate
+//  - Monkey-patch saveCacheData() pour filtrer les sauvegardes
+// ==============================
+(function () {
+  console.log('🔧 Patch InitUpgrade chargé');
+  
+  // Vérifier que STATE existe et a les bonnes propriétés
+  window.STATE = window.STATE || {};
+  if (typeof window.STATE.has_user_action === "undefined") {
+    window.STATE.has_user_action = false;
+    console.log('✅ STATE.has_user_action initialisé à false');
+  }
+  if (typeof window.STATE.last_save_ts === "undefined") {
+    window.STATE.last_save_ts = null;
+    console.log('✅ STATE.last_save_ts initialisé à null');
+  }
+
+  // Forcer has_user_action à false au boot pour éviter une sauvegarde immédiate
+  window.STATE.has_user_action = false;
+  console.log('🔒 has_user_action forcé à false au boot');
+  
+  // Initialiser le badge de sauvegarde si la fonction existe
+  if (typeof updateSaveBadgeUI === 'function') {
+    updateSaveBadgeUI();
+    console.log('✅ Badge de sauvegarde initialisé');
+  }
+
+  // -- Badge visuel pour afficher l'état de sauvegarde --
+  function updateSaveBadge(ok) {
+    const el = document.getElementById('autosaveBadge');
+    if (!el) return;
+    
+    if (ok) {
+      const t = new Date();
+      window.STATE.last_save_ts = t.getTime();
+      el.textContent = `💾 Sauvegardé ${t.getHours()}h${String(t.getMinutes()).padStart(2,'0')}`;
+    } else {
+      el.textContent = '⚠️ Échec sauvegarde';
+    }
+  }
+
+  // -- API pour marquer une action utilisateur --
+  window.markUserAction = function () {
+    window.STATE.has_user_action = true;
+    console.log('✏️ Action utilisateur marquée');
+
+    // 🔥 NOUVEAU: Redémarrer le timer de débounce (30s après dernière action)
+    if (typeof window.scheduleAutoSave === 'function') {
+      window.scheduleAutoSave();
+    }
+  };
+
+  // -- Monkey-patch : on enveloppe saveCacheData() si dispo --
+  if (typeof window.saveCacheData === "function" && !window.__SAVE_GUARD_PATCHED__) {
+    const __originalSave = window.saveCacheData;
+
+    window.saveCacheData = async function () {
+      // 1. Si personne n'a marqué d'action utilisateur -> on saute
+      if (!window.STATE.has_user_action) {
+        console.debug("⏭️ Auto-save sauté (aucune action depuis la dernière sauvegarde).");
+        return { skipped: true };
+      }
+
+      // 2. Sinon on laisse faire la vraie sauvegarde
+      try {
+        const res = await __originalSave.apply(this, arguments);
+
+        // 3. Succès → on remet le flag à false + on met à jour le badge
+        window.STATE.has_user_action = false;
+        updateSaveBadge(true);
+
+        return res;
+      } catch (e) {
+        // 4. Échec → badge rouge
+        updateSaveBadge(false);
+        throw e;
+      }
+    };
+
+    window.__SAVE_GUARD_PATCHED__ = true;
+    console.info("✅ Patch Étape 3 chargé : auto-save conditionnel activé sur saveCacheData().");
+  } else if (typeof window.saveCacheData !== "function") {
+    console.warn("⚠️ Patch Étape 3 : saveCacheData() introuvable au chargement. Vérifie l'ordre des includes.");
+  }
+  
+  console.log('✅ Patch InitUpgrade terminé');
+})();
+</script>

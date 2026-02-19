@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+  <style>
+    /* Styles de base */
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background: #f4f6fb;
+      margin: 0;
+      padding: 20px;
+      color: #222;
+    }
+    
+    /* Styles de la barre d'onglets */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 20px;
+    }
+    
+    .tab-button {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      color: #555;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .tab-button:hover {
+      color: #1976d2;
+    }
+    
+    .tab-button.active {
+      color: #1976d2;
+      border-bottom-color: #1976d2;
+    }
+    
+    /* Styles des contenus d'onglets */
+    .tab-content {
+      display: none;
+      padding: 20px 0;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* Styles des cartes */
+    .config-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .config-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #1976d2;
+      margin-bottom: 15px;
+    }
+    
+    /* Styles des entrées */
+    .input-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .input-row label {
+      flex: 0 0 180px;
+      font-size: 14px;
+    }
+    
+    .input-row input, .input-row select {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+    }
+    
+    /* Styles des classes */
+    .classe-item {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .classe-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .classe-header h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+      color: #1976d2;
+    }
+    
+    /* Styles des options */
+    .options-section {
+      margin-top: 20px;
+    }
+    
+    .options-section h4 {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 10px;
+      color: #555;
+    }
+    
+    .option-item {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    
+    .option-item select {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+    }
+    
+    .option-item input {
+      width: 80px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+    }
+    
+    /* Styles des boutons */
+    .btn-action {
+      background: #f0f0f0;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 16px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      margin-right: 10px;
+      transition: background 0.2s;
+    }
+    
+    .btn-action:hover {
+      background: #e0e0e0;
+    }
+    
+    .btn-action .material-icons {
+      margin-right: 5px;
+      font-size: 18px;
+    }
+    
+    .btn-supprimer {
+      background: none;
+      border: none;
+      color: #e53935;
+      cursor: pointer;
+      padding: 5px;
+    }
+    
+    .btn-supprimer-option {
+      background: none;
+      border: none;
+      color: #e53935;
+      cursor: pointer;
+      padding: 2px;
+    }
+    
+    .button-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
+    }
+    
+    .btn-secondary {
+      background: #f0f0f0;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 20px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+    
+    .btn-primary {
+      background: #1976d2;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 20px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      color: white;
+      cursor: pointer;
+    }
+    
+    .btn-primary:hover {
+      background: #1565c0;
+    }
+    
+    /* Styles pour ajouter option/classe */
+    .btn-ajouter {
+      width: 100%;
+      padding: 12px;
+      border: 1px dashed #1976d2;
+      background: none;
+      color: #1976d2;
+      border-radius: 4px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 20px;
+    }
+    
+    .btn-ajouter:hover {
+      background: rgba(25, 118, 210, 0.05);
+    }
+    
+    .btn-ajouter .material-icons {
+      margin-right: 5px;
+    }
+    
+    /* Styles pour la sélection de scénario */
+    .scenario-selector {
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .scenario-selector select {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+    }
+    
+    .scenario-card {
+      background: #f9f9f9;
+      border-radius: 4px;
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      border: 1px solid #eee;
+    }
+    
+    .scenario-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .scenario-title {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+    }
+    
+    .scenario-title i {
+      margin-right: 5px;
+      font-size: 18px;
+      color: #1976d2;
+    }
+    
+    .scenario-buttons {
+      display: flex;
+      gap: 5px;
+    }
+    
+    .scenario-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 5px;
+      color: #555;
+    }
+    
+    .scenario-button:hover {
+      color: #1976d2;
+    }
+    
+    .scenario-button-primary {
+      background: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    
+    /* Styles pour le tableau de pondération */
+    .ponderation-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    .ponderation-table th, .ponderation-table td {
+      padding: 8px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    .ponderation-table th {
+      background-color: #f0c674; /* Orange-jaune comme dans votre capture */
+      font-weight: 500;
+    }
+    .ponderation-table tr:nth-child(even) {
+      background-color: #fff9e6; /* Beige très clair pour les lignes paires */
+    }
+    .ponderation-table tr:nth-child(odd) {
+      background-color: #ffffff; /* Blanc pour les lignes impaires */
+    }
+    .ponderation-table input {
+      width: 40px;
+      text-align: center;
+      padding: 4px;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+    }
+    .ponderation-table tr.special {
+      background-color: #ffebee; /* Fond légèrement rosé pour la ligne Spécial */
+    }
+  </style>
+</head>
+<body>
+  <!-- Barre d'onglets -->
+  <div class="tabs">
+    <button class="tab-button" data-tab="general">Général</button>
+    <button class="tab-button active" data-tab="structure">Structure des Classes</button>
+    <button class="tab-button" data-tab="options">Options Disponibles</button>
+    <button class="tab-button" data-tab="ponderation">Pondération Matières</button>
+  </div>
+  
+  <!-- Onglet Général -->
+  <div id="tab-general" class="tab-content">
+    <div class="config-card">
+      <div class="config-title">Paramètres Généraux</div>
+      
+      <div class="input-row">
+        <label for="niveau-scolaire">Niveau scolaire:</label>
+        <select id="niveau-scolaire">
+          <option value="6°">6°</option>
+          <option value="5°">5°</option>
+          <option value="4°">4°</option>
+          <option value="3°">3°</option>
+        </select>
+      </div>
+      
+      <div class="input-row">
+        <label for="mot-de-passe">Mot de passe admin:</label>
+        <input type="password" id="mot-de-passe">
+      </div>
+      
+      <div class="input-row">
+        <label for="max-swaps">Nombre max d'échanges:</label>
+        <input type="number" id="max-swaps" value="30">
+      </div>
+      
+      <div class="input-row">
+        <label for="tolerance-parite">Tolérance parité (%):</label>
+        <input type="number" id="tolerance-parite" value="2">
+      </div>
+    </div>
+  </div>
+  
+  <!-- Onglet Structure des Classes -->
+  <div id="tab-structure" class="tab-content active">
+    <div class="config-card">
+      <div class="config-title">Paramètres des Classes</div>
+      
+      <div class="input-row">
+        <label for="effectif-total">Effectif total:</label>
+        <input type="number" id="effectif-total" readonly>
+      </div>
+      
+      <div class="input-row">
+        <label for="effectif-moyen">Effectif moyen par classe:</label>
+        <input type="number" id="effectif-moyen" value="28">
+      </div>
+    </div>
+    
+    <div id="classes-container">
+      <!-- Classes générées dynamiquement -->
+    </div>
+    
+    <button id="btn-ajouter-classe" class="btn-ajouter">
+      <i class="material-icons">add</i> Ajouter une classe
+    </button>
+  </div>
+  
+  <!-- Onglet Options Disponibles -->
+  <div id="tab-options" class="tab-content">
+    <div class="config-card">
+      <div class="config-title">Liste des Options</div>
+      <p>Configurez ici les options disponibles pour toutes les classes.</p>
+      
+      <div id="options-disponibles-container">
+        <!-- Options générées dynamiquement -->
+      </div>
+      
+      <button id="btn-ajouter-option-disponible" class="btn-ajouter">
+        <i class="material-icons">add</i> Ajouter une option
+      </button>
+    </div>
+  </div>
+  
+  <!-- Onglet Pondération Matières -->
+  <div id="tab-ponderation" class="tab-content">
+    <div class="config-card">
+      <div class="config-title">Scénarios de Pondération</div>
+      <p>Choisissez un scénario existant ou créez votre propre configuration de coefficients.</p>
+      
+      <!-- Sélecteur de scénarios et actions -->
+      <div class="scenario-selector">
+        <select id="scenario-select">
+          <!-- Options générées dynamiquement -->
+        </select>
+        <button id="btn-nouveau-scenario" class="btn-action">
+          <i class="material-icons">add</i> Nouveau
+        </button>
+      </div>
+      
+      <!-- Carte du scénario actif -->
+      <div id="scenario-actif" class="scenario-card">
+        <!-- Contenu généré dynamiquement -->
+      </div>
+      
+      <!-- Tableau de pondération -->
+      <table class="ponderation-table">
+        <thead>
+          <tr>
+            <th>Matière</th>
+            <th>Code</th>
+            <th>COM</th>
+            <th>TRA</th>
+            <th>PART</th>
+            <th>ABS</th>
+          </tr>
+        </thead>
+        <tbody id="ponderation-body">
+          <!-- Lignes générées dynamiquement -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Boutons d'action -->
+  <div class="button-row">
+    <button id="btn-annuler" class="btn-secondary">Annuler</button>
+    <button id="btn-enregistrer" class="btn-primary">Enregistrer</button>
+  </div>
+  
+  <script>
+  (function() {
+    'use strict';
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🛡️ DOM ENVIRONMENT GUARD
+    // ═══════════════════════════════════════════════════════════════════
+    if (typeof document === 'undefined') {
+      console.warn('[ConfigurationComplete] Skipping client-side code in server context');
+      return;
+    }
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Données de configuration
+  let configData = {
+  general: {
+    niveau: "6°",
+    motDePasse: "",
+    maxSwaps: 30,
+    toleranceParite: 2
+  },
+  classes: [],
+  options: [],
+  scenarios: [
+    {
+      id: "default",
+      nom: "Pondération recommandée",
+      description: "Coefficients standards recommandés par matière",
+      actif: true,
+      ponderation: [
+        {matiere: 'Français', code: 'FRA', COM: 4, TRA: 5, PART: 3, ABS: 1},
+        {matiere: 'Maths', code: 'MAT', COM: 4, TRA: 5, PART: 3, ABS: 1},
+        {matiere: 'Histoire', code: 'HIS', COM: 3, TRA: 4, PART: 3, ABS: 1},
+        {matiere: 'Anglais', code: 'ANG', COM: 3, TRA: 3, PART: 8, ABS: 1},
+        {matiere: 'Espagnol', code: 'ESP', COM: 3, TRA: 3, PART: 8, ABS: 1},
+        {matiere: 'Italien', code: 'ITA', COM: 3, TRA: 3, PART: 8, ABS: 1},
+        {matiere: 'Physique', code: 'PHY', COM: 2, TRA: 2, PART: 2, ABS: 1},
+        {matiere: 'SVT', code: 'SVT', COM: 2, TRA: 2, PART: 2, ABS: 1},
+        {matiere: 'Techno', code: 'TECH', COM: 2, TRA: 2, PART: 2, ABS: 1},
+        {matiere: 'Arts', code: 'ART', COM: 2, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Musique', code: 'MUS', COM: 2, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'EPS', code: 'EPS', COM: 5, TRA: 2, PART: 2, ABS: 1},
+        {matiere: 'Viescolaire', code: 'VS', COM: 6, TRA: 0, PART: 0, ABS: 6},
+        {matiere: 'Special', code: 'Spe', COM: 10, TRA: 10, PART: 10, ABS: 10}
+      ]
+    },
+    {
+      id: "equal",
+      nom: "Coefficients égaux",
+      description: "Toutes les matières et critères ont le même poids (1)",
+      actif: false,
+      ponderation: [
+        {matiere: 'Français', code: 'FRA', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Maths', code: 'MAT', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Histoire', code: 'HIS', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Anglais', code: 'ANG', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Espagnol', code: 'ESP', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Italien', code: 'ITA', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Physique', code: 'PHY', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'SVT', code: 'SVT', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Techno', code: 'TECH', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Arts', code: 'ART', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Musique', code: 'MUS', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'EPS', code: 'EPS', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Viescolaire', code: 'VS', COM: 1, TRA: 1, PART: 1, ABS: 1},
+        {matiere: 'Special', code: 'Spe', COM: 1, TRA: 1, PART: 1, ABS: 1}
+      ]
+    },
+    {
+      id: "custom",
+      nom: "Mon scénario personnalisé",
+      description: "Coefficients personnalisés",
+      actif: false,
+      ponderation: [
+        {matiere: 'Français', code: 'FRA', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Maths', code: 'MAT', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Histoire', code: 'HIS', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Anglais', code: 'ANG', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Espagnol', code: 'ESP', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Italien', code: 'ITA', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Physique', code: 'PHY', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'SVT', code: 'SVT', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Techno', code: 'TECH', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Arts', code: 'ART', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Musique', code: 'MUS', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'EPS', code: 'EPS', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Viescolaire', code: 'VS', COM: 3, TRA: 3, PART: 3, ABS: 3},
+        {matiere: 'Special', code: 'Spe', COM: 3, TRA: 3, PART: 3, ABS: 3}
+      ]
+    }
+  ]
+};
+
+// ===================================================================
+// INITIALISATION
+// ===================================================================
+document.addEventListener('DOMContentLoaded', function() {
+  console.log("🚀 Initialisation de l'interface...");
+  
+  // Charger la configuration
+  chargerConfiguration();
+  
+  // Gestionnaires d'événements pour les onglets
+  document.querySelectorAll('.tab-button').forEach(function(button) {
+    button.addEventListener('click', function() {
+      // Désactiver tous les onglets
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      
+      // Activer l'onglet cliqué
+      const tabId = this.getAttribute('data-tab');
+      this.classList.add('active');
+      document.getElementById('tab-' + tabId).classList.add('active');
+    });
+  });
+  
+  // Gestionnaires pour les boutons principaux
+  document.getElementById('btn-ajouter-classe').addEventListener('click', ajouterClasse);
+  document.getElementById('btn-ajouter-option-disponible').addEventListener('click', ajouterOptionDisponibleEtRafraichir);
+  document.getElementById('btn-nouveau-scenario').addEventListener('click', creerNouveauScenario);
+  document.getElementById('btn-annuler').addEventListener('click', fermerConfiguration);
+  document.getElementById('btn-enregistrer').addEventListener('click', enregistrerConfiguration);
+  
+  // Gestionnaire pour le sélecteur de scénarios
+  document.getElementById('scenario-select').addEventListener('change', function() {
+    changerScenarioActif(this.value);
+  });
+  
+  // Gestionnaire pour l'effectif moyen
+  document.getElementById('effectif-moyen').addEventListener('input', function() {
+    const effectifMoyen = parseInt(this.value) || 28;
+    configData.classes.forEach(classe => {
+      classe.effectif = effectifMoyen;
+    });
+    afficherClasses();
+  });
+  
+  // Initialiser les champs généraux
+  document.getElementById('niveau-scolaire').value = configData.general.niveau;
+  document.getElementById('mot-de-passe').value = configData.general.motDePasse;
+  document.getElementById('max-swaps').value = configData.general.maxSwaps;
+  document.getElementById('tolerance-parite').value = configData.general.toleranceParite;
+  
+  // Gestionnaire pour les changements dans les champs généraux
+  document.getElementById('niveau-scolaire').addEventListener('change', function() {
+    configData.general.niveau = this.value;
+  });
+  
+  document.getElementById('mot-de-passe').addEventListener('input', function() {
+    configData.general.motDePasse = this.value;
+  });
+  
+  document.getElementById('max-swaps').addEventListener('input', function() {
+    configData.general.maxSwaps = parseInt(this.value) || 30;
+  });
+  
+  document.getElementById('tolerance-parite').addEventListener('input', function() {
+    configData.general.toleranceParite = parseInt(this.value) || 2;
+  });
+  
+  console.log("✅ Initialisation terminée");
+});
+
+// ===================================================================
+// CHARGEMENT DES DONNÉES
+// ===================================================================
+function chargerConfiguration() {
+  console.log("📡 Chargement de la configuration...");
+  
+  google.script.run
+    .withSuccessHandler(function(data) {
+      console.log("📦 Données reçues du serveur:", data);
+      
+      // Charger les paramètres généraux
+      if (data.general) {
+        configData.general = data.general;
+        document.getElementById('niveau-scolaire').value = data.general.niveau || "6°";
+        document.getElementById('mot-de-passe').value = data.general.motDePasse || "";
+        document.getElementById('max-swaps').value = data.general.maxSwaps || 30;
+        document.getElementById('tolerance-parite').value = data.general.toleranceParite || 2;
+      }
+      
+      // Charger les classes
+      if (data && data.classes) {
+        configData.classes = data.classes.map(classe => ({
+          origine: classe.origine || '',
+          destination: classe.destination || '',
+          effectif: classe.effectif || 28,
+          options: (classe.options || []).map(opt => ({
+            nom: opt.nom || '',
+            quota: opt.quota || 0
+          }))
+        }));
+      }
+      
+      // Charger les options personnalisées
+      if (data && data.optionsPersonnalisees && data.optionsPersonnalisees.length > 0) {
+        configData.options = data.optionsPersonnalisees;
+        console.log("✅ Options personnalisées chargées:", configData.options);
+      } else if (data && data.options && data.options.length > 0) {
+        configData.options = data.options;
+        console.log("✅ Options standards chargées:", configData.options);
+      } else {
+        configData.options = [];
+        console.warn("⚠️ Aucune option trouvée");
+      }
+      
+      // Charger les scénarios de pondération
+      if (data && data.scenarios) {
+        configData.scenarios = data.scenarios;
+      }
+      
+      // Si pas de classes, en créer une par défaut
+      if (!configData.classes || configData.classes.length === 0) {
+        configData.classes = [{
+          origine: '',
+          destination: '',
+          effectif: 28,
+          options: []
+        }];
+      }
+      
+      // Afficher toutes les sections
+      console.log("🎨 Affichage de l'interface...");
+      afficherClasses();
+      afficherOptionsDisponibles();
+      afficherScenarios();
+      console.log("✅ Interface prête !");
+    })
+    .withFailureHandler(function(error) {
+      console.error("❌ Erreur lors du chargement:", error);
+      alert("Erreur lors du chargement : " + error);
+    })
+    .chargerStructure();
+}
+
+// ===================================================================
+// REMPLACER LA FONCTION afficherClasses() PAR CELLE-CI
+// ===================================================================
+function afficherClasses() {
+  console.log("🏫 Affichage des classes...");
+  const container = document.getElementById('classes-container');
+  container.innerHTML = '';
+  
+  configData.classes.forEach(function(classe, index) {
+    // Séparer les options en LV2 et vraies options
+    let lv2Specifique = null;
+    let quotaLV2 = 0;
+    let optionsComplementaires = [];
+    
+    // Parser les options existantes de manière ADAPTATIVE
+    if (classe.options && classe.options.length > 0) {
+      classe.options.forEach(opt => {
+        // ✅ PLUS DE CODAGE EN DUR ! On prend la première option comme LV2 potentielle
+        if (!lv2Specifique && opt.nom) {
+          lv2Specifique = opt.nom;
+          quotaLV2 = opt.quota;
+        } else if (opt.nom) {
+          optionsComplementaires.push(opt);
+        }
+      });
+    }
+    
+    const classeDiv = document.createElement('div');
+    classeDiv.className = 'classe-item';
+    
+    classeDiv.innerHTML = `
+      <div class="classe-header">
+        <h3>Classe #${index + 1} : ${classe.origine} → ${classe.destination}</h3>
+        <button type="button" class="btn-supprimer" onclick="supprimerClasse(${index})">
+          <i class="material-icons">delete</i>
+        </button>
+      </div>
+      
+      <div class="input-row">
+        <label>Classe d'origine:</label>
+        <input type="text" value="${classe.origine}" 
+               oninput="updateClasse(${index}, 'origine', this.value)">
+      </div>
+      
+      <div class="input-row">
+        <label>Classe destination:</label>
+        <input type="text" value="${classe.destination}" 
+               oninput="updateClasse(${index}, 'destination', this.value)">
+      </div>
+      
+      <div class="input-row">
+        <label>Effectif cible:</label>
+        <input type="number" value="${classe.effectif}" 
+               oninput="updateClasse(${index}, 'effectif', parseInt(this.value))">
+      </div>
+      
+      <!-- 🟣 SECTION LV2 SPÉCIFIQUE (VIOLET) -->
+      <div class="options-section" style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 15px 0;">
+        <h4 style="color: #1976d2; margin-top: 0;">
+          <i class="material-icons">language</i> LV2 Spécifique (→ Colonne F)
+        </h4>
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+          <select onchange="updateClasseLV2(${index}, this.value)" style="flex: 1;">
+            <option value="">Aucune LV2 spécifique</option>
+            ${genererOptionsLV2HTML(lv2Specifique)}
+          </select>
+          <label style="flex: 0 0 60px;">Quota:</label>
+          <input type="number" value="${quotaLV2}" min="0" max="${classe.effectif}"
+                 style="width: 60px; text-align: center;"
+                 oninput="updateQuotaLV2(${index}, parseInt(this.value))"
+                 ${!lv2Specifique ? 'disabled' : ''}>
+        </div>
+        <small style="color: #666;">
+          <i class="material-icons" style="font-size: 14px;">info</i>
+          Cette langue apparaîtra dans la colonne LV2 (F) pour les élèves concernés
+        </small>
+      </div>
+      
+      <!-- 🟢 SECTION OPTIONS COMPLÉMENTAIRES (VERTE) -->
+      <div class="options-section" style="background: #f3e5f5; padding: 15px; border-radius: 8px;">
+        <h4 style="color: #7b1fa2; margin-top: 0;">
+          <i class="material-icons">school</i> Options Complémentaires (→ Colonne G)
+        </h4>
+        <div id="classe-options-complementaires-${index}">
+          ${genererOptionsComplementairesHTML(optionsComplementaires, index)}
+        </div>
+        <button type="button" class="btn-ajouter" onclick="ajouterOptionComplementaire(${index})"
+                style="margin-top: 10px; width: 100%;">
+          <i class="material-icons">add</i> Ajouter une option complémentaire
+        </button>
+        <small style="color: #666;">
+          <i class="material-icons" style="font-size: 14px;">info</i>
+          Ces options apparaîtront dans la colonne OPT (G) pour les élèves concernés
+        </small>
+      </div>
+    `;
+    
+    container.appendChild(classeDiv);
+  });
+  
+  calculerTotalEffectifs();
+  console.log("✅ Classes affichées");
+}
+
+// ===================================================================
+// FONCTIONS DE GÉNÉRATION 100% ADAPTATIVES (PLUS DE CODAGE EN DUR !)
+// ===================================================================
+
+/**
+ * ✅ Génération LV2 - 100% ADAPTATIVE
+ */
+function genererOptionsLV2HTML(lv2Selectionnee) {
+  console.log("🌍 Génération LV2 avec options:", configData.options);
+  
+  // Utiliser TOUTES les options disponibles - 100% ADAPTATIF
+  const toutesOptions = configData.options || [];
+  
+  let html = '';
+  if (toutesOptions.length === 0) {
+    html += '<option value="" disabled>⚠️ Aucune option disponible - Ajoutez-en dans "Options Disponibles"</option>';
+  } else {
+    toutesOptions.forEach(option => {
+      html += `<option value="${option}" ${option === lv2Selectionnee ? 'selected' : ''}>${option}</option>`;
+    });
+  }
+  
+  return html;
+}
+
+/**
+ * ✅ Génération Options Complémentaires - 100% ADAPTATIVE  
+ */
+function genererOptionsComplementairesHTML(optionsComplementaires, classeIndex) {
+  if (!optionsComplementaires || optionsComplementaires.length === 0) {
+    return '<p style="color: #666; font-style: italic;">Aucune option complémentaire</p>';
+  }
+  
+  let html = '';
+  optionsComplementaires.forEach(function(option, index) {
+    html += `
+      <div class="option-item" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+        <select onchange="updateOptionComplementaire(${classeIndex}, ${index}, 'nom', this.value)" style="flex: 1;">
+          <option value="">-- Choisir --</option>
+          ${genererOptionsComplementairesSelectHTML(option.nom)}
+        </select>
+        <label style="flex: 0 0 60px; text-align: center; font-size: 12px; color: #666;">Quota</label>
+        <input type="number" value="${option.quota}" min="0" max="35"
+               style="width: 60px; text-align: center;"
+               oninput="updateOptionComplementaire(${classeIndex}, ${index}, 'quota', parseInt(this.value))">
+        <button type="button" class="btn-supprimer-option" onclick="supprimerOptionComplementaire(${classeIndex}, ${index})">
+          <i class="material-icons">close</i>
+        </button>
+      </div>
+    `;
+  });
+  
+  return html;
+}
+
+/**
+ * ✅ Select Options Complémentaires - 100% ADAPTATIF (PLUS DE CODAGE EN DUR !)
+ */
+function genererOptionsComplementairesSelectHTML(optionSelectionnee) {
+  console.log("📋 Génération select complémentaire avec options:", configData.options);
+  
+  // ✅ UTILISER TOUTES LES OPTIONS - 100% ADAPTATIF (PLUS de ['CHAV', 'GREC', 'LLCA'] codé en dur !)
+  const toutesOptions = configData.options || [];
+  
+  let html = '';
+  
+  if (toutesOptions.length === 0) {
+    html += '<option value="" disabled>⚠️ Aucune option disponible</option>';
+  } else {
+    toutesOptions.forEach(function(option) {
+      html += `<option value="${option}" ${option === optionSelectionnee ? 'selected' : ''}>${option}</option>`;
+    });
+  }
+  
+  return html;
+}
+
+// ===================================================================
+// FONCTIONS DE GESTION DES LV2 ET OPTIONS
+// ===================================================================
+
+function updateClasseLV2(classeIndex, lv2) {
+  const quotaInput = document.querySelector(`[oninput*="updateQuotaLV2(${classeIndex}"]`);
+  if (quotaInput) {
+    quotaInput.disabled = !lv2;
+    if (!lv2) quotaInput.value = 0;
+  }
+  console.log(`Classe ${classeIndex}: LV2 = ${lv2}`);
+}
+
+function updateQuotaLV2(classeIndex, quota) {
+  console.log(`Classe ${classeIndex}: Quota LV2 = ${quota}`);
+}
+
+function ajouterOptionComplementaire(classeIndex) {
+  // Vérifier qu'il y a des options disponibles
+  if (!configData.options || configData.options.length === 0) {
+    alert('Aucune option disponible !\n\nVeuillez d\'abord ajouter des options dans l\'onglet "Options Disponibles".');
+    document.querySelector('[data-tab="options"]').click();
+    return;
+  }
+  
+  const container = document.getElementById(`classe-options-complementaires-${classeIndex}`);
+  const optionsComplementaires = container.querySelectorAll('.option-item');
+  const nouvelIndex = optionsComplementaires.length;
+  
+  const nouvelleOption = document.createElement('div');
+  nouvelleOption.className = 'option-item';
+  nouvelleOption.style.cssText = 'display: flex; gap: 10px; margin-bottom: 8px; align-items: center;';
+  nouvelleOption.innerHTML = `
+    <select onchange="updateOptionComplementaire(${classeIndex}, ${nouvelIndex}, 'nom', this.value)" style="flex: 1;">
+      <option value="">-- Choisir --</option>
+      ${genererOptionsComplementairesSelectHTML('')}
+    </select>
+    <label style="flex: 0 0 60px; text-align: center; font-size: 12px; color: #666;">Quota</label>
+    <input type="number" value="0" min="0" max="35"
+           style="width: 60px; text-align: center;"
+           oninput="updateOptionComplementaire(${classeIndex}, ${nouvelIndex}, 'quota', parseInt(this.value))">
+    <button type="button" class="btn-supprimer-option" onclick="supprimerOptionComplementaire(${classeIndex}, ${nouvelIndex})">
+      <i class="material-icons">close</i>
+    </button>
+  `;
+  
+  // Supprimer le message "Aucune option" s'il existe
+  const messageAucune = container.querySelector('p');
+  if (messageAucune) {
+    container.removeChild(messageAucune);
+  }
+  
+  container.appendChild(nouvelleOption);
+}
+
+function updateOptionComplementaire(classeIndex, optIndex, propriete, valeur) {
+  console.log(`Classe ${classeIndex}, Option ${optIndex}: ${propriete} = ${valeur}`);
+}
+
+function supprimerOptionComplementaire(classeIndex, optIndex) {
+  const container = document.getElementById(`classe-options-complementaires-${classeIndex}`);
+  const options = container.querySelectorAll('.option-item');
+  
+  if (options[optIndex]) {
+    container.removeChild(options[optIndex]);
+    
+    // Si plus d'options, remettre le message
+    if (container.querySelectorAll('.option-item').length === 0) {
+      container.innerHTML = '<p style="color: #666; font-style: italic;">Aucune option complémentaire</p>';
+    }
+  }
+}
+
+
+// ===================================================================
+// AFFICHAGE DES OPTIONS DISPONIBLES (100% ADAPTATIF)
+// ===================================================================
+function afficherOptionsDisponibles() {
+  console.log("🎯 Affichage options disponibles...");
+  const container = document.getElementById('options-disponibles-container');
+  container.innerHTML = '';
+  
+  if (!configData.options || configData.options.length === 0) {
+    container.innerHTML = `
+      <p><strong>Aucune option configurée</strong></p>
+      <p><em>Ajoutez des options (LATIN, GREC, SPORT, ITA, etc.) qui seront disponibles dans toutes les classes</em></p>
+    `;
+    return;
+  }
+  
+  // Affichage des options existantes
+  const titre = document.createElement('h4');
+  titre.textContent = `Options disponibles (${configData.options.length})`;
+  titre.style.color = '#1976d2';
+  container.appendChild(titre);
+  
+  configData.options.forEach(function(option, index) {
+    const optionDiv = document.createElement('div');
+    optionDiv.className = 'input-row';
+    optionDiv.style.alignItems = 'center';
+    
+    optionDiv.innerHTML = `
+      <div style="flex: 0 0 40px; text-align: center; font-weight: bold; color: #1976d2;">
+        ${index + 1}.
+      </div>
+      <input type="text" value="${option}" style="flex: 1; font-weight: 500;" 
+             oninput="updateOptionDisponibleEtRafraichir(${index}, this.value)"
+             placeholder="Nom de l'option (ex: LATIN, SPORT, ITA)">
+      <button type="button" class="btn-supprimer" onclick="supprimerOptionDisponibleEtRafraichir(${index})" 
+              title="Supprimer cette option">
+        <i class="material-icons">delete</i>
+      </button>
+    `;
+    
+    container.appendChild(optionDiv);
+  });
+  
+  // Note d'aide
+  const noteDiv = document.createElement('div');
+  noteDiv.style.cssText = 'margin-top: 15px; padding: 10px; background: #e8f5e8; border-radius: 4px; border-left: 4px solid #4caf50;';
+  noteDiv.innerHTML = `
+    <strong>💡 Comment ça marche :</strong><br>
+    1. Ajoutez ici TOUTES les options possibles (LATIN, GREC, SPORT, ITA, etc.)<br>
+    2. Dans "Structure des Classes", choisissez lesquelles assigner à chaque classe<br>
+    3. Le système saura automatiquement distinguer LV2 vs Options lors de la répartition<br>
+    <br>
+    <strong>✅ Système 100% adaptatif</strong> - Aucune option n'est codée en dur !
+  `;
+  container.appendChild(noteDiv);
+  
+  console.log("✅ Options disponibles affichées");
+}
+
+// ===================================================================
+// GESTION DES OPTIONS (100% ADAPTATIF)
+// ===================================================================
+function ajouterOptionDisponibleEtRafraichir() {
+  console.log("➕ Ajout d'une nouvelle option...");
+  
+  const nouvelleOption = prompt("Nom de la nouvelle option (ex: SPORT, LATIN, ITA, etc.):");
+  if (!nouvelleOption || !nouvelleOption.trim()) return;
+  
+  const optionNormalisee = nouvelleOption.trim().toUpperCase();
+  
+  // Vérifier si l'option n'existe pas déjà
+  if (configData.options && configData.options.includes(optionNormalisee)) {
+    alert(`L'option "${optionNormalisee}" existe déjà !`);
+    return;
+  }
+  
+  // Ajouter l'option
+  if (!configData.options) configData.options = [];
+  configData.options.push(optionNormalisee);
+  
+  console.log(`✅ Option "${optionNormalisee}" ajoutée`);
+  
+  // Rafraîchir IMMÉDIATEMENT toute l'interface
+  afficherOptionsDisponibles();
+  rafraichirOptionsInterface();
+  
+  alert(`✅ Option "${optionNormalisee}" ajoutée et visible partout !`);
+}
+
+function updateOptionDisponibleEtRafraichir(index, valeur) {
+  const valeurNormalisee = valeur.trim().toUpperCase();
+  
+  if (configData.options && configData.options[index] !== undefined) {
+    configData.options[index] = valeurNormalisee;
+    
+    // Rafraîchir les listes déroulantes après un court délai
+    setTimeout(() => {
+      rafraichirOptionsInterface();
+    }, 300);
+    
+    console.log(`✏️ Option ${index} mise à jour: ${valeurNormalisee}`);
+  }
+}
+
+function supprimerOptionDisponibleEtRafraichir(index) {
+  if (!configData.options || !configData.options[index]) return;
+  
+  const optionASupprimer = configData.options[index];
+  
+  if (!confirm(`Voulez-vous vraiment supprimer l'option "${optionASupprimer}" ?\n\nElle sera supprimée de toutes les classes qui l'utilisent.`)) {
+    return;
+  }
+  
+  // Supprimer l'option
+  configData.options.splice(index, 1);
+  
+  console.log(`🗑️ Option "${optionASupprimer}" supprimée`);
+  
+  // Rafraîchir toute l'interface
+  afficherOptionsDisponibles();
+  rafraichirOptionsInterface();
+  
+  alert(`✅ Option "${optionASupprimer}" supprimée partout !`);
+}
+
+function rafraichirOptionsInterface() {
+  console.log("🔄 Rafraîchissement de l'interface...");
+  
+  // Rafraîchir toutes les classes affichées
+  afficherClasses();
+  
+  const nbOptions = configData.options ? configData.options.length : 0;
+  console.log(`✅ Interface mise à jour avec ${nbOptions} options : [${configData.options.join(', ')}]`);
+}
+
+// ===================================================================
+// GESTION DES CLASSES
+// ===================================================================
+function ajouterClasse() {
+  const effectifMoyen = parseInt(document.getElementById('effectif-moyen').value) || 28;
+  
+  configData.classes.push({
+    origine: '',
+    destination: '',
+    effectif: effectifMoyen,
+    options: []
+  });
+  
+  afficherClasses();
+}
+
+function supprimerClasse(index) {
+  if (confirm('Voulez-vous vraiment supprimer cette classe ?')) {
+    configData.classes.splice(index, 1);
+    afficherClasses();
+  }
+}
+
+function updateClasse(index, propriete, valeur) {
+  configData.classes[index][propriete] = valeur;
+  
+  if (propriete === 'effectif') {
+    calculerTotalEffectifs();
+  }
+}
+
+
+function calculerTotalEffectifs() {
+  let total = 0;
+  configData.classes.forEach(function(classe) {
+    total += parseInt(classe.effectif) || 0;
+  });
+  
+  document.getElementById('effectif-total').value = total;
+}
+
+// ===================================================================
+// GESTION DES SCÉNARIOS DE PONDÉRATION
+// ===================================================================
+function afficherScenarios() {
+  const select = document.getElementById('scenario-select');
+  select.innerHTML = '';
+  
+  let scenarioActifId = 'default';
+  configData.scenarios.forEach(scenario => {
+    if (scenario.actif) {
+      scenarioActifId = scenario.id;
+    }
+    
+    const option = document.createElement('option');
+    option.value = scenario.id;
+    option.textContent = scenario.nom;
+    if (scenario.actif) {
+      option.selected = true;
+    }
+    select.appendChild(option);
+  });
+  
+  afficherScenarioActif(scenarioActifId);
+  afficherTableauPonderation(scenarioActifId);
+}
+
+function afficherScenarioActif(scenarioId) {
+  const scenario = configData.scenarios.find(s => s.id === scenarioId);
+  if (!scenario) return;
+  
+  const container = document.getElementById('scenario-actif');
+  container.innerHTML = `
+    <div class="scenario-header">
+      <div class="scenario-title">
+        <i class="material-icons">${scenario.actif ? 'check_circle' : 'settings'}</i>
+        ${scenario.nom}
+      </div>
+      <div class="scenario-buttons">
+        ${!scenario.actif ? `
+          <button class="scenario-button-primary" onclick="activerScenario('${scenario.id}')">
+            Activer
+          </button>
+        ` : ''}
+        ${scenario.id !== 'default' && scenario.id !== 'equal' ? `
+          <button class="scenario-button" onclick="renommerScenario('${scenario.id}')">
+            <i class="material-icons">edit</i>
+          </button>
+          <button class="scenario-button" onclick="supprimerScenario('${scenario.id}')">
+            <i class="material-icons">delete</i>
+          </button>
+        ` : ''}
+        <button class="scenario-button" onclick="dupliquerScenario('${scenario.id}')">
+          <i class="material-icons">content_copy</i>
+        </button>
+      </div>
+    </div>
+    <p>${scenario.description}</p>
+  `;
+}
+
+function afficherTableauPonderation(scenarioId) {
+  const scenario = configData.scenarios.find(s => s.id === scenarioId);
+  if (!scenario) return;
+  
+  const tbody = document.getElementById('ponderation-body');
+  tbody.innerHTML = '';
+  
+  scenario.ponderation.forEach((matiere, index) => {
+    const tr = document.createElement('tr');
+    if (matiere.code === 'Spe') {
+      tr.className = 'special';
+    }
+    
+    const readOnly = (scenarioId === 'default' || scenarioId === 'equal');
+    
+    tr.innerHTML = `
+      <td>${matiere.matiere}</td>
+      <td>${matiere.code}</td>
+      <td>
+        <input type="number" min="0" max="10" value="${matiere.COM}" 
+              ${readOnly ? 'disabled' : ''}
+              oninput="updatePonderation('${scenarioId}', ${index}, 'COM', parseInt(this.value) || 0)">
+      </td>
+      <td>
+        <input type="number" min="0" max="10" value="${matiere.TRA}" 
+              ${readOnly ? 'disabled' : ''}
+              oninput="updatePonderation('${scenarioId}', ${index}, 'TRA', parseInt(this.value) || 0)">
+      </td>
+      <td>
+        <input type="number" min="0" max="10" value="${matiere.PART}" 
+              ${readOnly ? 'disabled' : ''}
+              oninput="updatePonderation('${scenarioId}', ${index}, 'PART', parseInt(this.value) || 0)">
+      </td>
+      <td>
+        <input type="number" min="0" max="10" value="${matiere.ABS}" 
+              ${readOnly ? 'disabled' : ''}
+              oninput="updatePonderation('${scenarioId}', ${index}, 'ABS', parseInt(this.value) || 0)">
+      </td>
+    `;
+    
+    tbody.appendChild(tr);
+  });
+}
+
+function changerScenarioActif(scenarioId) {
+  afficherScenarioActif(scenarioId);
+  afficherTableauPonderation(scenarioId);
+}
+
+function activerScenario(scenarioId) {
+  configData.scenarios.forEach(s => {
+    s.actif = false;
+  });
+  
+  const scenario = configData.scenarios.find(s => s.id === scenarioId);
+  if (scenario) {
+    scenario.actif = true;
+  }
+  
+  afficherScenarios();
+}
+
+function creerNouveauScenario() {
+  const nom = prompt("Nom du nouveau scénario:");
+  if (!nom) return;
+  
+  const description = prompt("Description (optionnelle):", "Coefficients personnalisés");
+  
+  const id = "custom_" + Date.now();
+  
+  const scenarioActif = configData.scenarios.find(s => s.actif);
+  const nouvellePonderation = JSON.parse(JSON.stringify(scenarioActif.ponderation));
+  
+  configData.scenarios.push({
+    id: id,
+    nom: nom,
+    description: description || "Coefficients personnalisés",
+    actif: false,
+    ponderation: nouvellePonderation
+  });
+  
+  afficherScenarios();
+  
+  document.getElementById('scenario-select').value = id;
+  changerScenarioActif(id);
+}
+
+function renommerScenario(scenarioId) {
+  const scenario = configData.scenarios.find(s => s.id === scenarioId);
+  if (!scenario) return;
+  
+  const nom = prompt("Nouveau nom:", scenario.nom);
+  if (!nom) return;
+  
+  const description = prompt("Nouvelle description:", scenario.description);
+  if (description !== null) {
+    scenario.description = description;
+  }
+  
+  scenario.nom = nom;
+  afficherScenarios();
+}
+
+function supprimerScenario(scenarioId) {
+  if (!confirm("Voulez-vous vraiment supprimer ce scénario ?")) return;
+  
+  const scenarioIndex = configData.scenarios.findIndex(s => s.id === scenarioId);
+  if (scenarioIndex < 0) return;
+  
+  if (configData.scenarios[scenarioIndex].actif) {
+    configData.scenarios.find(s => s.id === 'default').actif = true;
+  }
+  
+  configData.scenarios.splice(scenarioIndex, 1);
+  
+  afficherScenarios();
+}
+
+function dupliquerScenario(scenarioId) {
+  const scenario = configData.scenarios.find(s => s.id === scenarioId);
+  if (!scenario) return;
+  
+  const nom = prompt("Nom de la copie:", `Copie de ${scenario.nom}`);
+  if (!nom) return;
+  
+  const id = "custom_" + Date.now();
+  
+  configData.scenarios.push({
+    id: id,
+    nom: nom,
+    description: `Copie de: ${scenario.description}`,
+    actif: false,
+    ponderation: JSON.parse(JSON.stringify(scenario.ponderation))
+  });
+  
+  afficherScenarios();
+  
+  document.getElementById('scenario-select').value = id;
+  changerScenarioActif(id);
+}
+
+function updatePonderation(scenarioId, index, critere, valeur) {
+  const scenario = configData.scenarios.find(s => s.id === scenarioId);
+  if (scenario && scenario.ponderation[index]) {
+    scenario.ponderation[index][critere] = valeur;
+  }
+}
+
+// ===================================================================
+// REMPLACER la fonction enregistrerConfiguration() par celle-ci
+// ===================================================================
+function enregistrerConfiguration() {
+  console.log("💾 Enregistrement de la configuration...");
+  
+  const btnEnregistrer = document.getElementById('btn-enregistrer');
+  btnEnregistrer.disabled = true;
+  btnEnregistrer.innerHTML = '<i class="material-icons">hourglass_empty</i> Enregistrement...';
+  
+  // ===================================================================
+  // 🔧 RÉCUPÉRATION DES DONNÉES DEPUIS L'INTERFACE HTML
+  // ===================================================================
+  const classesAvecOptions = [];
+  
+  configData.classes.forEach((classe, index) => {
+    const classeData = {
+      origine: classe.origine,
+      destination: classe.destination,
+      effectif: classe.effectif,
+      options: []
+    };
+    
+    console.log(`🔍 Analyse classe ${index + 1}: ${classe.origine} → ${classe.destination}`);
+    
+    // 1️⃣ RÉCUPÉRER LA LV2 DEPUIS L'INTERFACE
+    const lv2Select = document.querySelector(`[onchange*="updateClasseLV2(${index}"]`);
+    const quotaLV2Input = document.querySelector(`[oninput*="updateQuotaLV2(${index}"]`);
+    
+    if (lv2Select && lv2Select.value && quotaLV2Input && quotaLV2Input.value > 0) {
+      classeData.options.push({
+        nom: lv2Select.value,
+        quota: parseInt(quotaLV2Input.value)
+      });
+      console.log(`  🌍 LV2: ${lv2Select.value} (${quotaLV2Input.value})`);
+    }
+    
+    // 2️⃣ RÉCUPÉRER LES OPTIONS COMPLÉMENTAIRES DEPUIS L'INTERFACE
+    const optionsContainer = document.getElementById(`classe-options-complementaires-${index}`);
+    if (optionsContainer) {
+      const selects = optionsContainer.querySelectorAll('select');
+      const inputs = optionsContainer.querySelectorAll('input[type="number"]');
+      
+      for (let i = 0; i < selects.length; i++) {
+        if (selects[i] && selects[i].value && inputs[i] && inputs[i].value > 0) {
+          classeData.options.push({
+            nom: selects[i].value,
+            quota: parseInt(inputs[i].value)
+          });
+          console.log(`  📚 Option: ${selects[i].value} (${inputs[i].value})`);
+        }
+      }
+    }
+    
+    console.log(`  ✅ Total options pour classe ${index + 1}: ${classeData.options.length}`);
+    classesAvecOptions.push(classeData);
+  });
+  
+  // ===================================================================
+  // 📦 PRÉPARER LES DONNÉES POUR LA SAUVEGARDE
+  // ===================================================================
+  const structureData = {
+    classes: classesAvecOptions,  // ✅ Utiliser les données récupérées
+    options: configData.options,
+    general: {
+      niveau: document.getElementById('niveau-scolaire').value,
+      motDePasse: document.getElementById('mot-de-passe').value,
+      maxSwaps: parseInt(document.getElementById('max-swaps').value) || 30,
+      toleranceParite: parseInt(document.getElementById('tolerance-parite').value) || 2
+    },
+    scenarios: configData.scenarios
+  };
+  
+  // Trouver la pondération du scénario actif
+  const scenarioActif = configData.scenarios.find(s => s.actif);
+  if (scenarioActif && scenarioActif.ponderation) {
+    structureData.ponderation = scenarioActif.ponderation;
+  }
+  
+  console.log("📤 Données à sauvegarder:", structureData);
+  console.log(`📊 Nombre total d'options: ${structureData.classes.reduce((total, classe) => total + classe.options.length, 0)}`);
+  
+  // ===================================================================
+  // 💾 SAUVEGARDE
+  // ===================================================================
+  google.script.run
+    .withSuccessHandler(function(result) {
+      console.log("✅ Sauvegarde réussie");
+      alert(result.message || 'Configuration sauvegardée avec succès');
+      google.script.host.close();
+    })
+    .withFailureHandler(function(error) {
+      console.error("❌ Erreur sauvegarde:", error);
+      btnEnregistrer.disabled = false;
+      btnEnregistrer.innerHTML = 'Enregistrer';
+      alert('Erreur : ' + error);
+    })
+    .sauvegarderStructure(structureData);
+}
+
+// ===================================================================
+// UTILITAIRES
+// ===================================================================
+function fermerConfiguration() {
+  google.script.host.close();
+}
+
+function debuggerOptions() {
+  console.log("🔍 === DEBUG OPTIONS ===");
+  console.log("configData.options:", configData.options);
+  console.log("Type:", typeof configData.options);
+  console.log("Length:", configData.options ? configData.options.length : "undefined");
+  
+  google.script.run
+    .withSuccessHandler(function(result) {
+      console.log("✅ Options reçues du serveur:", result);
+      if (result && result.optionsPersonnalisees) {
+        configData.options = result.optionsPersonnalisees;
+        console.log("Options mises à jour:", configData.options);
+        afficherOptionsDisponibles();
+        afficherClasses();
+      }
+    })
+    .withFailureHandler(function(error) {
+      console.error("❌ Erreur debug:", error);
+    })
+    .testerOptionsPersonnaliseesInterface();
+}
+
+  })(); // Fin du DOM Environment Guard IIFE
+</script>
+</body>
+</html>
