@@ -1,0 +1,363 @@
+<script>
+  // ========== FONCTIONS POUR LES NOUVELLES MÉTRIQUES ==========
+  function updateNewMetrics() {
+    // Vérifier que les métriques sont prêtes dans le DOM
+    const metricsReady = document.getElementById('totalStudentsMetric');
+    if (!metricsReady) return; // panneau pas encore injecté
+
+
+    // Total élèves (uniquement dans les vraies classes)
+    let totalStudents = 0;
+    let filles = 0;
+    let totalClasses = 0;
+
+    document.querySelectorAll('.class-column').forEach(column => {
+      const className = column.querySelector('.classe-name').textContent;
+      if (!isRealClass(className)) return;
+
+      totalClasses++;
+      column.querySelectorAll('.student-card').forEach(card => {
+        const student = STATE.students[card.dataset.id];
+        if (student) {
+          totalStudents++;
+          if (student.sexe === 'F') filles++;
+        }
+      });
+    });
+
+
+    const totalElement = document.getElementById('totalStudentsMetric');
+    if (totalElement) {
+      totalElement.textContent = totalStudents;
+    } else {
+      console.warn('❓ métrique manquante dans le DOM : totalStudentsMetric');
+    }
+
+    // Ratio filles
+    const ratio = totalStudents > 0 ? Math.round((filles / totalStudents) * 100) : 0;
+    const ratioElement = document.getElementById('genderBalanceMetric');
+    if (ratioElement) {
+      ratioElement.textContent = `${ratio}% F`;
+    } else {
+      console.warn('❓ métrique manquante dans le DOM : genderBalanceMetric');
+    }
+
+    // Moyenne par classe
+    const avgClass = totalClasses > 0 ? Math.round(totalStudents / totalClasses) : 0;
+    const avgElement = document.getElementById('avgClassSizeMetric');
+    if (avgElement) {
+      avgElement.textContent = avgClass;
+    } else {
+      console.warn('❓ métrique manquante dans le DOM : avgClassSizeMetric');
+    }
+
+    // Score de conformité
+    const conformityElement = document.getElementById('conformityScoreMetric');
+    if (conformityElement) {
+      conformityElement.textContent = '✅ OK';
+    } else {
+      console.warn('❓ métrique manquante dans le DOM : conformityScoreMetric');
+    }
+
+  }
+
+  function updateLV2Details() {
+    if (!window.chartLV2Details) return;
+
+    const classes = Array.from(document.querySelectorAll('.class-column')).map(col =>
+      col.querySelector('.classe-name').textContent
+    ).sort();
+
+    const lv2Types = ['ESP', 'ITA', 'ALL', 'LATIN', 'GRECO'];
+    const colors = ['#dc2626', '#059669', '#2563eb', '#7c3aed', '#d97706'];
+
+    window.chartLV2Details.data.labels = classes;
+    window.chartLV2Details.data.datasets = lv2Types.map((lv2, index) => ({
+      label: lv2,
+      data: classes.map(classe => {
+        const zone = document.querySelector(`.droppable-zone[data-classe="${classe}"]`);
+        if (!zone) return 0;
+        return Array.from(zone.querySelectorAll('.student-card')).filter(card => {
+          const eleve = STATE.students[card.dataset.id];
+          return eleve && eleve.lv2 && eleve.lv2.toUpperCase() === lv2;
+        }).length;
+      }),
+      backgroundColor: colors[index],
+      stack: 'Stack 0'
+    }));
+
+    window.chartLV2Details.update();
+  }
+
+  function updateConformityGrid() {
+    const grid = document.getElementById('conformityGrid');
+    if (!grid) return;
+
+    const classes = Array.from(document.querySelectorAll('.class-column')).map(col =>
+      col.querySelector('.classe-name').textContent
+    ).sort();
+
+    let html = '';
+    classes.forEach(classe => {
+      const zone = document.querySelector(`.droppable-zone[data-classe="${classe}"]`);
+      if (!zone) return;
+
+      const cards = Array.from(zone.querySelectorAll('.student-card'));
+      const total = cards.length;
+      const filles = cards.filter(card => {
+        const eleve = STATE.students[card.dataset.id];
+        return eleve && eleve.sexe === 'F';
+      }).length;
+
+      const ratio = total > 0 ? Math.round((filles / total) * 100) : 0;
+      let status = 'conformity-undefined';
+      let text = '?';
+
+      if (ratio >= 40 && ratio <= 60) {
+        status = 'conformity-ok';
+        text = 'OK';
+      } else if (ratio >= 30 && ratio <= 70) {
+        status = 'conformity-warning';
+        text = '!';
+      } else {
+        status = 'conformity-error';
+        text = '✗';
+      }
+
+      html += `<div class="conformity-cell ${status}" title="${classe}: ${ratio}% filles">${text}</div>`;
+    });
+
+    grid.innerHTML = html;
+  }
+
+  function updateBalanceIndicators() {
+    const container = document.getElementById('balanceIndicators');
+    if (!container) return;
+
+    const suggestions = [];
+
+    // Analyser l'équilibre des sexes
+    document.querySelectorAll('.class-column').forEach(column => {
+      const classe = column.querySelector('.classe-name').textContent;
+      const cards = Array.from(column.querySelectorAll('.student-card'));
+      const total = cards.length;
+      const filles = cards.filter(card => {
+        const eleve = STATE.students[card.dataset.id];
+        return eleve && eleve.sexe === 'F';
+      }).length;
+
+      const ratio = total > 0 ? Math.round((filles / total) * 100) : 0;
+
+      if (ratio < 30) {
+        suggestions.push({
+          type: 'warning',
+          message: `${classe}: Trop peu de filles (${ratio}%)`,
+          icon: 'fa-exclamation-triangle'
+        });
+      } else if (ratio > 70) {
+        suggestions.push({
+          type: 'warning',
+          message: `${classe}: Trop peu de garçons (${100 - ratio}%)`,
+          icon: 'fa-exclamation-triangle'
+        });
+      }
+    });
+
+    if (suggestions.length === 0) {
+      suggestions.push({
+        type: 'success',
+        message: 'Équilibre des sexes satisfaisant',
+        icon: 'fa-check-circle'
+      });
+    }
+
+    const html = suggestions.map(s => `
+    <div class="indicator-card indicator-${s.type === 'success' ? 'good' : 'warning'}">
+      <i class="fas ${s.icon} mr-2"></i>
+      ${s.message}
+    </div>
+  `).join('');
+
+    container.innerHTML = html;
+  }
+
+  // --- Responsive : recalculer à chaque resize de la fenêtre (avec debounce) ---
+  let resizeTimeout = null;
+  window.addEventListener('resize', () => {
+    if (STATE.viewMode !== 'simple') return;
+    if (resizeTimeout) clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      document.querySelectorAll('.droppable-zone').forEach(zone => adjustSimpleNamesFontSize(zone));
+    }, 100);
+  });
+
+
+  // FONCTIONS MANQUANTES - À ajouter dans le script principal
+
+  // 1. Gestion du mode sombre depuis localStorage
+  function initDarkMode() {
+    try {
+      const saved = (typeof localStorage !== 'undefined')
+        ? localStorage.getItem('darkMode')
+        : null;
+      const isDark = saved === 'true';
+      STATE.darkMode = !!isDark;
+      document.body.classList.toggle('dark-mode', STATE.darkMode);
+    } catch (e) {
+      console.warn('Could not access localStorage for dark mode.', e);
+    }
+  }
+
+  // API déterministe pour activer/désactiver le mode sombre
+  function setDarkMode(on) {
+    if (!!on === !!STATE.darkMode) return; // déjà dans le bon état
+    toggleDarkMode();
+  }
+
+  // 2. Tutoriel interactif AMÉLIORÉ
+  function showTutorial() {
+    if (window.OnboardingTour && typeof window.OnboardingTour.start === 'function') {
+      window.OnboardingTour.start();
+    } else {
+      console.error('Tutoriel indisponible (Shepherd non charge)');
+      if (typeof window.toast === 'function') {
+        toast("Le tutoriel n'a pas pu se lancer.", 'error');
+      } else {
+        alert("Le tutoriel n'a pas pu se lancer.");
+      }
+    }
+  }
+
+
+  // 3. Actualisation intelligente (déjà présente mais toast amélioré)
+  window.attemptRefresh = async function () {
+    showSpinner();
+    try {
+      const currentMode = localStorage.getItem('mode-selection') || 'TEST';
+      const success = await loadDataForMode(currentMode);
+      if (success) {
+        toast('Données actualisées avec succès', 'success');
+      } else {
+        toast('Échec de l\'actualisation', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur actualisation:', error);
+      toast('Erreur lors de l\'actualisation', 'error');
+    } finally {
+      hideSpinner();
+    }
+  }
+
+  // 4. Amélioration de la fonction de recherche
+  function enhanceSearch() {
+    const searchInput = document.getElementById('search');
+    let searchTimeout;
+    if (!searchInput) return;
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        const term = e.target.value.toLowerCase().trim();
+        STATE.searchTerm = term;
+        let matchCount = 0;
+        document.querySelectorAll('.student-card').forEach(card => {
+          const nameEl = card.querySelector('.student-fullname, .student-simple-name');
+          if (!nameEl) return;
+          const fullName = nameEl.textContent.toLowerCase();
+          const eleve = STATE.students[card.dataset.id];
+          const searchText = [fullName, eleve?.lv2?.toLowerCase() || '', eleve?.opt?.toLowerCase() || '', eleve?.mobilite?.toLowerCase() || ''].join(' ');
+          const match = !term || searchText.includes(term);
+          card.style.display = match ? '' : 'none';
+          card.classList.toggle('search-highlight', match && term);
+          if (match) matchCount++;
+        });
+        if (term) {
+          toast(`${matchCount} élève(s) trouvé(s)`, 'info');
+        }
+      }, 300);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      }
+    });
+  }
+
+  // 5. Système de notifications persistantes
+  function createNotificationSystem() {
+    if (!document.getElementById('notificationContainer')) {
+      const container = document.createElement('div');
+      container.id = 'notificationContainer';
+      container.className = 'fixed top-20 right-4 z-50 space-y-2 max-w-sm';
+      document.body.appendChild(container);
+    }
+  }
+  function showPersistentNotification(message, type = 'info', duration = 5000) {
+    createNotificationSystem();
+    const container = document.getElementById('notificationContainer');
+    const notification = document.createElement('div');
+    const bgColors = { success: 'bg-green-500', error: 'bg-red-500', warning: 'bg-yellow-500', info: 'bg-blue-500' };
+    const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+    notification.className = `${bgColors[type]} text-white p-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 flex items-center gap-2`;
+    notification.innerHTML = `<i class="fas ${icons[type]}"></i><span class="flex-1">${message}</span><button onclick="this.parentElement.remove()" class="text-white hover:text-gray-200"><i class="fas fa-times"></i></button>`;
+    container.appendChild(notification);
+    setTimeout(() => { notification.classList.remove('translate-x-full'); }, 100);
+    if (duration > 0) {
+      setTimeout(() => { notification.classList.add('translate-x-full'); setTimeout(() => notification.remove(), 300); }, duration);
+    }
+  }
+
+  // 6. Amélioration du système d'aide
+  function createContextualHelp() {
+    const helpButton = document.getElementById('btnTutorial');
+    if (helpButton) {
+      helpButton.addEventListener('click', () => {
+        // Ne plus marquer comme vu au clic, seulement à la fin du tutoriel
+        showTutorial();
+      });
+    }
+  }
+
+  // 7. Gestion des préférences utilisateur
+  function saveUserPreferences() {
+    const preferences = {
+      viewMode: STATE.viewMode,
+      darkMode: STATE.darkMode,
+      lastFilter: activeFilter || 'all'
+    };
+    localStorage.setItem('userPreferences', JSON.stringify(preferences));
+  }
+  function loadUserPreferences() {
+    try {
+      const saved = localStorage.getItem('userPreferences');
+      if (saved) {
+        const prefs = JSON.parse(saved);
+        // Gérer l'ancienne propriété simpleView pour la compatibilité
+        if (prefs.simpleView !== undefined && prefs.viewMode === undefined) {
+          STATE.viewMode = prefs.simpleView ? 'simple' : 'complete';
+          localStorage.setItem('viewMode', STATE.viewMode);
+        }
+        // Mode sombre désactivé par défaut à chaque session
+        delete prefs.darkMode;
+
+        if (prefs.lastFilter && prefs.lastFilter !== 'all') { setTimeout(() => applyQuickFilter(prefs.lastFilter), 1000); }
+      }
+    } catch (e) { console.warn('Erreur chargement préférences:', e); }
+  }
+
+  // 8. Fonction d'initialisation globale améliorée
+  function initializeEnhancements() {
+    loadUserPreferences();
+    enhanceSearch();
+    createContextualHelp();
+    createNotificationSystem();
+    window.addEventListener('beforeunload', saveUserPreferences);
+
+  }
+  // ... existing code ...
+  // À la fin du DOMContentLoaded, après setupEventListeners() et openStartupModal();
+  initializeEnhancements();
+  // ... existing code ...
+
+</script>
