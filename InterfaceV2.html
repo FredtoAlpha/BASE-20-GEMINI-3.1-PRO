@@ -1829,8 +1829,7 @@
   <!-- FIN Menu Admin -->
 
   <!-- ========== MODULE GROUPES V4 ========== -->
-  <!-- UI Components (LoadingOverlay, Toast, Tooltips) -->
-  <?!= include('UIComponents'); ?>
+  <!-- UIComponents déjà chargé en ligne ~1169 — ne pas re-inclure -->
 
   <!-- Styles spécifiques Groups V4 (pastilles score, lisibilité) -->
   <?!= include('GroupsModuleV4_Styles'); ?>
@@ -1840,9 +1839,8 @@
   <?!= include('InterfaceV2_GroupsModuleV4_Script'); ?>
 
   <!-- ============================================================ -->
-  <!-- TOOLTIPS SYSTEM -->
+  <!-- TooltipRegistry déjà chargé en ligne ~1170 — ne pas re-inclure -->
   <!-- ============================================================ -->
-  <?!= include('TooltipRegistry'); ?>
 
   <!-- ============================================================ -->
   <!-- FONCTION D'OUVERTURE DU MODULE ANALYTIQUE -->
