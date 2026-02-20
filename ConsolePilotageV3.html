@@ -342,6 +342,7 @@
         <nav>
             <div class="nav-item active" onclick="goTo(1)" id="nav-1"><i class="fas fa-hammer"></i> INIT</div>
             <div class="nav-item" onclick="goTo(2)" id="nav-2"><i class="fas fa-database"></i> DATA</div>
+            <div class="nav-item" onclick="goTo('scores')" id="nav-scores"><i class="fas fa-star-half-alt"></i> SCORES</div>
             <div class="nav-item" onclick="goTo(3)" id="nav-3"><i class="fas fa-chart-bar"></i> STATS</div>
             <div class="nav-item" onclick="goTo(4)" id="nav-4"><i class="fas fa-chess-board"></i> STRUCTURE</div>
             <div class="nav-item" onclick="goTo(5)" id="nav-5"><i class="fas fa-cogs"></i> MOTEUR</div>
@@ -426,6 +427,96 @@
                     <span>CONSOLIDER & VÉRIFIER</span>
                 </button>
             </div>
+        </div>
+
+        <!-- =============== PHASE SCORES — Calcul depuis Pronote =============== -->
+        <div id="phase-scores" class="phase">
+            <h1>SCORES ÉLÈVES</h1>
+            <div class="card">
+                <h2>1. Préparer les onglets DATA</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">
+                    Crée les onglets temporaires pour coller les exports Pronote.
+                </p>
+                <button onclick="initScoresSheets()" id="btn-init-scores" class="btn btn-secondary" style="margin-bottom: 20px;">
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-folder-plus"></i> CRÉER LES ONGLETS DATA</span>
+                </button>
+
+                <div id="scores-status" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>2. Coller les exports Pronote</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">
+                    Fermez la console, collez vos exports Pronote dans les onglets DATA_*, puis revenez.
+                </p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; font-size: 13px;">
+                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #6366f1;">
+                        <strong>DATA_ABS</strong><br><span style="color: #94a3b8;">Absences (2 lignes en-tête)</span>
+                    </div>
+                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #ef4444;">
+                        <strong>DATA_INCIDENTS</strong><br><span style="color: #94a3b8;">Incidents (2 lignes en-tête)</span>
+                    </div>
+                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #eab308;">
+                        <strong>DATA_PUNITIONS</strong><br><span style="color: #94a3b8;">Punitions (1 ligne en-tête)</span>
+                    </div>
+                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #22c55e;">
+                        <strong>DATA_NOTES</strong><br><span style="color: #94a3b8;">Notes/Moyennes (2 lignes en-tête)</span>
+                    </div>
+                </div>
+                <button onclick="google.script.host.close()" class="btn btn-secondary" style="margin-bottom: 10px;">
+                    <i class="fas fa-door-open"></i> QUITTER POUR COLLER LES DONNÉES
+                </button>
+                <button onclick="refreshScoresStatus()" class="btn btn-secondary" style="background: transparent; border: 1px solid #334155;">
+                    <i class="fas fa-sync"></i> VÉRIFIER LES DONNÉES
+                </button>
+            </div>
+
+            <div class="card">
+                <h2>3. Calculer et injecter les scores</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">
+                    Calcule ABS, COM, TRA, PART depuis les exports et les injecte dans les onglets sources élèves.
+                </p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <button onclick="calcScore('ABS')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
+                        <span>ABS</span>
+                    </button>
+                    <button onclick="calcScore('COM')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
+                        <span>COM</span>
+                    </button>
+                    <button onclick="calcScore('TRA')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
+                        <span>TRA</span>
+                    </button>
+                    <button onclick="calcScore('PART')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
+                        <span>PART</span>
+                    </button>
+                </div>
+
+                <button onclick="calcAllScores()" id="btn-calc-scores" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);">
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-calculator"></i> CALCULER TOUS LES SCORES</span>
+                </button>
+
+                <div id="scores-result" style="margin-top: 15px; display: none;">
+                </div>
+            </div>
+
+            <div class="card" id="scores-preview-card" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>Aperçu des scores</h2>
+                    <button onclick="cleanupScoresSheets()" class="btn btn-secondary" style="width: auto; padding: 10px 20px; font-size: 12px; background: #7f1d1d;">
+                        <i class="fas fa-trash"></i> SUPPRIMER ONGLETS DATA
+                    </button>
+                </div>
+                <div id="scores-preview-table" style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
+                </div>
+            </div>
+
+            <button onclick="goTo(3)" class="btn btn-success" style="margin-top: 20px;">
+                <span><i class="fas fa-arrow-right"></i> CONTINUER VERS STATS</span>
+            </button>
         </div>
 
         <div id="phase-3" class="phase">
@@ -680,6 +771,7 @@
             const nav = document.getElementById('nav-' + n);
             if (nav) nav.classList.add('active');
 
+            if (n === 'scores') refreshScoresStatus();
             if (n === 3) loadStats();
             if (n === 4) {
                 // S'assurer que les stats sont chargées avant d'afficher la structure
@@ -802,7 +894,7 @@
                 if (res.success) {
                     showToast('Consolidation terminée', 'success');
                     saveProgress(3);
-                    setTimeout(() => goTo(3), 1000);
+                    setTimeout(() => goTo('scores'), 1000);
                 } else showModal(res.error, 'error');
             }, err => showModal(err.message, 'error'));
         }
@@ -821,6 +913,127 @@
 
         function saveProgress(phase, meta) {
             runServerCall('v3_saveProgress', [phase, meta || {}], () => {}, () => {});
+        }
+
+        // ===================================================================
+        // 5b. SCORES ÉLÈVES
+        // ===================================================================
+        function initScoresSheets() {
+            setLoading('btn-init-scores', true);
+            runServerCall('v3_initScoresSheets', [], function(res) {
+                setLoading('btn-init-scores', false);
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    renderScoresStatus(res.tabs);
+                } else {
+                    showModal(res.error, 'error');
+                }
+            }, function(err) {
+                setLoading('btn-init-scores', false);
+                showModal(err.message, 'error');
+            });
+        }
+
+        function refreshScoresStatus() {
+            runServerCall('v3_getScoresStatus', [], function(res) {
+                if (res.success) renderScoresStatus(res.tabs);
+            }, function() {});
+        }
+
+        function renderScoresStatus(tabs) {
+            var el = document.getElementById('scores-status');
+            if (!el || !tabs) return;
+            var html = '';
+            var icons = { 'DATA_ABS': 'fa-user-clock', 'DATA_INCIDENTS': 'fa-exclamation-triangle', 'DATA_PUNITIONS': 'fa-gavel', 'DATA_NOTES': 'fa-graduation-cap' };
+            var colors = { 'DATA_ABS': '#6366f1', 'DATA_INCIDENTS': '#ef4444', 'DATA_PUNITIONS': '#eab308', 'DATA_NOTES': '#22c55e' };
+            tabs.forEach(function(t) {
+                var statusColor = t.hasData ? '#22c55e' : '#64748b';
+                var statusText = t.hasData ? t.rows + ' lignes' : (t.exists ? 'Vide' : 'Absent');
+                html += '<div style="background:#0f172a;padding:12px;border-radius:8px;border-left:3px solid ' + (colors[t.name] || '#334155') + ';display:flex;align-items:center;gap:10px;">' +
+                    '<i class="fas ' + (icons[t.name] || 'fa-table') + '" style="color:' + (colors[t.name] || '#94a3b8') + ';font-size:18px;"></i>' +
+                    '<div><strong>' + t.name + '</strong><br><span style="color:' + statusColor + ';font-size:12px;">' + statusText + '</span></div></div>';
+            });
+            el.innerHTML = html;
+        }
+
+        function calcScore(type) {
+            showToast('Calcul ' + type + ' en cours...', 'info');
+            runServerCall('v3_calculerScore', [type], function(res) {
+                if (res.success) {
+                    showToast(type + ' : ' + res.count + ' élèves calculés', 'success');
+                } else {
+                    showModal(res.error, 'error');
+                }
+            }, function(err) { showModal(err.message, 'error'); });
+        }
+
+        function calcAllScores() {
+            setLoading('btn-calc-scores', true);
+            runServerCall('v3_calculerTousScores', [], function(res) {
+                setLoading('btn-calc-scores', false);
+                if (res.success) {
+                    var r = res.results;
+                    var resultEl = document.getElementById('scores-result');
+                    resultEl.style.display = 'block';
+                    resultEl.innerHTML = '<div style="background:#0f172a;padding:20px;border-radius:8px;border:1px solid #22c55e;">' +
+                        '<div style="font-size:20px;font-weight:900;color:#22c55e;margin-bottom:10px;"><i class="fas fa-check-circle"></i> Scores injectés !</div>' +
+                        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;">' +
+                        '<div>ABS : <strong>' + r.abs.count + '</strong> élèves</div>' +
+                        '<div>COM : <strong>' + r.com.count + '</strong> élèves</div>' +
+                        '<div>TRA : <strong>' + r.tra.count + '</strong> élèves</div>' +
+                        '<div>PART : <strong>' + r.part.count + '</strong> élèves</div>' +
+                        '</div>' +
+                        '<div style="margin-top:10px;color:#94a3b8;font-size:12px;">' +
+                        res.injected.updated + ' élèves mis à jour dans les onglets sources | ' +
+                        res.injected.notFound + ' non trouvés</div></div>';
+                    showToast('Tous les scores calculés et injectés !', 'success');
+                    loadScoresPreview();
+                } else {
+                    showModal(res.error, 'error');
+                }
+            }, function(err) {
+                setLoading('btn-calc-scores', false);
+                showModal(err.message, 'error');
+            });
+        }
+
+        function loadScoresPreview() {
+            runServerCall('v3_getScoresPreview', [], function(res) {
+                if (!res.success) return;
+                var card = document.getElementById('scores-preview-card');
+                var el = document.getElementById('scores-preview-table');
+                card.style.display = 'block';
+                var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+                    '<tr style="border-bottom:2px solid #334155;"><th style="text-align:left;padding:8px;">Nom</th><th>Classe</th><th>ABS</th><th>COM</th><th>TRA</th><th>PART</th></tr>';
+                res.preview.forEach(function(p) {
+                    html += '<tr style="border-bottom:1px solid #1e293b;">' +
+                        '<td style="padding:6px 8px;">' + p.nom + '</td>' +
+                        '<td style="text-align:center;">' + (p.classe || '-') + '</td>' +
+                        scoreCell(p.abs) + scoreCell(p.com) + scoreCell(p.tra) + scoreCell(p.part) +
+                        '</tr>';
+                });
+                html += '</table>';
+                if (res.totalEleves > 50) {
+                    html += '<div style="text-align:center;color:#64748b;margin-top:10px;font-size:12px;">Affichage des 50 premiers sur ' + res.totalEleves + ' élèves</div>';
+                }
+                el.innerHTML = html;
+            }, function() {});
+        }
+
+        function scoreCell(val) {
+            if (val === null || val === undefined) return '<td style="text-align:center;color:#64748b;">—</td>';
+            var colors = { 5: '#22c55e', 3.5: '#6366f1', 2.5: '#eab308', 1: '#ef4444' };
+            var c = colors[val] || '#94a3b8';
+            return '<td style="text-align:center;font-weight:900;color:' + c + ';">' + val + '</td>';
+        }
+
+        function cleanupScoresSheets() {
+            runServerCall('v3_cleanupScoresSheets', [], function(res) {
+                if (res.success) {
+                    showToast('Onglets DATA supprimés : ' + res.deleted.join(', '), 'success');
+                    document.getElementById('scores-status').innerHTML = '';
+                }
+            }, function() {});
         }
 
         // ===================================================================
