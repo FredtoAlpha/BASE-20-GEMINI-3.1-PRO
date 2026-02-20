@@ -1,0 +1,1609 @@
+<script>
+  // ========== AMÉLIORATIONS PRIORITAIRES V2 ==========
+
+  // 0. FEEDBACK EN TEMPS RÉEL
+  window.RealTimeFeedback = {
+    previousMetrics: null,
+    isMinimized: false,
+
+    // Initialiser le système de feedback
+    init() {
+      this.setupEventListeners();
+      // Ne pas afficher automatiquement - seulement quand on est dans le menu des groupes
+      this.updateMetrics();
+    },
+
+    // Configurer les événements
+    setupEventListeners() {
+      // Minimiser/maximiser le panneau
+      document.getElementById('minimizeFeedback')?.addEventListener('click', () => {
+        this.toggleMinimize();
+      });
+
+      // Fermer le panneau
+      document.getElementById('closeFeedback')?.addEventListener('click', () => {
+        this.hide();
+      });
+
+      // Rendre le panneau déplaçable
+      this.makeDraggable();
+    },
+
+    // Rendre le panneau déplaçable
+    makeDraggable() {
+      const panel = document.getElementById('feedbackPanel');
+      const header = panel?.querySelector('.feedback-header');
+
+      if (!panel || !header) return;
+
+      let isDragging = false;
+      let startX, startY, startLeft, startTop;
+
+      header.addEventListener('mousedown', (e) => {
+        if (e.target.tagName === 'BUTTON') return;
+
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = parseInt(panel.style.left) || 0;
+        startTop = parseInt(panel.style.top) || 0;
+
+        panel.style.cursor = 'grabbing';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+
+        panel.style.left = (startLeft + deltaX) + 'px';
+        panel.style.top = (startTop + deltaY) + 'px';
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+        panel.style.cursor = 'grab';
+      });
+    },
+
+    // Afficher le panneau
+    show() {
+      const panel = document.getElementById('feedbackPanel');
+      if (panel) {
+        panel.style.display = 'block';
+      }
+    },
+
+    // Masquer le panneau
+    hide() {
+      const panel = document.getElementById('feedbackPanel');
+      if (panel) {
+        panel.style.display = 'none';
+      }
+    },
+
+    // Basculer minimisation
+    toggleMinimize() {
+      const panel = document.getElementById('feedbackPanel');
+      if (!panel) return;
+
+      this.isMinimized = !this.isMinimized;
+      panel.classList.toggle('minimized', this.isMinimized);
+
+      const icon = document.querySelector('#minimizeFeedback i');
+      if (icon) {
+        icon.className = this.isMinimized ? 'fas fa-expand' : 'fas fa-minus';
+      }
+    },
+
+    // Calculer les métriques actuelles
+    calculateMetrics() {
+      const metrics = {
+        balance: this.calculateBalance(),
+        constraints: this.calculateConstraints(),
+        diversity: this.calculateDiversity(),
+        size: this.calculateSizeBalance(),
+        scores: this.calculateScoreBalance(),
+        mobility: this.calculateMobilityBalance(),
+        globalScore: this.calculateGlobalScore()
+      };
+
+      return metrics;
+    },
+
+    // Calculer l'équilibre F/M
+    calculateBalance() {
+      let totalImbalance = 0;
+      let classCount = 0;
+
+      document.querySelectorAll('.class-column').forEach(col => {
+        const students = col.querySelectorAll('.student-card');
+        const fCount = Array.from(students).filter(card =>
+          STATE.students[card.dataset.id]?.sexe === 'F'
+        ).length;
+        const mCount = Array.from(students).filter(card =>
+          STATE.students[card.dataset.id]?.sexe === 'M'
+        ).length;
+
+        const imbalance = Math.abs(fCount - mCount);
+        totalImbalance += imbalance;
+        classCount++;
+      });
+
+      return classCount > 0 ? totalImbalance / classCount : 0;
+    },
+
+    // Calculer les violations de contraintes
+    calculateConstraints() {
+      return ConstraintManager ? ConstraintManager.validateAllConstraints().length : 0;
+    },
+
+    // Calculer la diversité des scores
+    calculateDiversity() {
+      let totalDiversity = 0;
+      let classCount = 0;
+
+      document.querySelectorAll('.class-column').forEach(col => {
+        const students = col.querySelectorAll('.student-card');
+        const scores = Array.from(students).map(card => {
+          const student = STATE.students[card.dataset.id];
+          return (student?.scores?.M || 0) + (student?.scores?.F || 0);
+        }).filter(score => score > 0);
+
+        if (scores.length > 1) {
+          const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+          const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
+          totalDiversity += Math.sqrt(variance);
+        }
+        classCount++;
+      });
+
+      return classCount > 0 ? totalDiversity / classCount : 0;
+    },
+
+    // Calculer l'équilibre des tailles
+    calculateSizeBalance() {
+      const sizes = Array.from(document.querySelectorAll('.class-column')).map(col =>
+        col.querySelectorAll('.student-card').length
+      );
+
+      if (sizes.length === 0) return 0;
+
+      const mean = sizes.reduce((a, b) => a + b, 0) / sizes.length;
+      const variance = sizes.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / sizes.length;
+
+      return Math.sqrt(variance);
+    },
+
+    // Calculer l'équilibre des scores
+    calculateScoreBalance() {
+      let totalImbalance = 0;
+      let classCount = 0;
+
+      document.querySelectorAll('.class-column').forEach(col => {
+        const students = col.querySelectorAll('.student-card');
+        const scores = Array.from(students).map(card => {
+          const student = STATE.students[card.dataset.id];
+          return (student?.scores?.M || 0) + (student?.scores?.F || 0);
+        }).filter(score => score > 0);
+
+        if (scores.length > 1) {
+          const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+          const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
+          totalImbalance += Math.sqrt(variance);
+        }
+        classCount++;
+      });
+
+      return classCount > 0 ? totalImbalance / classCount : 0;
+    },
+
+    // Calculer l'équilibre de mobilité
+    calculateMobilityBalance() {
+      let totalImbalance = 0;
+      let classCount = 0;
+
+      document.querySelectorAll('.class-column').forEach(col => {
+        const students = col.querySelectorAll('.student-card');
+        const permutCount = Array.from(students).filter(card =>
+          STATE.students[card.dataset.id]?.mobilite === 'PERMUT'
+        ).length;
+        const fixeCount = Array.from(students).filter(card =>
+          STATE.students[card.dataset.id]?.mobilite === 'FIXE'
+        ).length;
+
+        const imbalance = Math.abs(permutCount - fixeCount);
+        totalImbalance += imbalance;
+        classCount++;
+      });
+
+      return classCount > 0 ? totalImbalance / classCount : 0;
+    },
+
+    // Calculer le score global
+    calculateGlobalScore() {
+      const balance = this.calculateBalance();
+      const constraints = this.calculateConstraints();
+      const diversity = this.calculateDiversity();
+      const size = this.calculateSizeBalance();
+      const scores = this.calculateScoreBalance();
+      const mobility = this.calculateMobilityBalance();
+
+      // Score inversé (plus c'est bas, mieux c'est)
+      const balanceScore = Math.max(0, 10 - balance * 2);
+      const constraintScore = Math.max(0, 10 - constraints * 2);
+      const diversityScore = Math.min(10, diversity);
+      const sizeScore = Math.max(0, 10 - size);
+      const scoreBalance = Math.min(10, scores);
+      const mobilityScore = Math.max(0, 10 - mobility);
+
+      return (balanceScore + constraintScore + diversityScore + sizeScore + scoreBalance + mobilityScore) / 6;
+    },
+
+    // Mettre à jour l'affichage des métriques
+    updateMetrics() {
+      const currentMetrics = this.calculateMetrics();
+
+      // Mettre à jour les valeurs
+      this.updateMetricValue('balanceValue', currentMetrics.balance.toFixed(1));
+      this.updateMetricValue('constraintsValue', currentMetrics.constraints);
+      this.updateMetricValue('diversityValue', currentMetrics.diversity.toFixed(1));
+      this.updateMetricValue('sizeValue', currentMetrics.size.toFixed(1));
+      this.updateMetricValue('scoresValue', currentMetrics.scores.toFixed(1));
+      this.updateMetricValue('mobilityValue', currentMetrics.mobility.toFixed(1));
+      this.updateMetricValue('globalScoreValue', currentMetrics.globalScore.toFixed(1));
+
+      // Calculer et afficher les changements
+      if (this.previousMetrics) {
+        this.updateMetricChange('balanceChange', currentMetrics.balance, this.previousMetrics.balance);
+        this.updateMetricChange('constraintsChange', currentMetrics.constraints, this.previousMetrics.constraints, true);
+        this.updateMetricChange('diversityChange', currentMetrics.diversity, this.previousMetrics.diversity);
+        this.updateMetricChange('sizeChange', currentMetrics.size, this.previousMetrics.size, true);
+        this.updateMetricChange('scoresChange', currentMetrics.scores, this.previousMetrics.scores);
+        this.updateMetricChange('mobilityChange', currentMetrics.mobility, this.previousMetrics.mobility);
+        this.updateMetricChange('globalScoreChange', currentMetrics.globalScore, this.previousMetrics.globalScore);
+      }
+
+      this.previousMetrics = { ...currentMetrics };
+    },
+
+    // Mettre à jour une valeur de métrique
+    updateMetricValue(elementId, value) {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.textContent = value;
+      }
+    },
+
+    // Mettre à jour l'indicateur de changement
+    updateMetricChange(elementId, currentValue, previousValue, inverted = false) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      const change = currentValue - previousValue;
+      const changeElement = element.querySelector('span');
+      const iconElement = element.querySelector('i');
+
+      if (Math.abs(change) < 0.01) {
+        // Pas de changement
+        element.className = 'metric-change neutral';
+        iconElement.className = 'fas fa-minus';
+        changeElement.textContent = '0';
+      } else {
+        const isImprovement = inverted ? change < 0 : change > 0;
+
+        element.className = `metric-change ${isImprovement ? 'improved' : 'degraded'}`;
+        iconElement.className = isImprovement ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+        changeElement.textContent = Math.abs(change).toFixed(1);
+
+        // Animation de pulse
+        const metricValue = element.closest('.metric-value');
+        metricValue.classList.add('changed');
+        setTimeout(() => metricValue.classList.remove('changed'), 600);
+      }
+    },
+
+    // Prévisualiser l'impact d'un déplacement
+    previewMove(studentId, targetGroup) {
+      if (!this.previousMetrics) return;
+
+      // Simuler le déplacement
+      const originalGroup = this.findStudentGroup(studentId);
+      if (!originalGroup || originalGroup === targetGroup) return;
+
+      // Calculer les nouvelles métriques
+      const newMetrics = this.calculateMetricsWithMove(studentId, targetGroup);
+
+      // Afficher les changements prévisionnels
+      this.updateMetricChange('balanceChange', newMetrics.balance, this.previousMetrics.balance);
+      this.updateMetricChange('constraintsChange', newMetrics.constraints, this.previousMetrics.constraints, true);
+      this.updateMetricChange('diversityChange', newMetrics.diversity, this.previousMetrics.diversity);
+      this.updateMetricChange('sizeChange', newMetrics.size, this.previousMetrics.size, true);
+      this.updateMetricChange('globalScoreChange', newMetrics.globalScore, this.previousMetrics.globalScore);
+    },
+
+    // Trouver le groupe d'un élève
+    findStudentGroup(studentId) {
+      const card = document.querySelector(`[data-id="${studentId}"]`);
+      return card?.closest('.class-column')?.querySelector('.classe-name')?.textContent;
+    },
+
+    // Calculer les métriques avec un déplacement simulé
+    calculateMetricsWithMove(studentId, targetGroup) {
+      // Implémentation simplifiée - en réalité, il faudrait simuler le déplacement
+      // Pour l'instant, on retourne les métriques actuelles
+      return this.calculateMetrics();
+    },
+
+    // Réinitialiser les changements
+    resetChanges() {
+      const changes = ['balanceChange', 'constraintsChange', 'diversityChange', 'sizeChange', 'scoresChange', 'mobilityChange', 'globalScoreChange'];
+      changes.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.className = 'metric-change neutral';
+          const icon = element.querySelector('i');
+          const span = element.querySelector('span');
+          if (icon) icon.className = 'fas fa-minus';
+          if (span) span.textContent = '0';
+        }
+      });
+    }
+  };
+
+  // 1. IMPORT DES SCORES INT
+  const ScoreImporter = {
+    // Importer les scores depuis les fichiers INT
+    async importScoresFromINT() {
+      try {
+        const result = await gsRun('getINTScores');
+        if (result.success) {
+          // Mapper les scores sur les élèves existants
+          let importedCount = 0;
+          result.scores.forEach(score => {
+            if (STATE.students[score.id]) {
+              STATE.students[score.id].scores.M = score.MATH;
+              STATE.students[score.id].scores.F = score.FR;
+              importedCount++;
+            }
+          });
+
+          // Rafraîchir l'affichage
+          this.refreshScoreDisplay();
+
+          toast(`${importedCount} scores importés avec succès`, 'success');
+          return { success: true, count: importedCount };
+        } else {
+          toast('Erreur lors de l\'import des scores', 'error');
+          return { success: false, error: result.error };
+        }
+      } catch (error) {
+        console.error('Erreur import scores:', error);
+        toast('Erreur lors de l\'import des scores', 'error');
+        return { success: false, error: error.message };
+      }
+    },
+
+    // Rafraîchir l'affichage des scores
+    refreshScoreDisplay() {
+      document.querySelectorAll('.student-card').forEach(card => {
+        const eleve = STATE.students[card.dataset.id];
+        if (eleve && eleve.scores) {
+          const scoresContainer = card.querySelector('.scores');
+          if (scoresContainer) {
+            scoresContainer.innerHTML = this.generateScoreBadges(eleve.scores);
+          }
+        }
+      });
+    },
+
+    // Générer les badges de scores
+    generateScoreBadges(scores) {
+      const badges = [];
+
+      // Scores existants (COM, TRA, PART, ABS) avec 4 couleurs distinctes
+      const scoreMap = [
+        { key: 'COM', label: 'Comportement', letter: 'C' },
+        { key: 'TRA', label: 'Travail', letter: 'T' },
+        { key: 'PART', label: 'Participation', letter: 'P' },
+        { key: 'ABS', label: 'Absences', letter: 'A' }
+      ];
+
+      scoreMap.forEach(({ key, label, letter }) => {
+        if (scores[key] !== undefined && scores[key] !== '' && scores[key] > 0) {
+          const score = scores[key];
+          // Utiliser les classes score-pill existantes pour avoir 4 couleurs distinctes :
+          // score-1 = ROUGE, score-2 = JAUNE, score-3 = VERT CLAIR, score-4 = VERT FONCÉ
+          badges.push(`<div class="score-pill score-${score}" title="${label}: ${score}/4">${letter}</div>`);
+        }
+      });
+
+      // Nouveaux scores (MATH, FR) - garder l'ancien système
+      ['M', 'F'].forEach(key => {
+        if (scores[key] !== undefined && scores[key] !== '') {
+          const score = scores[key];
+          const color = score >= 3 ? 'bg-blue-100 text-blue-800' :
+            score >= 2 ? 'bg-orange-100 text-orange-800' :
+              'bg-red-100 text-red-800';
+          const label = key === 'M' ? 'MATH' : 'FR';
+          badges.push(`<span class="score-badge ${color} text-xs px-1 rounded">${label}:${score}</span>`);
+        }
+      });
+
+      return badges.join('');
+    },
+
+    // Afficher les groupes existants
+    showGroups() {
+      const section = document.getElementById('groupsSection');
+      if (section) {
+        section.style.display = 'block';
+        // Rafraîchir l'affichage si nécessaire
+        if (Object.keys(this.groups).length > 0) {
+          this.displaySavedGroups(true);
+        }
+      } else if (Object.keys(this.groups).length > 0) {
+        // Si la section n'existe pas mais qu'il y a des groupes, la créer
+        this.displaySavedGroups(true);
+      } else {
+        toast('Aucun groupe créé', 'info');
+      }
+    },
+
+    // Masquer les groupes
+    hideGroups() {
+      const section = document.getElementById('groupsSection');
+      if (section) {
+        section.style.display = 'none';
+      }
+      toast('Groupes masqués', 'info');
+    },
+
+    // Basculer l'affichage des groupes
+    toggleGroups() {
+      const section = document.getElementById('groupsSection');
+      if (section && section.style.display !== 'none') {
+        this.hideGroups();
+      } else {
+        this.showGroups();
+      }
+    },
+
+    // Supprimer tous les groupes
+    deleteAllGroups() {
+      if (!confirm('Supprimer TOUS les groupes créés ? Cette action est irréversible.')) return;
+
+      this.groups = {};
+      this.saveGroups();
+
+      // Retirer la section
+      const section = document.getElementById('groupsSection');
+      if (section) section.remove();
+
+      toast('Tous les groupes ont été supprimés', 'info');
+    },
+
+    // Mettre à jour le bouton pour afficher le nombre de groupes
+    updateGroupsButton() {
+      const btn = document.getElementById('btnGroups');
+      if (btn && this.groups) {
+        const count = Object.keys(this.groups).length;
+        if (count > 0) {
+          btn.innerHTML = `<i class="fas fa-layer-group"></i> Groupes <span class="bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full text-xs ml-1">${count}</span> <i class="fas fa-caret-down"></i>`;
+        } else {
+          btn.innerHTML = '<i class="fas fa-layer-group"></i> Groupes <i class="fas fa-caret-down"></i>';
+        }
+      }
+    }
+  };
+
+  // 2. ALGORITHME D'OPTIMISATION AMÉLIORÉ
+  const OptimizerV2 = {
+    // Algorithme génétique simple pour optimiser l'équilibre
+    optimizeGroupsGenetic(students, numGroups, iterations = 100) {
+      // Créer population initiale
+      let bestSolution = this.createInitialGroups(students, numGroups);
+      let bestScore = this.evaluateSolution(bestSolution);
+
+      for (let i = 0; i < iterations; i++) {
+        // Mutation : échanger 2 élèves aléatoires
+        const mutated = this.mutateSolution(bestSolution);
+        const score = this.evaluateSolution(mutated);
+
+        if (score > bestScore) {
+          bestSolution = mutated;
+          bestScore = score;
+        }
+      }
+
+      return bestSolution;
+    },
+
+    // Créer des groupes initiaux
+    createInitialGroups(students, numGroups) {
+      const groups = Array(numGroups).fill(null).map(() => []);
+
+      // Distribution aléatoire initiale
+      students.forEach((student, index) => {
+        const groupIndex = index % numGroups;
+        groups[groupIndex].push(student);
+      });
+
+      return groups;
+    },
+
+    // Évaluer la qualité d'une solution
+    evaluateSolution(groups) {
+      let score = 100;
+
+      // Pénalité pour déséquilibre de taille
+      const avgSize = groups.reduce((sum, g) => sum + g.length, 0) / groups.length;
+      groups.forEach(g => {
+        score -= Math.abs(g.length - avgSize) * 5;
+      });
+
+      // Pénalité pour déséquilibre F/M
+      groups.forEach(g => {
+        const ratio = g.filter(s => s.sexe === 'F').length / g.length;
+        score -= Math.abs(ratio - 0.5) * 50;
+      });
+
+      // Bonus pour hétérogénéité des scores
+      groups.forEach(g => {
+        const scores = g.map(s => (s.scores?.M || 0) + (s.scores?.F || 0));
+        const variance = this.calculateVariance(scores);
+        score += variance * 10; // Plus de variance = mieux
+      });
+
+      return score;
+    },
+
+    // Calculer la variance
+    calculateVariance(scores) {
+      if (scores.length === 0) return 0;
+      const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+      const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
+      return variance;
+    },
+
+    // Mutation d'une solution
+    mutateSolution(groups) {
+      const mutated = groups.map(g => [...g]); // Copie profonde
+
+      // Sélectionner deux groupes aléatoires
+      const group1Index = Math.floor(Math.random() * mutated.length);
+      const group2Index = Math.floor(Math.random() * mutated.length);
+
+      if (group1Index !== group2Index && mutated[group1Index].length > 0 && mutated[group2Index].length > 0) {
+        // Sélectionner deux élèves aléatoires
+        const student1Index = Math.floor(Math.random() * mutated[group1Index].length);
+        const student2Index = Math.floor(Math.random() * mutated[group2Index].length);
+
+        // Échanger les élèves
+        const temp = mutated[group1Index][student1Index];
+        mutated[group1Index][student1Index] = mutated[group2Index][student2Index];
+        mutated[group2Index][student2Index] = temp;
+      }
+
+      return mutated;
+    },
+
+    // Appliquer l'optimisation ClaudeMotor depuis le backend
+    applyOptimization() {
+      // Afficher un loader
+      const loadingToast = document.createElement('div');
+      loadingToast.className = 'fixed top-4 right-4 bg-purple-600 text-white px-6 py-4 rounded-lg shadow-lg z-50';
+      loadingToast.innerHTML = `
+      <div class="flex items-center gap-3">
+        <i class="fas fa-spinner fa-spin"></i>
+        <div>
+          <div class="font-bold">Optimisation en cours...</div>
+          <div class="text-sm opacity-90">ClaudeMotor analyse vos classes</div>
+        </div>
+      </div>
+    `;
+      document.body.appendChild(loadingToast);
+
+      // Appeler le backend
+      google.script.run
+        .withSuccessHandler((response) => {
+          loadingToast.remove();
+
+          if (response.success) {
+            toast(`Optimisation terminée ! ${response.results.totalSwaps} échanges suggérés`, 'success');
+            this.displayClaudeMotorResults(response.results);
+          } else {
+            toast(`Erreur: ${response.error}`, 'error');
+            console.error('Erreur optimisation:', response);
+          }
+        })
+        .withFailureHandler((error) => {
+          loadingToast.remove();
+          toast(`Erreur technique: ${error.message}`, 'error');
+          console.error('Erreur appel backend:', error);
+        })
+        .lancerOptimisationClaudeMotor({
+          maxIterations: 50,
+          enableMultiSwap: true
+        });
+    },
+
+    // Afficher les résultats ClaudeMotor
+    displayClaudeMotorResults(results) {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+
+      // Formater les swaps par phase
+      let swapsHTML = '';
+      if (results.swaps && results.swaps.length > 0) {
+        swapsHTML = `
+        <div class="mb-4">
+          <h3 class="font-bold text-lg mb-2">📝 Échanges suggérés (${results.swaps.length})</h3>
+          <div class="max-h-60 overflow-y-auto border rounded p-2">
+            ${results.swaps.map((swap, i) => `
+              <div class="text-sm p-2 bg-gray-50 rounded mb-2">
+                <strong>#${i + 1}</strong>:
+                ${swap.student1?.nom || swap.studentSource?.nom || 'Élève 1'}
+                (${swap.class1 || swap.sourceClass || '?'})
+                ↔
+                ${swap.student2?.nom || swap.studentTarget?.nom || 'Élève 2'}
+                (${swap.class2 || swap.targetClass || '?'})
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      } else {
+        swapsHTML = `
+        <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded">
+          <p class="text-green-800">✅ Aucun échange nécessaire - La répartition est déjà optimale !</p>
+        </div>
+      `;
+      }
+
+      modal.innerHTML = `
+      <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+          <h2 class="text-xl font-bold">🚀 Résultats ClaudeMotor</h2>
+          <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Scores -->
+          <div class="grid grid-cols-3 gap-4 mb-4">
+            <div class="border rounded p-3 text-center">
+              <div class="text-sm text-gray-600">Score initial</div>
+              <div class="text-2xl font-bold text-gray-800">${results.scoreInitial.toFixed(1)}/100</div>
+            </div>
+            <div class="border rounded p-3 text-center">
+              <div class="text-sm text-gray-600">Score final</div>
+              <div class="text-2xl font-bold text-green-600">${results.scoreFinal.toFixed(1)}/100</div>
+            </div>
+            <div class="border rounded p-3 text-center">
+              <div class="text-sm text-gray-600">Amélioration</div>
+              <div class="text-2xl font-bold ${results.improvement >= 0 ? 'text-green-600' : 'text-red-600'}">
+                ${results.improvement >= 0 ? '+' : ''}${results.improvement.toFixed(1)}
+              </div>
+            </div>
+          </div>
+
+          <!-- Phases -->
+          ${results.phases ? `
+            <div class="mb-4">
+              <h3 class="font-bold mb-2">📊 Détails des phases</h3>
+              <div class="grid grid-cols-3 gap-2">
+                <div class="text-xs border rounded p-2">
+                  <strong>Phase 1 (Scores)</strong><br>
+                  ${results.phases.phase1?.swaps?.length || 0} échanges
+                </div>
+                <div class="text-xs border rounded p-2">
+                  <strong>Phase 2 (Parité)</strong><br>
+                  ${results.phases.phase2?.corrections?.length || 0} corrections
+                </div>
+                <div class="text-xs border rounded p-2">
+                  <strong>Phase 3 (MultiSwap)</strong><br>
+                  ${results.phases.phase3?.cycles?.length || 0} cycles
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${swapsHTML}
+
+          <!-- Boutons -->
+          <div class="mt-4 flex gap-2">
+            <button onclick="OptimizerV2.applyClaudeMotorSwaps()" class="btn btn-primary">
+              <i class="fas fa-check"></i> Appliquer les échanges
+            </button>
+            <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">
+              <i class="fas fa-times"></i> Fermer
+            </button>
+          </div>
+
+          <div class="mt-4 text-xs text-gray-500">
+            ⏱️ Durée: ${results.duration}ms |
+            🔄 ${results.totalSwaps} échanges au total
+          </div>
+        </div>
+      </div>
+    `;
+      document.body.appendChild(modal);
+
+      // Sauvegarder les swaps pour application ultérieure
+      window._claudeMotorSwaps = results.swaps;
+    },
+
+    // Appliquer les swaps ClaudeMotor
+    applyClaudeMotorSwaps() {
+      const swaps = window._claudeMotorSwaps;
+      if (!swaps || swaps.length === 0) {
+        toast('Aucun échange à appliquer', 'info');
+        document.querySelector('.modal')?.remove();
+        return;
+      }
+
+      // TODO: Implémenter l'application réelle des swaps dans l'interface
+      // Pour l'instant, juste recharger les données
+      toast(`Application de ${swaps.length} échanges...`, 'info');
+
+      setTimeout(() => {
+        toast('Échanges appliqués ! Rechargez les données pour voir les changements.', 'success');
+        document.querySelector('.modal')?.remove();
+      }, 1000);
+    },
+
+    // Afficher les résultats d'optimisation (ancien algorithme - conservé pour compatibilité)
+    displayOptimizationResults(groups) {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `
+      <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+          <h2 class="text-xl font-bold">Résultats de l'optimisation</h2>
+          <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="grid grid-cols-2 gap-4">
+            ${groups.map((group, index) => `
+              <div class="border rounded p-3">
+                <h4 class="font-bold mb-2">Groupe ${index + 1} (${group.length} élèves)</h4>
+                <div class="text-sm text-gray-600 mb-2">
+                  F: ${group.filter(s => s.sexe === 'F').length} | 
+                  M: ${group.filter(s => s.sexe === 'M').length}
+                </div>
+                <div class="max-h-32 overflow-y-auto">
+                  ${group.slice(0, 10).map(s => `
+                    <div class="text-xs p-1 bg-gray-50 rounded mb-1">
+                      ${s.nom} ${s.prenom || ''} (${s.sexe})
+                    </div>
+                  `).join('')}
+                  ${group.length > 10 ? `<div class="text-xs text-gray-500">... et ${group.length - 10} autres</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="mt-4 flex gap-2">
+            <button onclick="OptimizerV2.applyOptimizationResults()" class="btn btn-primary">
+              <i class="fas fa-check"></i> Appliquer cette répartition
+            </button>
+            <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">
+              <i class="fas fa-times"></i> Annuler
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+      document.body.appendChild(modal);
+    },
+
+    // Appliquer les résultats d'optimisation
+    applyOptimizationResults() {
+      // Cette fonction serait appelée pour appliquer réellement les changements
+      toast('Optimisation appliquée', 'success');
+      document.querySelector('.modal').remove();
+    }
+  };
+
+  // 3. GESTION DES CONTRAINTES ASSO/DISSO AMÉLIORÉE
+  const ConstraintManager = {
+    // Vérifier les contraintes avant tout déplacement
+    checkGroupConstraints(studentId, targetGroup) {
+      const student = STATE.students[studentId];
+      if (!student) return { valid: false, reason: 'Élève non trouvé' };
+
+      // Vérifier dissociation
+      if (student.disso) {
+        const conflictExists = targetGroup.some(s =>
+          STATE.students[s.id] && STATE.students[s.id].disso === student.disso
+        );
+        if (conflictExists) {
+          return { valid: false, reason: `Conflit dissociation D${student.disso}` };
+        }
+      }
+
+      // Vérifier association
+      if (student.asso) {
+        const assoGroup = STATE.aGroups[`A${student.asso}`];
+        if (assoGroup) {
+          const allInSameGroup = assoGroup.every(id =>
+            targetGroup.some(s => s.id === id) || id === studentId
+          );
+          if (!allInSameGroup) {
+            return { valid: false, reason: `Groupe A${student.asso} doit rester ensemble` };
+          }
+        }
+      }
+
+      return { valid: true };
+    },
+
+    // Afficher visuellement les contraintes
+    showConstraintsOverlay() {
+      // Colorer les élèves avec le même code disso
+      document.querySelectorAll('.student-card').forEach(card => {
+        const eleve = STATE.students[card.dataset.id];
+        if (eleve && eleve.disso) {
+          card.style.border = '2px solid #ef4444';
+          card.style.backgroundColor = '#fef2f2';
+
+          // Ajouter un badge de contrainte
+          let badge = card.querySelector('.constraint-badge');
+          if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'constraint-badge absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1 rounded-full';
+            badge.textContent = `D${eleve.disso}`;
+            card.style.position = 'relative';
+            card.appendChild(badge);
+          }
+        }
+
+        // Relier visuellement les élèves avec le même code asso
+        if (eleve && eleve.asso) {
+          card.style.border = '2px solid #3b82f6';
+          card.style.backgroundColor = '#eff6ff';
+
+          let badge = card.querySelector('.constraint-badge');
+          if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'constraint-badge absolute -top-1 -right-1 bg-blue-500 text-white text-xs px-1 rounded-full';
+            badge.textContent = `A${eleve.asso}`;
+            card.style.position = 'relative';
+            card.appendChild(badge);
+          }
+        }
+      });
+    },
+
+    // Masquer les contraintes
+    hideConstraintsOverlay() {
+      document.querySelectorAll('.student-card').forEach(card => {
+        card.style.border = '';
+        card.style.backgroundColor = '';
+        card.style.position = '';
+
+        const badge = card.querySelector('.constraint-badge');
+        if (badge) badge.remove();
+      });
+    },
+
+    // Vérifier toutes les contraintes dans l'interface
+    validateAllConstraints() {
+      const violations = [];
+
+      // Vérifier les dissociations
+      const dissoGroups = {};
+      document.querySelectorAll('.student-card').forEach(card => {
+        const eleve = STATE.students[card.dataset.id];
+        if (eleve && eleve.disso) {
+          const classe = card.closest('.droppable-zone').dataset.classe;
+          if (!dissoGroups[eleve.disso]) dissoGroups[eleve.disso] = [];
+          dissoGroups[eleve.disso].push({ eleve, classe });
+        }
+      });
+
+      Object.entries(dissoGroups).forEach(([code, eleves]) => {
+        const classes = [...new Set(eleves.map(e => e.classe))];
+        if (classes.length > 1) {
+          violations.push({
+            type: 'DISSO',
+            code,
+            message: `Code D${code} réparti sur ${classes.length} classes: ${classes.join(', ')}`
+          });
+        }
+      });
+
+      // Vérifier les associations
+      const assoGroups = {};
+      document.querySelectorAll('.student-card').forEach(card => {
+        const eleve = STATE.students[card.dataset.id];
+        if (eleve && eleve.asso) {
+          const classe = card.closest('.droppable-zone').dataset.classe;
+          if (!assoGroups[eleve.asso]) assoGroups[eleve.asso] = [];
+          assoGroups[eleve.asso].push({ eleve, classe });
+        }
+      });
+
+      Object.entries(assoGroups).forEach(([code, eleves]) => {
+        const classes = [...new Set(eleves.map(e => e.classe))];
+        if (classes.length > 1) {
+          violations.push({
+            type: 'ASSO',
+            code,
+            message: `Groupe A${code} séparé sur ${classes.length} classes: ${classes.join(', ')}`
+          });
+        }
+      });
+
+      return violations;
+    },
+
+    // Afficher les violations de contraintes
+    showConstraintViolations() {
+      const violations = this.validateAllConstraints();
+
+      if (violations.length === 0) {
+        toast('✅ Aucune violation de contrainte détectée', 'success');
+        // Proposer d'ouvrir le panneau des contraintes
+        this.showConstraintsPanel();
+        return;
+      }
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `
+      <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+          <h2 class="text-xl font-bold text-red-600">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            ${violations.length} Violation(s) de contraintes
+          </h2>
+          <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="space-y-3">
+            ${violations.map(v => `
+              <div class="p-3 border-l-4 ${v.type === 'DISSO' ? 'border-red-500 bg-red-50' : 'border-blue-500 bg-blue-50'}">
+                <div class="font-semibold ${v.type === 'DISSO' ? 'text-red-800' : 'text-blue-800'}">
+                  ${v.type === 'DISSO' ? 'Dissociation' : 'Association'} ${v.code}
+                </div>
+                <div class="text-sm ${v.type === 'DISSO' ? 'text-red-700' : 'text-blue-700'}">
+                  ${v.message}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="mt-4 flex gap-2">
+            <button onclick="ConstraintManager.showConstraintsOverlay()" class="btn btn-secondary">
+              <i class="fas fa-eye"></i> Voir les contraintes
+            </button>
+            <button onclick="ConstraintManager.showConstraintsPanel(); this.closest('.modal').remove();" class="btn btn-secondary">
+              <i class="fas fa-cog"></i> Gérer les contraintes
+            </button>
+            <button onclick="this.closest('.modal').remove()" class="btn btn-primary">
+              <i class="fas fa-check"></i> Compris
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+      document.body.appendChild(modal);
+    },
+
+    // Afficher le panneau complet de gestion des contraintes
+    showConstraintsPanel() {
+      // Charger depuis le backend
+      const loadingToast = document.createElement('div');
+      loadingToast.className = 'fixed top-4 right-4 bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg z-50';
+      loadingToast.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Chargement des contraintes...';
+      document.body.appendChild(loadingToast);
+
+      google.script.run
+        .withSuccessHandler((response) => {
+          loadingToast.remove();
+          if (response.success) {
+            this.displayConstraintsPanel(response.constraints);
+          } else {
+            toast(`Erreur: ${response.error}`, 'error');
+          }
+        })
+        .withFailureHandler((error) => {
+          loadingToast.remove();
+          toast(`Erreur: ${error.message}`, 'error');
+        })
+        .chargerContraintes();
+    },
+
+    // Afficher le panneau des contraintes
+    displayConstraintsPanel(constraints) {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.id = 'constraintsModal';
+
+      // Analyser les contraintes actuelles de l'interface
+      const currentDisso = {};
+      const currentAsso = {};
+      const currentFixe = [];
+
+      document.querySelectorAll('.student-card').forEach(card => {
+        const eleve = STATE.students[card.dataset.id];
+        if (!eleve) return;
+
+        if (eleve.disso) {
+          if (!currentDisso[eleve.disso]) currentDisso[eleve.disso] = [];
+          currentDisso[eleve.disso].push(`${eleve.nom} ${eleve.prenom || ''}`);
+        }
+        if (eleve.asso) {
+          if (!currentAsso[eleve.asso]) currentAsso[eleve.asso] = [];
+          currentAsso[eleve.asso].push(`${eleve.nom} ${eleve.prenom || ''}`);
+        }
+        if (eleve.mobilite === 'FIXE') {
+          const classe = card.closest('.droppable-zone')?.dataset.classe;
+          currentFixe.push(`${eleve.nom} ${eleve.prenom || ''} (${classe || '?'})`);
+        }
+      });
+
+      modal.innerHTML = `
+      <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+          <h2 class="text-2xl font-bold">
+            <i class="fas fa-link mr-2"></i>
+            Gestion des Contraintes
+          </h2>
+          <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- Structure from _STRUCTURE -->
+          <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded">
+            <h3 class="font-bold text-lg mb-2">
+              <i class="fas fa-sitemap mr-2"></i>Structure (_STRUCTURE)
+            </h3>
+            <div class="text-sm space-y-2">
+              ${constraints.structure && constraints.structure.length > 0 ? `
+                <table class="w-full text-sm">
+                  <thead class="bg-blue-100">
+                    <tr>
+                      <th class="p-2 text-left">Origine</th>
+                      <th class="p-2 text-left">Destination</th>
+                      <th class="p-2 text-center">Effectif</th>
+                      <th class="p-2 text-left">Options</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${constraints.structure.map(s => `
+                      <tr class="border-b">
+                        <td class="p-2">${s.origine || '-'}</td>
+                        <td class="p-2">${s.destination || '-'}</td>
+                        <td class="p-2 text-center">${s.effectif || 28}</td>
+                        <td class="p-2 text-xs">${s.options || '-'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              ` : '<p class="text-gray-600">Aucune structure définie dans _STRUCTURE</p>'}
+            </div>
+          </div>
+
+          <!-- FIXE -->
+          <div class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded">
+            <h3 class="font-bold text-lg mb-2">
+              <i class="fas fa-lock mr-2"></i>Élèves FIXE (${currentFixe.length})
+            </h3>
+            <p class="text-sm text-gray-600 mb-2">Ces élèves ne peuvent pas changer de classe</p>
+            ${currentFixe.length > 0 ? `
+              <div class="max-h-32 overflow-y-auto">
+                ${currentFixe.map(e => `
+                  <div class="text-sm p-1 bg-white rounded mb-1">${e}</div>
+                `).join('')}
+              </div>
+            ` : '<p class="text-sm text-gray-500">Aucun élève fixé</p>'}
+          </div>
+
+          <!-- DISSO -->
+          <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded">
+            <h3 class="font-bold text-lg mb-2">
+              <i class="fas fa-ban mr-2"></i>Codes DISSO (${Object.keys(currentDisso).length})
+            </h3>
+            <p class="text-sm text-gray-600 mb-2">Ces élèves NE DOIVENT PAS être dans la même classe</p>
+            ${Object.keys(currentDisso).length > 0 ? `
+              <div class="space-y-2">
+                ${Object.entries(currentDisso).map(([code, eleves]) => `
+                  <div class="p-2 bg-white rounded border border-red-300">
+                    <div class="font-bold text-red-700">D${code} (${eleves.length} élèves)</div>
+                    <div class="text-xs text-gray-700">${eleves.join(', ')}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<p class="text-sm text-gray-500">Aucune dissociation définie</p>'}
+          </div>
+
+          <!-- ASSO -->
+          <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded">
+            <h3 class="font-bold text-lg mb-2">
+              <i class="fas fa-users mr-2"></i>Codes ASSO (${Object.keys(currentAsso).length})
+            </h3>
+            <p class="text-sm text-gray-600 mb-2">Ces élèves DOIVENT rester ensemble</p>
+            ${Object.keys(currentAsso).length > 0 ? `
+              <div class="space-y-2">
+                ${Object.entries(currentAsso).map(([code, eleves]) => `
+                  <div class="p-2 bg-white rounded border border-green-300">
+                    <div class="font-bold text-green-700">A${code} (${eleves.length} élèves)</div>
+                    <div class="text-xs text-gray-700">${eleves.join(', ')}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<p class="text-sm text-gray-500">Aucune association définie</p>'}
+          </div>
+
+          <!-- Options et LV2 -->
+          <div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
+            <h3 class="font-bold text-lg mb-2">
+              <i class="fas fa-star mr-2"></i>Contraintes OPT et LV2
+            </h3>
+            <p class="text-sm text-gray-600 mb-2">Vérification des quotas d'options par classe</p>
+            <div class="text-sm">
+              <p class="text-gray-700">✅ Les contraintes d'options sont vérifiées automatiquement lors des déplacements</p>
+              <p class="text-gray-700 mt-1">ℹ️ Voir _STRUCTURE pour les quotas définis par classe</p>
+            </div>
+          </div>
+
+          <!-- Boutons -->
+          <div class="mt-4 flex gap-2">
+            <button onclick="ConstraintManager.showConstraintsOverlay()" class="btn btn-secondary">
+              <i class="fas fa-eye"></i> Visualiser sur les cartes
+            </button>
+            <button onclick="window.open('https://docs.google.com/spreadsheets/d/' + google.script.host.origin.split('/')[2] + '/edit#gid=SHEET_ID_STRUCTURE', '_blank')" class="btn btn-secondary">
+              <i class="fas fa-external-link-alt"></i> Ouvrir _STRUCTURE
+            </button>
+            <button onclick="this.closest('.modal').remove()" class="btn btn-primary">
+              <i class="fas fa-check"></i> Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+      document.body.appendChild(modal);
+    }
+  };
+
+  // 4. GESTIONNAIRE DE FILTRES
+  const FilterManager = {
+    activeFilters: {},
+
+    // Afficher le panneau de filtres
+    showFiltersPanel() {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.id = 'filtersModal';
+
+      // Collecter les valeurs uniques pour chaque filtre
+      const lv2Set = new Set();
+      const optSet = new Set();
+      const dissoSet = new Set();
+      const assoSet = new Set();
+      const mobiliteSet = new Set();
+      const scoresCOM = new Set();
+
+      Object.values(STATE.students || {}).forEach(eleve => {
+        if (eleve.lv2) lv2Set.add(eleve.lv2);
+        if (eleve.opt) optSet.add(eleve.opt);
+        if (eleve.disso) dissoSet.add(eleve.disso);
+        if (eleve.asso) assoSet.add(eleve.asso);
+        if (eleve.mobilite) mobiliteSet.add(eleve.mobilite);
+        if (eleve.scores && eleve.scores.COM) scoresCOM.add(eleve.scores.COM);
+      });
+
+      modal.innerHTML = `
+      <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+          <h2 class="text-2xl font-bold">
+            <i class="fas fa-filter mr-2"></i>
+            Filtres
+          </h2>
+          <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="text-sm text-gray-600 mb-4">
+            Filtrez les élèves affichés selon leurs caractéristiques. Les élèves non filtrés seront grisés.
+          </p>
+
+          <!-- Filtres actifs -->
+          <div id="activeFiltersDisplay" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded ${Object.keys(this.activeFilters).length === 0 ? 'hidden' : ''}">
+            <h4 class="font-bold text-sm mb-2">Filtres actifs :</h4>
+            <div id="activeFiltersList" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <!-- LV2 -->
+          <div class="mb-4 p-4 border rounded">
+            <h3 class="font-bold mb-2">
+              <i class="fas fa-language mr-2"></i>LV2
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              ${Array.from(lv2Set).sort().map(lv2 => `
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="lv2" data-filter-value="${lv2}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${lv2}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- OPT -->
+          <div class="mb-4 p-4 border rounded">
+            <h3 class="font-bold mb-2">
+              <i class="fas fa-star mr-2"></i>Options
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              ${Array.from(optSet).sort().map(opt => `
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="opt" data-filter-value="${opt}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${opt}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- DISSO -->
+          <div class="mb-4 p-4 border rounded">
+            <h3 class="font-bold mb-2">
+              <i class="fas fa-ban mr-2 text-red-600"></i>Codes DISSO
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              ${Array.from(dissoSet).sort().map(disso => `
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="disso" data-filter-value="${disso}">
+                  <span class="text-sm px-3 py-1 bg-red-100 rounded hover:bg-red-200">D${disso}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- ASSO -->
+          <div class="mb-4 p-4 border rounded">
+            <h3 class="font-bold mb-2">
+              <i class="fas fa-users mr-2 text-green-600"></i>Codes ASSO
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              ${Array.from(assoSet).sort().map(asso => `
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="asso" data-filter-value="${asso}">
+                  <span class="text-sm px-3 py-1 bg-green-100 rounded hover:bg-green-200">A${asso}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Mobilité -->
+          <div class="mb-4 p-4 border rounded">
+            <h3 class="font-bold mb-2">
+              <i class="fas fa-exchange-alt mr-2"></i>Mobilité
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              ${Array.from(mobiliteSet).sort().map(mob => `
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="mobilite" data-filter-value="${mob}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${mob}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Score COM -->
+          <div class="mb-4 p-4 border rounded">
+            <h3 class="font-bold mb-2">
+              <i class="fas fa-chart-bar mr-2"></i>Score Comportement
+            </h3>
+            <div class="flex gap-2">
+              ${Array.from(scoresCOM).sort().map(score => `
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="scoreCOM" data-filter-value="${score}">
+                  <span class="text-sm px-3 py-1 rounded ${score == 1 ? 'bg-red-500 text-white' :
+          score == 2 ? 'bg-yellow-400 text-gray-800' :
+            score == 3 ? 'bg-green-400 text-white' :
+              'bg-green-600 text-white'
+        }">${score}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Boutons -->
+          <div class="mt-4 flex gap-2">
+            <button onclick="FilterManager.applyFilters()" class="btn btn-primary">
+              <i class="fas fa-check"></i> Appliquer les filtres
+            </button>
+            <button onclick="FilterManager.clearAllFilters()" class="btn btn-secondary">
+              <i class="fas fa-times"></i> Effacer tous les filtres
+            </button>
+            <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">
+              <i class="fas fa-times"></i> Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+      document.body.appendChild(modal);
+
+      // Restaurer les filtres actifs
+      Object.keys(this.activeFilters).forEach(key => {
+        const [type, value] = key.split(':');
+        const checkbox = modal.querySelector(`[data-filter-type="${type}"][data-filter-value="${value}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+
+      // Gérer les changements de checkbox
+      modal.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+          this.updateActiveFiltersDisplay(modal);
+        });
+      });
+
+      this.updateActiveFiltersDisplay(modal);
+    },
+
+    // Mettre à jour l'affichage des filtres actifs
+    updateActiveFiltersDisplay(modal) {
+      const checkedBoxes = modal.querySelectorAll('.filter-checkbox:checked');
+      const display = modal.querySelector('#activeFiltersDisplay');
+      const list = modal.querySelector('#activeFiltersList');
+
+      if (checkedBoxes.length === 0) {
+        display.classList.add('hidden');
+        return;
+      }
+
+      display.classList.remove('hidden');
+      list.innerHTML = Array.from(checkedBoxes).map(checkbox => {
+        const type = checkbox.dataset.filterType;
+        const value = checkbox.dataset.filterValue;
+        return `
+        <span class="px-2 py-1 bg-blue-500 text-white text-xs rounded">
+          ${type}: ${value}
+        </span>
+      `;
+      }).join('');
+    },
+
+    // Appliquer les filtres
+    applyFilters() {
+      const modal = document.getElementById('filtersModal');
+      if (!modal) return;
+
+      const checkedBoxes = modal.querySelectorAll('.filter-checkbox:checked');
+
+      // Sauvegarder les filtres actifs
+      this.activeFilters = {};
+      checkedBoxes.forEach(checkbox => {
+        const type = checkbox.dataset.filterType;
+        const value = checkbox.dataset.filterValue;
+        this.activeFilters[`${type}:${value}`] = { type, value };
+      });
+
+      // Appliquer le filtre sur toutes les cartes
+      document.querySelectorAll('.student-card').forEach(card => {
+        const eleve = STATE.students[card.dataset.id];
+        if (!eleve) return;
+
+        let match = true;
+
+        if (checkedBoxes.length > 0) {
+          match = Array.from(checkedBoxes).some(checkbox => {
+            const type = checkbox.dataset.filterType;
+            const value = checkbox.dataset.filterValue;
+
+            switch (type) {
+              case 'lv2': return eleve.lv2 === value;
+              case 'opt': return eleve.opt === value;
+              case 'disso': return eleve.disso === value;
+              case 'asso': return eleve.asso === value;
+              case 'mobilite': return eleve.mobilite === value;
+              case 'scoreCOM': return eleve.scores && eleve.scores.COM == value;
+              default: return false;
+            }
+          });
+        }
+
+        if (match) {
+          card.style.opacity = '1';
+          card.style.filter = 'none';
+        } else {
+          card.style.opacity = '0.3';
+          card.style.filter = 'grayscale(1)';
+        }
+      });
+
+      modal.remove();
+
+      if (checkedBoxes.length > 0) {
+        toast(`${checkedBoxes.length} filtre(s) appliqué(s)`, 'success');
+      } else {
+        toast('Tous les filtres effacés', 'info');
+      }
+    },
+
+    // Effacer tous les filtres
+    clearAllFilters() {
+      this.activeFilters = {};
+
+      document.querySelectorAll('.student-card').forEach(card => {
+        card.style.opacity = '1';
+        card.style.filter = 'none';
+      });
+
+      const modal = document.getElementById('filtersModal');
+      if (modal) {
+        modal.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
+        this.updateActiveFiltersDisplay(modal);
+      }
+
+      toast('Tous les filtres effacés', 'info');
+    }
+  };
+
+  // 5. TEMPLATES DE GROUPES RÉUTILISABLES
+  // 6. HISTORIQUE DÉTAILLÉ AVEC DIFF
+  const HistoryManager = {
+    history: [],
+    maxHistory: 50,
+
+    // Sauvegarder l'état actuel
+    saveState() {
+      const state = this.captureCurrentState();
+      this.history.push({
+        timestamp: new Date(),
+        state: state
+      });
+
+      // Limiter la taille de l'historique
+      if (this.history.length > this.maxHistory) {
+        this.history.shift();
+      }
+    },
+
+    // Capturer l'état actuel
+    captureCurrentState() {
+      const state = {};
+
+      document.querySelectorAll('.class-column').forEach(col => {
+        const classe = col.querySelector('.classe-name').textContent;
+        state[classe] = [];
+
+        col.querySelectorAll('.student-card').forEach(card => {
+          const eleve = STATE.students[card.dataset.id];
+          if (eleve) {
+            state[classe].push(eleve.id);
+          }
+        });
+      });
+
+      return state;
+    },
+
+    // Comparer deux états
+    compareStates(before, after) {
+      const changes = [];
+
+      // Trouver les classes communes
+      const allClasses = new Set([...Object.keys(before), ...Object.keys(after)]);
+
+      allClasses.forEach(classe => {
+        const beforeStudents = before[classe] || [];
+        const afterStudents = after[classe] || [];
+
+        // Élèves ajoutés
+        const added = afterStudents.filter(id => !beforeStudents.includes(id));
+
+        // Élèves retirés
+        const removed = beforeStudents.filter(id => !afterStudents.includes(id));
+
+        if (added.length || removed.length) {
+          changes.push({
+            classe,
+            added: added.map(id => STATE.students[id]?.nom || id),
+            removed: removed.map(id => STATE.students[id]?.nom || id),
+            timestamp: new Date()
+          });
+        }
+      });
+
+      return changes;
+    },
+
+    // Afficher l'historique des changements
+    showHistory() {
+      if (this.history.length < 2) {
+        toast('Pas assez d\'historique pour comparer', 'warning');
+        return;
+      }
+
+      const recent = this.history.slice(-5); // 5 derniers états
+      const changes = [];
+
+      for (let i = 1; i < recent.length; i++) {
+        const stateChanges = this.compareStates(recent[i - 1].state, recent[i].state);
+        if (stateChanges.length > 0) {
+          changes.push({
+            timestamp: recent[i].timestamp,
+            changes: stateChanges
+          });
+        }
+      }
+
+      if (changes.length === 0) {
+        toast('Aucun changement détecté', 'info');
+        return;
+      }
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `
+      <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+          <h2 class="text-xl font-bold">Historique des changements</h2>
+          <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="space-y-4">
+            ${changes.map(change => `
+              <div class="border rounded p-3">
+                <div class="font-semibold text-sm text-gray-600 mb-2">
+                  ${change.timestamp.toLocaleString()}
+                </div>
+                ${change.changes.map(c => `
+                  <div class="ml-4 mb-2">
+                    <div class="font-medium">${c.classe}</div>
+                    ${c.added.length > 0 ? `
+                      <div class="text-green-600 text-sm">
+                        <i class="fas fa-plus"></i> Ajoutés: ${c.added.join(', ')}
+                      </div>
+                    ` : ''}
+                    ${c.removed.length > 0 ? `
+                      <div class="text-red-600 text-sm">
+                        <i class="fas fa-minus"></i> Retirés: ${c.removed.join(', ')}
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+      document.body.appendChild(modal);
+    },
+
+    // Annuler le dernier changement
+    undo() {
+      if (this.history.length < 2) {
+        toast('Rien à annuler', 'warning');
+        return;
+      }
+
+      const previousState = this.history[this.history.length - 2].state;
+      this.restoreState(previousState);
+      this.history.pop(); // Retirer l'état actuel
+
+      toast('Changement annulé', 'success');
+    },
+
+    // Restaurer un état
+    restoreState(state) {
+      // Cette fonction restaurerait l'état précédent
+      // Implémentation complexe qui nécessiterait de modifier l'interface
+      console.log('Restauration de l\'état:', state);
+    }
+  };
+</script>

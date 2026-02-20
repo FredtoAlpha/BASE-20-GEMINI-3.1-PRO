@@ -1,0 +1,312 @@
+<script>
+  // ========== PANNEAU HISTORIQUE (TIMELINE) ==========
+
+  if (!STATE.historyTimeline) STATE.historyTimeline = [];
+
+  function updateHistoryPanel() {
+    const container = document.getElementById('historyTimeline');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const timeline = STATE.historyTimeline || [];
+
+    timeline.slice().reverse().forEach((action) => {
+      const item = document.createElement('div');
+      item.className = 'timeline-item';
+
+      let actionText = '';
+      let details = '';
+      let icon = 'fa-question';
+      let color = '#6b7280';
+
+      switch (action.type) {
+        case 'move':
+          actionText = `Déplacement: ${action.eleveName || 'Élève'}`;
+          details = `${action.oldClasse} → ${action.newClasse}`;
+          icon = 'fa-arrow-right';
+          color = '#3b82f6';
+          break;
+        case 'swap':
+          actionText = 'Échange effectué';
+          details = `${STATE.students[action.id1]?.nom || 'Élève 1'} ↔ ${STATE.students[action.id2]?.nom || 'Élève 2'}`;
+          icon = 'fa-exchange-alt';
+          color = '#f59e0b';
+          break;
+      }
+
+      item.innerHTML = `
+      <div class="timeline-dot" style="background: ${color};"><i class="fas ${icon} text-xs"></i></div>
+      <div class="timeline-content">
+        <div class="timeline-time">${new Date(action.timestamp).toLocaleTimeString('fr-FR')}</div>
+        <div class="timeline-action">${actionText}</div>
+        <div class="timeline-details">${details}</div>
+      </div>
+    `;
+      container.appendChild(item);
+    });
+
+    if (timeline.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-500 p-4">Aucune action enregistrée</div>';
+    }
+  }
+
+  window.updateHistoryPanel = updateHistoryPanel;
+
+
+
+  // ========== STYLES INJECTÉS (TIMELINE + ANIMATIONS) ==========
+  const injectedStyles = document.createElement('style');
+  injectedStyles.id = 'corescript-injected-styles';
+  injectedStyles.textContent = `
+  .timeline-item { position: relative; padding-left: 2.5rem; cursor: pointer; transition: all 0.2s; }
+  .timeline-item:hover { background: #f8fafc; }
+  .timeline-item::before { content: ''; position: absolute; left: 1.25rem; top: 2rem; bottom: -1rem; width: 2px; background: #e5e7eb; }
+  .timeline-item:last-child::before { display: none; }
+  .timeline-dot { position: absolute; left: 0.75rem; top: 0.75rem; width: 2rem; height: 2rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .timeline-content { padding: 0.5rem 0; }
+  .timeline-time { font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem; }
+  .timeline-action { font-weight: 600; color: #1e293b; margin-bottom: 0.25rem; }
+  .timeline-details { font-size: 0.875rem; color: #4b5563; }
+  #statsPanel { transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease; }
+  #statsPanel.updating { opacity: 0.95; }
+  .chart-container { transition: opacity 0.2s ease; }
+  .stats-panel.updating .chart-container { opacity: 0.8; }
+  .metric-value { transition: color 0.2s ease, transform 0.2s ease; }
+  .metric-value.changed { transform: scale(1.05); }
+  .student-card { transition: all 0.2s ease; will-change: transform; }
+  .sortable-ghost { opacity: 0.5; transform: rotate(5deg); }
+  .sortable-chosen { transform: scale(1.05); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+  @keyframes gentlePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.9; } }
+  .stats-panel.updating, .stats-updating { animation: gentlePulse 0.6s ease-in-out; }
+`;
+  document.head.appendChild(injectedStyles);
+
+  // ========== FILTRE RAPIDE ==========
+  window.activeFilter = 'all';
+
+  window.applyQuickFilter = function (filter) {
+    window.activeFilter = filter;
+
+    document.querySelectorAll('.filter-btn, .filter-btn-compact').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+
+    let visibleCount = 0;
+    document.querySelectorAll('.student-card').forEach(card => {
+      const eleve = STATE.students[card.dataset.id];
+      if (!eleve) return;
+
+      let match = false;
+      switch (filter) {
+        case 'all': match = true; break;
+        case 'PERMUT': case 'FIXE': match = eleve.mobilite === filter; break;
+        case 'ESP': case 'ITA': case 'ALL': match = eleve.lv2 === filter; break;
+        case 'D': match = !!eleve.disso; break;
+        case 'A': match = !!eleve.asso; break;
+      }
+
+      card.classList.toggle('filtered-out', !match);
+      if (match) visibleCount++;
+    });
+
+    if (filter !== 'all') {
+      toast(`${visibleCount} élève(s) avec filtre "${filter}"`, 'info');
+    }
+  };
+
+  // ========== TOOLTIPS PERSONNALISÉS ==========
+  document.addEventListener('DOMContentLoaded', () => {
+    // Ajouter des tooltips riches sur les badges
+    document.addEventListener('mouseover', (e) => {
+      if (e.target.classList.contains('mini-badge')) {
+        const title = e.target.getAttribute('title');
+        if (!title) return;
+
+        // Créer un tooltip personnalisé si nécessaire
+        const existingTooltip = document.querySelector('.custom-tooltip');
+        if (existingTooltip) existingTooltip.remove();
+
+        const tooltip = document.createElement('div');
+        tooltip.className = 'custom-tooltip';
+        tooltip.textContent = title;
+        tooltip.style.cssText = `
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        z-index: 9999;
+        pointer-events: none;
+        white-space: nowrap;
+      `;
+
+        const rect = e.target.getBoundingClientRect();
+        tooltip.style.left = rect.left + 'px';
+        tooltip.style.top = (rect.bottom + 5) + 'px';
+
+        document.body.appendChild(tooltip);
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      if (e.target.classList.contains('mini-badge')) {
+        document.querySelector('.custom-tooltip')?.remove();
+      }
+    });
+  });
+
+  // ========== SAUVEGARDE IMMÉDIATE CACHE ==========
+  window.saveImmediateCache = async function () {
+    try {
+      // 1. Ne rien faire si l'utilisateur n'a rien bougé
+      if (!STATE.has_user_action) {
+        console.debug('⏭️ Auto-save sauté (aucune action)');
+        return;
+      }
+
+      const disposition = exportDisposition();
+      const cacheData = {
+        date: new Date().toISOString(),
+        disposition: disposition,
+        mode: STATE.currentMode,
+        filters: window.activeFilter,
+        stats: {
+          total: Object.keys(STATE.students).length,
+          classes: document.querySelectorAll('.class-column').length
+        }
+      };
+
+      // Sauvegarde locale avec compression
+      localStorage.setItem('cache-data', JSON.stringify(cacheData));
+      localStorage.setItem('cache-timestamp', new Date().toISOString());
+
+      // Sauvegarde distante si disponible
+      if (typeof gsRun === 'function') {
+        try {
+          const result = await gsRun('saveCacheData', cacheData);
+
+          if (result && result.success) {
+
+            // 2. Après succès → reset flag + horodatage + badge
+            STATE.has_user_action = false;
+            STATE.last_save_ts = Date.now();
+
+            if (typeof updateSaveBadge === 'function') {
+              updateSaveBadge(true);
+            }
+
+            // Indicateur visuel de sauvegarde
+            const saveIndicator = document.createElement('div');
+            saveIndicator.className = 'fixed top-20 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm';
+            saveIndicator.innerHTML = '<i class="fas fa-check mr-1"></i> Sauvegardé';
+            document.body.appendChild(saveIndicator);
+
+            setTimeout(() => saveIndicator.remove(), 2000);
+          } else {
+            console.warn('⚠️ Sauvegarde CACHE échouée');
+            if (typeof updateSaveBadge === 'function') {
+              updateSaveBadge(false);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Erreur sauvegarde CACHE:', error);
+          if (typeof updateSaveBadge === 'function') {
+            updateSaveBadge(false);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur sauvegarde cache:', error);
+    }
+  };
+
+  // ========== INDICATEUR DE CONNEXION ==========
+  function checkGoogleAppsConnection() {
+    const indicator = document.createElement('div');
+    indicator.className = 'fixed bottom-4 right-4 text-xs';
+
+    if (typeof google !== 'undefined' && google.script) {
+      indicator.innerHTML = '<i class="fas fa-cloud text-green-500"></i> Connecté à Google';
+    } else {
+      indicator.innerHTML = '<i class="fas fa-cloud-slash text-gray-400"></i> Mode local';
+    }
+
+    document.body.appendChild(indicator);
+    setTimeout(() => indicator.remove(), 3000);
+  }
+
+  // Appeler au chargement
+  setTimeout(checkGoogleAppsConnection, 1000);
+
+  // ========== TRI DES COLONNES ==========
+  window.sortColumn = function (classe, sortType, direction = 'asc') {
+    const dropZone = document.querySelector(`.droppable-zone[data-classe="${classe}"]`);
+    if (!dropZone) return;
+
+    const cards = Array.from(dropZone.querySelectorAll('.student-card'));
+    const students = cards.map(card => ({
+      card,
+      data: STATE.students[card.dataset.id]
+    })).filter(item => item.data); // Filtrer les éléments invalides
+
+    const f = direction === 'asc' ? 1 : -1;
+
+    switch (sortType) {
+      case 'name':
+        students.sort((a, b) => {
+          const nameA = `${a.data.nom} ${a.data.prenom || ''}`.trim();
+          const nameB = `${b.data.nom} ${b.data.prenom || ''}`.trim();
+          return f * nameA.localeCompare(nameB, 'fr');
+        });
+        break;
+
+      case 'lv2':
+        students.sort((a, b) => {
+          const ordre = ['ESP', 'ITA', 'ALL', 'LATIN', 'GRECO'];
+          const lv2A = (a.data.lv2 || '').toUpperCase();
+          const lv2B = (b.data.lv2 || '').toUpperCase();
+          const iA = ordre.indexOf(lv2A);
+          const iB = ordre.indexOf(lv2B);
+          return f * ((iA === -1 ? 999 : iA) - (iB === -1 ? 999 : iB));
+        });
+        break;
+
+      case 'option':
+        students.sort((a, b) => {
+          const optA = a.data.opt || 'ZZZZ';
+          const optB = b.data.opt || 'ZZZZ';
+          return f * optA.localeCompare(optB);
+        });
+        break;
+
+      case 'score':
+        students.sort((a, b) => {
+          const scoreA = a.data.scores?.COM || 0;
+          const scoreB = b.data.scores?.COM || 0;
+          // Pour les scores, inverser la logique (meilleurs en haut)
+          return -f * (scoreB - scoreA);
+        });
+        break;
+    }
+
+    // Réinjecter dans le DOM avec animation
+    dropZone.style.opacity = '0.5';
+    dropZone.innerHTML = '';
+    students.forEach(({ card }, index) => {
+      setTimeout(() => {
+        dropZone.appendChild(card);
+        if (index === students.length - 1) {
+          dropZone.style.opacity = '1';
+        }
+      }, index * 10);
+    });
+
+    STATE.sortOrder[classe] = { type: sortType, dir: direction };
+
+    // Notification
+    toast(`Classe ${classe} triée par ${sortType}`, 'info');
+  };
+
+
+</script>
