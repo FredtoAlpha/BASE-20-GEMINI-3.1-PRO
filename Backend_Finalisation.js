@@ -225,14 +225,18 @@ function finalizeClasses(disposition, mode = 'finalize') {
     Logger.log(`[SUCCESS] Finalisation complète : ${results.created.length} onglets créés`);
 
     return {
+      success: true,
       ok: true,
+      message: `✅ ${results.created.length} onglet(s) FIN créé(s) avec succès`,
       results: results
     };
 
   } catch (e) {
     Logger.log(`[ERROR] Erreur finalisation : ${e.toString()}`);
     return {
+      success: false,
       ok: false,
+      message: `Erreur finalisation : ${e.toString()}`,
       error: e.toString(),
       results: results
     };

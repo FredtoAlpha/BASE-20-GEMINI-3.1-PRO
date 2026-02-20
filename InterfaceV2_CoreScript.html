@@ -3585,22 +3585,17 @@
 
       }
 
-      // ========== SUGGESTIONS DE SWAPS ==========
-      // ========== SUGGESTIONS DE SWAPS (SMART SWAP - PHASE 7) ==========
-      function calculateSmartSwapScore(classeName, targetClassStudents) {
+      // ========== SMART SWAP - PHASE 7 ==========
+      // Algorithme de suggestion d'échange intelligent pour harmoniser les classes
+      function calculateSmartSwapScore(classeName, targetClassStudents, globalStats) {
         // Reproduit la logique mathématique de Phase4_Ultimate en localJS
         const total = targetClassStudents.length;
         if (total === 0) return 10000;
 
         let score = 0;
 
-        // 1. Statistiques globales instantanées
-        const allStudents = Object.values(STATE.students);
-        const globalTotal = allStudents.length;
-        const globalRatioF = allStudents.filter(s => s.sexe === 'F').length / globalTotal;
-        const globalAvgCOM = allStudents.reduce((acc, s) => acc + (s.scores?.COM || 2.5), 0) / globalTotal;
-        const globalAvgTRA = allStudents.reduce((acc, s) => acc + (s.scores?.TRA || 2.5), 0) / globalTotal;
-        const globalAvgPART = allStudents.reduce((acc, s) => acc + (s.scores?.PART || 2.5), 0) / globalTotal;
+        // 1. Statistiques globales (pré-calculées, passées en paramètre)
+        const { globalRatioF, globalAvgCOM, globalAvgTRA, globalAvgPART } = globalStats;
 
         // 2. Parité (Poids 1000)
         const nbFilles = targetClassStudents.filter(s => s.sexe === 'F').length;
@@ -3634,27 +3629,41 @@
         const suggestions = [];
         const classes = Object.keys(STATE.rules);
 
-        // Anti-freeze: Limiter à 1000 paires max s'il y a trop d'élèves
+        // Pré-calcul des statistiques globales (une seule fois au lieu de 5000x)
+        const allStudents = Object.values(STATE.students).filter(Boolean);
+        const globalTotal = allStudents.length;
+        if (globalTotal === 0) return [];
+
+        const globalStats = {
+          globalRatioF: allStudents.filter(s => s.sexe === 'F').length / globalTotal,
+          globalAvgCOM: allStudents.reduce((acc, s) => acc + (s.scores?.COM || 2.5), 0) / globalTotal,
+          globalAvgTRA: allStudents.reduce((acc, s) => acc + (s.scores?.TRA || 2.5), 0) / globalTotal,
+          globalAvgPART: allStudents.reduce((acc, s) => acc + (s.scores?.PART || 2.5), 0) / globalTotal
+        };
+
+        // Anti-freeze: Limiter à 2500 paires max s'il y a trop d'élèves
         let operations = 0;
         const MAX_OPS = 2500;
+        let maxReached = false;
 
         // Analyser chaque paire de classes
-        for (let i = 0; i < classes.length; i++) {
-          for (let j = i + 1; j < classes.length; j++) {
+        for (let i = 0; i < classes.length && !maxReached; i++) {
+          for (let j = i + 1; j < classes.length && !maxReached; j++) {
             const classe1 = classes[i];
             const classe2 = classes[j];
 
-            const students1 = getCurrentClassContent(classe1).map(id => STATE.students[id]);
-            const students2 = getCurrentClassContent(classe2).map(id => STATE.students[id]);
+            const students1 = getCurrentClassContent(classe1).map(id => STATE.students[id]).filter(Boolean);
+            const students2 = getCurrentClassContent(classe2).map(id => STATE.students[id]).filter(Boolean);
 
             // Score initial des deux classes combinées
-            const scoreBefore = calculateSmartSwapScore(classe1, students1) +
-              calculateSmartSwapScore(classe2, students2);
+            const scoreBefore = calculateSmartSwapScore(classe1, students1, globalStats) +
+              calculateSmartSwapScore(classe2, students2, globalStats);
 
             // Croiser tous les élèves des deux classes
             for (let s1 of students1) {
+              if (maxReached) break;
               for (let s2 of students2) {
-                if (operations++ > MAX_OPS) break;
+                if (operations++ > MAX_OPS) { maxReached = true; break; }
 
                 // 1. Vérifier les contraintes DURES (FIXE, ASSO, LV2, quotas) via canSwap
                 const verif = canSwap(s1.id, s2.id);
@@ -3665,8 +3674,8 @@
                 const tempStudents2 = students2.filter(s => s.id !== s2.id).concat([s1]);
 
                 // 3. Calculer le nouveau Score
-                const scoreAfter = calculateSmartSwapScore(classe1, tempStudents1) +
-                  calculateSmartSwapScore(classe2, tempStudents2);
+                const scoreAfter = calculateSmartSwapScore(classe1, tempStudents1, globalStats) +
+                  calculateSmartSwapScore(classe2, tempStudents2, globalStats);
 
                 const gain = scoreBefore - scoreAfter;
 
@@ -3692,52 +3701,131 @@
       }
 
       // ========== ACTION UI : DECLENCHER L'ECHANGE INTELLIGENT ==========
+
+      // Stocke la suggestion en cours pour l'appliquer/la rejeter
+      let pendingSmartSwap = null;
+
+      /**
+       * Nettoie l'effet Spotlight et restaure l'état normal
+       */
+      function dismissSmartSwap() {
+        // Retirer dimmed de toutes les cartes
+        document.querySelectorAll('.student-card').forEach(c => {
+          c.classList.remove('dimmed', 'ring-4', 'ring-purple-500', 'ring-offset-2');
+        });
+
+        // Restaurer la barre d'instruction
+        const instruction = document.getElementById('swapInstruction');
+        if (instruction) {
+          instruction.innerHTML = 'Cliquez un premier \u00e9l\u00e8ve...';
+        }
+
+        // Restaurer le bouton
+        const btn = document.getElementById('btnSmartSwap');
+        if (btn) btn.innerHTML = '<i class="fas fa-magic"></i> Sugg\u00e9rer l\'\u00c9change Id\u00e9al';
+
+        pendingSmartSwap = null;
+      }
+
+      /**
+       * Applique la suggestion Smart Swap en cours
+       */
+      function applySmartSwap() {
+        if (!pendingSmartSwap) return;
+
+        const { student1, student2 } = pendingSmartSwap;
+
+        // Mesurer l'harmonie AVANT
+        const harmonieBefore = (typeof computeHarmonieScore === 'function') ? computeHarmonieScore() : null;
+
+        // Nettoyer le Spotlight avant le swap
+        dismissSmartSwap();
+
+        // Exécuter le swap via performSwap existant
+        if (typeof performSwap === 'function') {
+          performSwap(student1.id, student2.id);
+
+          // Mesurer l'harmonie APRÈS (petit délai pour laisser le DOM se mettre à jour)
+          setTimeout(() => {
+            if (harmonieBefore && typeof computeHarmonieScore === 'function') {
+              const harmonieAfter = computeHarmonieScore();
+              const delta = harmonieAfter.score - harmonieBefore.score;
+              const sign = delta >= 0 ? '+' : '';
+              toast(
+                'Échange appliqu\u00e9 ! Harmonie : ' + harmonieBefore.score + '% \u2192 ' + harmonieAfter.score + '% (' + sign + delta + '%)',
+                delta >= 0 ? 'success' : 'warning'
+              );
+            } else {
+              toast('\u00c9change appliqu\u00e9 avec succ\u00e8s.', 'success');
+            }
+          }, 200);
+        }
+      }
+
       window.triggerSmartSwap = function () {
         const btn = document.getElementById('btnSmartSwap');
         if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calcul...';
 
         // Petite pause pour laisser le DOM se rafraîchir
         setTimeout(() => {
+          // Mesurer l'harmonie actuelle pour afficher le delta
+          const harmonieBefore = (typeof computeHarmonieScore === 'function') ? computeHarmonieScore() : null;
+
           const startTime = performance.now();
           const suggestions = findSwapSuggestions();
           const endTime = performance.now();
-          console.log(\`Smart Swap calculé en \${Math.round(endTime - startTime)}ms\`, suggestions);
+          console.log(`Smart Swap calcul\u00e9 en ${Math.round(endTime - startTime)}ms - ${suggestions.length} suggestion(s)`, suggestions);
 
           if (suggestions.length === 0) {
-            toast('Aucun échange significatif trouvé pour améliorer l\\'harmonie.', 'warning');
-            if (btn) btn.innerHTML = '<i class="fas fa-magic"></i> Suggérer l\\'Échange Idéal';
+            toast('Aucun \u00e9change significatif trouv\u00e9 pour am\u00e9liorer l\'harmonie.', 'warning');
+            if (btn) btn.innerHTML = '<i class="fas fa-magic"></i> Sugg\u00e9rer l\'\u00c9change Id\u00e9al';
             return;
           }
 
           const bestSwap = suggestions[0];
+          pendingSmartSwap = bestSwap;
 
           // 1. Activer l'effet "Où est Charlie" (Spotlight)
           document.querySelectorAll('.student-card').forEach(c => {
-             c.classList.add('dimmed');
-             c.classList.remove('ring-4', 'ring-purple-500', 'ring-offset-2');
+            c.classList.add('dimmed');
+            c.classList.remove('ring-4', 'ring-purple-500', 'ring-offset-2');
           });
 
           // 2. Mettre en surbrillance les deux élus
-          const card1 = document.querySelector(\`.student-card[data-id="\${bestSwap.student1.id}"]\`);
-          const card2 = document.querySelector(\`.student-card[data-id="\${bestSwap.student2.id}"]\`);
-          
-          if (card1) card1.classList.remove('dimmed');
-          if (card2) card2.classList.remove('dimmed');
-          if (card1) card1.classList.add('ring-4', 'ring-purple-500', 'ring-offset-2');
-          if (card2) card2.classList.add('ring-4', 'ring-purple-500', 'ring-offset-2');
+          const card1 = document.querySelector(`.student-card[data-id="${bestSwap.student1.id}"]`);
+          const card2 = document.querySelector(`.student-card[data-id="${bestSwap.student2.id}"]`);
 
-          // 3. Mettre à jour la barre d'instruction de Swap
+          if (card1) { card1.classList.remove('dimmed'); card1.classList.add('ring-4', 'ring-purple-500', 'ring-offset-2'); }
+          if (card2) { card2.classList.remove('dimmed'); card2.classList.add('ring-4', 'ring-purple-500', 'ring-offset-2'); }
+
+          // 3. Scroll vers le premier élève en surbrillance
+          if (card1) card1.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+          // 4. Construire le message avec harmonie
+          const nom1 = bestSwap.student1.nom + (bestSwap.student1.prenom ? ' ' + bestSwap.student1.prenom : '');
+          const nom2 = bestSwap.student2.nom + (bestSwap.student2.prenom ? ' ' + bestSwap.student2.prenom : '');
+          const harmonieLabel = harmonieBefore ? ' (Harmonie actuelle : ' + harmonieBefore.score + '%)' : '';
+
+          // 5. Mettre à jour la barre d'instruction avec boutons d'action
           const instruction = document.getElementById('swapInstruction');
           if (instruction) {
-            instruction.innerHTML = \`<span class="font-bold text-purple-700">Suggestion :</span> Inverser <b>\${bestSwap.student1.nom}</b> et <b>\${bestSwap.student2.nom}</b>. <span class="bg-purple-100 px-2 py-0.5 rounded text-purple-800 text-xs ml-2">\${bestSwap.reason}</span>\`;
+            instruction.innerHTML =
+              '<span class="font-bold text-purple-700">Suggestion :</span> ' +
+              'Inverser <b>' + nom1 + '</b> (' + bestSwap.classe1 + ') et <b>' + nom2 + '</b> (' + bestSwap.classe2 + ')' +
+              harmonieLabel +
+              ' <button onclick="applySmartSwap()" class="ml-3 px-3 py-0.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-full shadow transition-all hover:scale-105">' +
+              '<i class="fas fa-check mr-1"></i>Appliquer</button>' +
+              ' <button onclick="dismissSmartSwap()" class="ml-1 px-3 py-0.5 bg-slate-400 hover:bg-slate-500 text-white text-xs font-bold rounded-full shadow transition-all">' +
+              '<i class="fas fa-times mr-1"></i>Ignorer</button>';
           }
 
-          if (btn) btn.innerHTML = '<i class="fas fa-magic"></i> Suggestion trouvée !';
-          toast('Voici le meilleur échange identifié par l\\'algorithme.', 'success');
-          
+          if (btn) btn.innerHTML = '<i class="fas fa-magic"></i> Suggestion trouv\u00e9e !';
+
         }, 50); // Fin timeout
       };
 
+      window.dismissSmartSwap = dismissSmartSwap;
+      window.applySmartSwap = applySmartSwap;
 
 
 
