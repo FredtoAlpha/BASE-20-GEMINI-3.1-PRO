@@ -149,22 +149,10 @@
    */
   if (!window.finalizeClasses) {
     window.finalizeClasses = function() {
-      console.log('📌 Finalisation des classes - Version par défaut');
-      
-      // 1. Sauvegarder l'état courant comme "officiel"
-      // TODO: Implémenter la sauvegarde réelle
-      
-      // 2. Marquer l'état comme finalisé côté storage
-      // TODO: Implémenter le marquage
-      
-      // 3. Mettre à jour l'UI (badge, lock, etc.)
-      // TODO: Implémenter la mise à jour UI
-      
+      console.warn('⚠️ finalizeClasses: Fallback local — la vraie finalisation passe par lancerSauvegardeAvecProgression → Backend_Finalisation.js');
       if (window.showToast) {
-        showToast('✅ Répartition finalisée comme version présentable', 'success');
+        showToast('⚠️ Finalisation non disponible — rechargez la page', 'warning');
       }
-      
-      console.log('✅ Finalisation effective exécutée');
     };
   }
   
@@ -220,31 +208,6 @@
   // qui ouvre le menu dropdown #dropdownRegler (Menu B)
   // Le panneau plein écran #lisibilite-panel (Menu A) a été supprimé
   
-  /* DÉSACTIVÉ - Ancien code pour #lisibilite-panel
-  const btnRegler = document.getElementById('btnRegler');
-  const panelLisibilite = document.getElementById('lisibilite-panel');
-  const closeLisibilite = document.getElementById('close-lisibilite-panel');
-  
-  if (btnRegler && panelLisibilite) {
-    btnRegler.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      panelLisibilite.classList.remove('-translate-y-full');
-      console.log('📐 Panneau Régler ouvert');
-    });
-    
-    if (closeLisibilite) {
-      closeLisibilite.addEventListener('click', function() {
-        panelLisibilite.classList.add('-translate-y-full');
-        console.log('📐 Panneau Régler fermé');
-      });
-    }
-    
-    console.log('✅ Bouton Régler connecté au panneau de lisibilité');
-  } else {
-    console.warn('⚠️ Bouton Régler ou panneau de lisibilité non trouvé');
-  }
-  FIN DÉSACTIVÉ */
   
   console.log('✅ Contrôles du header initialisés (Régler géré par CoreScript)');
   

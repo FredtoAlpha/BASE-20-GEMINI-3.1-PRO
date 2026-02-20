@@ -136,7 +136,7 @@ function Phase4_Ultimate_Run(ctx) {
     // Calculer le score global pour comparer
     let totalScore = 0;
     for (const cls in byClass) {
-      totalScore += calculateScore_Ultimate(byClass[cls], allData, globalStats, cls, ctx);
+      totalScore += calculateScore_Ultimate(byClass[cls], allData, globalStats, cls, ctx, config);
     }
 
     logLine('INFO', `    📊 Score=${totalScore.toFixed(2)}, swaps=${result.swapsApplied}+${result.swaps3Way}(3-way)`);
@@ -228,10 +228,10 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
   let saAccepted = 0; // Compteur de swaps dégradants acceptés par SA
 
   for (let iter = 0; iter < config.maxSwaps; iter++) {
-    const worstClassKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx);
+    const worstClassKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx, config);
     if (!worstClassKey) break;
 
-    const partnerClassKey = findPartnerClass_Ultimate(worstClassKey, byClass, allData, globalStats, rng);
+    const partnerClassKey = findPartnerClass_Ultimate(worstClassKey, byClass, allData, globalStats, rng, config);
     if (!partnerClassKey) {
       noPartnerCount++;
       // TWO-PIPELINE : ne pas casser la boucle trop tôt sur les échecs partner,
@@ -296,9 +296,9 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
     let postSASwaps = 0;
     let postStagnation = 0;
     for (let iter2 = 0; iter2 < Math.floor(config.maxSwaps * 0.3); iter2++) {
-      const worstKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx);
+      const worstKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx, config);
       if (!worstKey) break;
-      const partnerKey = findPartnerClass_Ultimate(worstKey, byClass, allData, globalStats, rng);
+      const partnerKey = findPartnerClass_Ultimate(worstKey, byClass, allData, globalStats, rng, config);
       if (!partnerKey) { postStagnation++; if (postStagnation > 10) break; continue; }
       const swap = findBestSwapPrioritized_Ultimate(worstKey, partnerKey, allData, byClass, headers, globalStats, ctx, rng, config);
       if (swap && swap.gain > 0.0001) {
@@ -331,9 +331,9 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
       if (c1 === c2 || c2 === c3 || c1 === c3) continue;
       if (!byClass[c1].length || !byClass[c2].length || !byClass[c3].length) continue;
 
-      const scoreBefore3 = calculateScore_Ultimate(byClass[c1], allData, globalStats, c1, ctx) +
-                           calculateScore_Ultimate(byClass[c2], allData, globalStats, c2, ctx) +
-                           calculateScore_Ultimate(byClass[c3], allData, globalStats, c3, ctx);
+      const scoreBefore3 = calculateScore_Ultimate(byClass[c1], allData, globalStats, c1, ctx, config) +
+                           calculateScore_Ultimate(byClass[c2], allData, globalStats, c2, ctx, config) +
+                           calculateScore_Ultimate(byClass[c3], allData, globalStats, c3, ctx, config);
 
       for (let s = 0; s < 10; s++) {
         const a = rng.pick(byClass[c1]);
@@ -353,9 +353,9 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
         const tempC2 = byClass[c2].filter(x => x !== b).concat([a]);
         const tempC3 = byClass[c3].filter(x => x !== c).concat([b]);
 
-        const scoreAfter3 = calculateScore_Ultimate(tempC1, allData, globalStats, c1, ctx) +
-                            calculateScore_Ultimate(tempC2, allData, globalStats, c2, ctx) +
-                            calculateScore_Ultimate(tempC3, allData, globalStats, c3, ctx);
+        const scoreAfter3 = calculateScore_Ultimate(tempC1, allData, globalStats, c1, ctx, config) +
+                            calculateScore_Ultimate(tempC2, allData, globalStats, c2, ctx, config) +
+                            calculateScore_Ultimate(tempC3, allData, globalStats, c3, ctx, config);
 
         const gain3 = scoreBefore3 - scoreAfter3;
         if (gain3 > bestGain3) {
@@ -390,7 +390,8 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
  * - Pénalité très forte (au cube) si excès de Niv1
  * ✅ BUG #4 CORRECTION : Ajout critère d'effectif
  */
-function calculateScore_Ultimate(indices, allData, globalStats, className, ctx) {
+function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, config) {
+  config = config || ULTIMATE_CONFIG; // fallback sécurité
   let score = 0;
   const students = indices.map(i => allData[i]);
   const total = students.length;
@@ -409,21 +410,21 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx) 
   const nbNiv1 = students.filter(s => s.isNiv1).length;
 
   // PONDÉRATION ASYMÉTRIQUE DES EXTRÊMES
-  if (nbTetes < ULTIMATE_CONFIG.targets.headMin) {
-    score += Math.pow(ULTIMATE_CONFIG.targets.headMin - nbTetes, 2) * 500;
+  if (nbTetes < config.targets.headMin) {
+    score += Math.pow(config.targets.headMin - nbTetes, 2) * 500;
   }
-  if (nbTetes > ULTIMATE_CONFIG.targets.headMax) {
-    score += (nbTetes - ULTIMATE_CONFIG.targets.headMax) * 200;
+  if (nbTetes > config.targets.headMax) {
+    score += (nbTetes - config.targets.headMax) * 200;
   }
 
-  if (nbNiv1 > ULTIMATE_CONFIG.targets.niv1Max) {
-    score += Math.pow(nbNiv1 - ULTIMATE_CONFIG.targets.niv1Max, 3) * 100;
+  if (nbNiv1 > config.targets.niv1Max) {
+    score += Math.pow(nbNiv1 - config.targets.niv1Max, 3) * 100;
   }
 
   // --- 2. CRITÈRE PARITÉ (Adaptatif) ---
   const nbFilles = students.filter(s => s.sexe === 'F').length;
   const ratioF = nbFilles / total;
-  score += Math.abs(ratioF - globalStats.ratioF) * 1000 * ULTIMATE_CONFIG.weights.parity;
+  score += Math.abs(ratioF - globalStats.ratioF) * 1000 * config.weights.parity;
 
   // --- 3. CRITÈRE DISTRIBUTION ACADÉMIQUE (Jules Codex) ---
   // HARMONY FIX : Inclure PART et ABS dans le scoring (pas seulement COM/TRA)
@@ -431,9 +432,9 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx) 
   const avgTRA = students.reduce((acc, s) => acc + (s.TRA || 2.5), 0) / total;
   const avgPART = students.reduce((acc, s) => acc + (s.PART || 2.5), 0) / total;
 
-  score += Math.abs(avgCOM - globalStats.avgCOM) * 100 * ULTIMATE_CONFIG.weights.distrib;
-  score += Math.abs(avgTRA - globalStats.avgTRA) * 100 * ULTIMATE_CONFIG.weights.distrib;
-  score += Math.abs(avgPART - (globalStats.avgPART || 2.5)) * 50 * ULTIMATE_CONFIG.weights.distrib;
+  score += Math.abs(avgCOM - globalStats.avgCOM) * 100 * config.weights.distrib;
+  score += Math.abs(avgTRA - globalStats.avgTRA) * 100 * config.weights.distrib;
+  score += Math.abs(avgPART - (globalStats.avgPART || 2.5)) * 50 * config.weights.distrib;
 
   return score;
 }
@@ -474,8 +475,8 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
   const candidates1 = sorted1.slice(0, topCount1);
   const candidates2 = sorted2.slice(0, topCount2);
 
-  const scoreBefore = calculateScore_Ultimate(idxList1, allData, globalStats, cls1Name, ctx) +
-                      calculateScore_Ultimate(idxList2, allData, globalStats, cls2Name, ctx);
+  const scoreBefore = calculateScore_Ultimate(idxList1, allData, globalStats, cls1Name, ctx, config) +
+                      calculateScore_Ultimate(idxList2, allData, globalStats, cls2Name, ctx, config);
 
   let bestSwap = null;
   let maxGain = 0;
@@ -502,8 +503,8 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
       const tempList1 = idxList1.filter(idx => idx !== i1).concat([i2]);
       const tempList2 = idxList2.filter(idx => idx !== i2).concat([i1]);
 
-      const scoreAfter = calculateScore_Ultimate(tempList1, allData, globalStats, cls1Name, ctx) +
-                         calculateScore_Ultimate(tempList2, allData, globalStats, cls2Name, ctx);
+      const scoreAfter = calculateScore_Ultimate(tempList1, allData, globalStats, cls1Name, ctx, config) +
+                         calculateScore_Ultimate(tempList2, allData, globalStats, cls2Name, ctx, config);
 
       const gain = scoreBefore - scoreAfter;
 
@@ -647,11 +648,12 @@ function calculateGlobalStats_Ultimate(allData) {
 /**
  * Identifie la classe "malade" (score le plus élevé)
  */
-function findWorstClass_Ultimate(byClass, allData, globalStats, ctx) {
+function findWorstClass_Ultimate(byClass, allData, globalStats, ctx, config) {
+  config = config || ULTIMATE_CONFIG; // fallback sécurité
   let maxScore = -1;
   let worstClass = null;
   for (const cls in byClass) {
-    const score = calculateScore_Ultimate(byClass[cls], allData, globalStats, cls, ctx);
+    const score = calculateScore_Ultimate(byClass[cls], allData, globalStats, cls, ctx, config);
     if (score > maxScore) {
       maxScore = score;
       worstClass = cls;
@@ -664,7 +666,8 @@ function findWorstClass_Ultimate(byClass, allData, globalStats, ctx) {
  * Trouve la meilleure classe partenaire pour un swap.
  * REPLICANT (F2+U2) : Complémentarité enrichie avec PART + RNG seedable.
  */
-function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rng) {
+function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rng, config) {
+  config = config || ULTIMATE_CONFIG; // fallback sécurité
   var _rng = rng || { next: Math.random, pick: function(a) { return a[Math.floor(Math.random() * a.length)]; } };
   const classes = Object.keys(byClass).filter(c => c !== worstClass);
   if (classes.length === 0) return null;
@@ -698,11 +701,11 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
     let comp = 0;
 
     // Têtes de classe croisées
-    const teteDiff = (worstNbTetes - ULTIMATE_CONFIG.targets.headMin) - (clsNbTetes - ULTIMATE_CONFIG.targets.headMin);
+    const teteDiff = (worstNbTetes - config.targets.headMin) - (clsNbTetes - config.targets.headMin);
     comp += Math.abs(teteDiff) * 3;
 
     // Niv1 croisés
-    const niv1Diff = (worstNbNiv1 - ULTIMATE_CONFIG.targets.niv1Max) - (clsNbNiv1 - ULTIMATE_CONFIG.targets.niv1Max);
+    const niv1Diff = (worstNbNiv1 - config.targets.niv1Max) - (clsNbNiv1 - config.targets.niv1Max);
     comp += Math.abs(niv1Diff) * 3;
 
     // Parité complémentaire
