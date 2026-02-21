@@ -380,6 +380,7 @@
         <nav>
             <div class="nav-item active" onclick="goTo(1)" id="nav-1"><i class="fas fa-hammer"></i> INIT</div>
             <div class="nav-item" onclick="goTo(2)" id="nav-2"><i class="fas fa-database"></i> DATA</div>
+            <div class="nav-item" onclick="goTo('import')" id="nav-import"><i class="fas fa-file-import"></i> IMPORT</div>
             <div class="nav-item" onclick="goTo('scores')" id="nav-scores"><i class="fas fa-star-half-alt"></i> SCORES</div>
             <div class="nav-item" onclick="goTo(3)" id="nav-3"><i class="fas fa-chart-bar"></i> STATS</div>
             <div class="nav-item" onclick="goTo(4)" id="nav-4"><i class="fas fa-chess-board"></i> STRUCTURE</div>
@@ -464,6 +465,85 @@
                     <div class="spinner"></div>
                     <span>CONSOLIDER & VÉRIFIER</span>
                 </button>
+            </div>
+        </div>
+
+        <!-- =============== PHASE IMPORT — Base de donnees Pronote =============== -->
+        <div id="phase-import" class="phase">
+            <h1>IMPORT BASE PRONOTE</h1>
+
+            <div class="card">
+                <h2>1. Telecharger le modele</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">
+                    Telechargez le template CSV, remplissez-le avec les donnees Pronote de vos eleves,
+                    puis importez-le. Le systeme remplira automatiquement les onglets sources
+                    et calculera les scores (COM, TRA, PART, ABS).
+                </p>
+                <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:15px; margin-bottom:15px;">
+                    <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:10px;">COLONNES DU TEMPLATE</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #94a3b8;">
+                        <div><strong style="color:white;">Identite</strong> : CLASSE, NOM, PRENOM, SEXE, LV2, OPT, DISPO</div>
+                        <div><strong style="color:white;">Absences</strong> : DJ (demi-journees), NJ (non justifiees)</div>
+                        <div><strong style="color:white;">Comportement</strong> : NB_PUNITIONS, NB_INCIDENTS</div>
+                        <div><strong style="color:white;">Notes</strong> : FRANCAIS, MATHS, HIST_GEO, ANGLAIS, LV2_MOY, EPS...</div>
+                        <div><strong style="color:white;">Oral</strong> : ORAL_ANGLAIS, ORAL_LV2</div>
+                        <div style="color:#64748b;">Seules CLASSE et NOM sont obligatoires. Le reste est optionnel.</div>
+                    </div>
+                </div>
+                <button onclick="downloadImportTemplate()" class="btn btn-secondary" style="margin-bottom: 10px;">
+                    <i class="fas fa-download"></i> TELECHARGER LE MODELE CSV
+                </button>
+            </div>
+
+            <div class="card">
+                <h2>2. Importer le fichier rempli</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">
+                    Selectionnez le fichier CSV rempli avec les donnees Pronote.
+                    Le separateur peut etre <strong style="color:white;">;</strong> (Excel FR) ou <strong style="color:white;">,</strong> (international).
+                </p>
+
+                <div id="import-dropzone" style="border: 2px dashed #334155; border-radius: 12px; padding: 40px; text-align: center; margin-bottom: 15px; cursor: pointer; transition: 0.2s;"
+                     onclick="document.getElementById('import-file-input').click()"
+                     ondragover="event.preventDefault(); this.style.borderColor='var(--primary)'; this.style.background='rgba(99,102,241,0.05)';"
+                     ondragleave="this.style.borderColor='#334155'; this.style.background='transparent';"
+                     ondrop="handleFileDrop(event)">
+                    <i class="fas fa-cloud-upload-alt" style="font-size: 36px; color: #6366f1; margin-bottom: 10px;"></i>
+                    <div style="font-size: 16px; font-weight: 700; margin-bottom: 5px;">Glissez votre fichier ici</div>
+                    <div style="font-size: 13px; color: #64748b;">ou cliquez pour parcourir (CSV, Excel)</div>
+                    <input type="file" id="import-file-input" accept=".csv,.txt,.tsv" style="display:none;" onchange="handleFileSelect(event)">
+                </div>
+
+                <div id="import-file-info" style="display:none; background:#0f172a; padding:15px; border-radius:8px; margin-bottom:15px; border-left:3px solid var(--primary);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:700;" id="import-file-name">-</div>
+                            <div style="font-size:12px; color:#94a3b8;" id="import-file-stats">-</div>
+                        </div>
+                        <button onclick="clearImportFile()" style="background:transparent; border:1px solid #334155; color:#94a3b8; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">
+                            <i class="fas fa-times"></i> Retirer
+                        </button>
+                    </div>
+                </div>
+
+                <div id="import-preview" style="display:none; max-height:250px; overflow-y:auto; margin-bottom:15px;"></div>
+
+                <button onclick="runImport()" id="btn-run-import" class="btn btn-primary" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);" disabled>
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-file-import"></i> IMPORTER ET CALCULER LES SCORES</span>
+                </button>
+            </div>
+
+            <div id="import-result" class="card" style="display: none;">
+                <h2><i class="fas fa-check-circle" style="color: var(--success);"></i> RESULTAT DE L'IMPORT</h2>
+                <div id="import-result-content"></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                    <button onclick="goTo(3)" class="btn btn-success">
+                        <i class="fas fa-chart-bar"></i> VOIR LES STATS
+                    </button>
+                    <button onclick="goTo('scores')" class="btn btn-secondary">
+                        <i class="fas fa-star-half-alt"></i> RECALCULER LES SCORES
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -1016,6 +1096,220 @@
 
         function saveProgress(phase, meta) {
             runServerCall('v3_saveProgress', [phase, meta || {}], () => {}, () => {});
+        }
+
+        // ===================================================================
+        // 5a. IMPORT BASE PRONOTE
+        // ===================================================================
+        var importParsedData = null; // { headers: [], rows: [[]] }
+
+        function downloadImportTemplate() {
+            runServerCall('v3_generateImportTemplate', [], function(res) {
+                if (!res.success) { showModal(res.error, 'error'); return; }
+                var blob = new Blob([res.csv], { type: 'text/csv;charset=utf-8;' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = res.filename || 'modele_import_pronote.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('Modele CSV telecharge !', 'success');
+            }, function(err) { showModal(err.message, 'error'); });
+        }
+
+        function handleFileDrop(e) {
+            e.preventDefault();
+            e.currentTarget.style.borderColor = '#334155';
+            e.currentTarget.style.background = 'transparent';
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                processImportFile(e.dataTransfer.files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            if (e.target.files && e.target.files.length > 0) {
+                processImportFile(e.target.files[0]);
+            }
+        }
+
+        function processImportFile(file) {
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var text = e.target.result;
+                    var parsed = parseCSVImport(text);
+                    if (parsed.rows.length === 0) {
+                        showToast('Fichier vide ou format non reconnu', 'error');
+                        return;
+                    }
+                    importParsedData = parsed;
+
+                    // Afficher infos fichier
+                    document.getElementById('import-file-info').style.display = 'block';
+                    document.getElementById('import-file-name').textContent = file.name;
+                    document.getElementById('import-file-stats').textContent =
+                        parsed.rows.length + ' eleves | ' + parsed.headers.length + ' colonnes | sep: "' + parsed.separator + '"';
+
+                    // Apercu
+                    renderImportPreview(parsed);
+
+                    // Activer le bouton import
+                    document.getElementById('btn-run-import').disabled = false;
+                } catch (err) {
+                    showModal('Erreur de lecture du fichier : ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function clearImportFile() {
+            importParsedData = null;
+            document.getElementById('import-file-info').style.display = 'none';
+            document.getElementById('import-preview').style.display = 'none';
+            document.getElementById('btn-run-import').disabled = true;
+            document.getElementById('import-file-input').value = '';
+        }
+
+        function parseCSVImport(text) {
+            // Remove BOM
+            if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
+
+            // Auto-detect separator
+            var firstLine = text.split('\n')[0];
+            var sepSemicolon = (firstLine.match(/;/g) || []).length;
+            var sepComma = (firstLine.match(/,/g) || []).length;
+            var sepTab = (firstLine.match(/\t/g) || []).length;
+            var sep = ';';
+            if (sepTab > sepSemicolon && sepTab > sepComma) sep = '\t';
+            else if (sepComma > sepSemicolon) sep = ',';
+
+            // Parse CSV
+            var allRows = [];
+            var current = '';
+            var inQuotes = false;
+            var row = [];
+
+            for (var i = 0; i < text.length; i++) {
+                var ch = text[i];
+                if (inQuotes) {
+                    if (ch === '"') {
+                        if (i + 1 < text.length && text[i + 1] === '"') {
+                            current += '"';
+                            i++;
+                        } else {
+                            inQuotes = false;
+                        }
+                    } else {
+                        current += ch;
+                    }
+                } else {
+                    if (ch === '"') {
+                        inQuotes = true;
+                    } else if (ch === sep) {
+                        row.push(current.trim());
+                        current = '';
+                    } else if (ch === '\n' || ch === '\r') {
+                        if (ch === '\r' && i + 1 < text.length && text[i + 1] === '\n') i++;
+                        row.push(current.trim());
+                        if (row.some(function(c) { return c !== ''; })) allRows.push(row);
+                        row = [];
+                        current = '';
+                    } else {
+                        current += ch;
+                    }
+                }
+            }
+            // Derniere ligne
+            row.push(current.trim());
+            if (row.some(function(c) { return c !== ''; })) allRows.push(row);
+
+            if (allRows.length === 0) return { headers: [], rows: [], separator: sep };
+
+            var headers = allRows[0].map(function(h) { return h.toUpperCase().trim(); });
+            var dataRows = allRows.slice(1);
+
+            return { headers: headers, rows: dataRows, separator: sep };
+        }
+
+        function renderImportPreview(parsed) {
+            var el = document.getElementById('import-preview');
+            if (!el) return;
+            el.style.display = 'block';
+
+            var maxPreview = Math.min(parsed.rows.length, 5);
+            var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+            html += '<thead><tr style="border-bottom:2px solid #334155;position:sticky;top:0;background:#1e293b;">';
+            for (var h = 0; h < parsed.headers.length && h < 10; h++) {
+                html += '<th style="padding:6px 4px;color:#94a3b8;font-size:10px;">' + escapeHtml(parsed.headers[h]) + '</th>';
+            }
+            if (parsed.headers.length > 10) html += '<th style="padding:6px;color:#64748b;">...</th>';
+            html += '</tr></thead><tbody>';
+
+            for (var i = 0; i < maxPreview; i++) {
+                var row = parsed.rows[i];
+                html += '<tr style="border-bottom:1px solid #1e293b;">';
+                for (var c = 0; c < Math.min(row.length, 10); c++) {
+                    html += '<td style="padding:4px;color:#e2e8f0;font-size:11px;">' + escapeHtml(row[c] || '') + '</td>';
+                }
+                if (row.length > 10) html += '<td style="color:#64748b;">...</td>';
+                html += '</tr>';
+            }
+            if (parsed.rows.length > maxPreview) {
+                html += '<tr><td colspan="' + Math.min(parsed.headers.length, 11) + '" style="text-align:center;color:#64748b;padding:8px;font-size:11px;">... et ' + (parsed.rows.length - maxPreview) + ' autres lignes</td></tr>';
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        function runImport() {
+            if (!importParsedData || !importParsedData.rows.length) {
+                showToast('Aucun fichier charge', 'error');
+                return;
+            }
+
+            setLoading('btn-run-import', true);
+            showToast('Import en cours... cela peut prendre quelques secondes', 'info');
+
+            runServerCall('v3_importDatabase', [importParsedData.headers, importParsedData.rows], function(res) {
+                setLoading('btn-run-import', false);
+                if (res.success) {
+                    var s = res.summary;
+                    var resultEl = document.getElementById('import-result');
+                    resultEl.style.display = 'block';
+
+                    var gradesHtml = s.gradesDetected && s.gradesDetected.length > 0
+                        ? '<div style="margin-top:8px;font-size:12px;color:#94a3b8;">Matieres detectees : <strong style="color:white;">' + s.gradesDetected.join(', ') + '</strong></div>'
+                        : '<div style="margin-top:8px;font-size:12px;color:#f59e0b;">Aucune colonne de notes detectee (scores TRA/PART non calcules)</div>';
+
+                    document.getElementById('import-result-content').innerHTML =
+                        '<div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 15px;">' +
+                        '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
+                            '<div style="font-size:28px;font-weight:900;color:var(--success);">' + s.totalStudents + '</div>' +
+                            '<div style="font-size:11px;color:#94a3b8;font-weight:700;">ELEVES IMPORTES</div></div>' +
+                        '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
+                            '<div style="font-size:28px;font-weight:900;color:var(--primary);">' + s.classesProcessed + '</div>' +
+                            '<div style="font-size:11px;color:#94a3b8;font-weight:700;">CLASSES</div></div>' +
+                        '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
+                            '<div style="font-size:28px;font-weight:900;color:#eab308;">' + s.scoresInjected + '</div>' +
+                            '<div style="font-size:11px;color:#94a3b8;font-weight:700;">SCORES CALCULES</div></div>' +
+                        '</div>' +
+                        '<div style="font-size:13px;color:#94a3b8;">' +
+                        'Classes : <strong style="color:white;">' + s.classesList.join(', ') + '</strong><br>' +
+                        'Onglets crees : ' + s.sheetsCreated + ' | Mis a jour : ' + s.sheetsUpdated +
+                        (s.skippedRows > 0 ? '<br><span style="color:#f59e0b;">Lignes ignorees (vides) : ' + s.skippedRows + '</span>' : '') +
+                        gradesHtml +
+                        '</div>';
+
+                    showToast('Import termine ! ' + s.totalStudents + ' eleves importes.', 'success');
+                    saveProgress('scores');
+                } else {
+                    showModal('Erreur import : ' + res.error, 'error');
+                }
+            }, function(err) {
+                setLoading('btn-run-import', false);
+                showModal('Erreur serveur : ' + (err.message || err), 'error');
+            });
         }
 
         // ===================================================================
