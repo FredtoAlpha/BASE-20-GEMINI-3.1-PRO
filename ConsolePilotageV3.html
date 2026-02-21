@@ -379,9 +379,7 @@
         <div class="brand"><i class="fas fa-rocket"></i> PILOTE V3</div>
         <nav>
             <div class="nav-item active" onclick="goTo(1)" id="nav-1"><i class="fas fa-hammer"></i> INIT</div>
-            <div class="nav-item" onclick="goTo(2)" id="nav-2"><i class="fas fa-database"></i> DATA</div>
             <div class="nav-item" onclick="goTo('import')" id="nav-import"><i class="fas fa-file-import"></i> IMPORT</div>
-            <div class="nav-item" onclick="goTo('scores')" id="nav-scores"><i class="fas fa-star-half-alt"></i> SCORES</div>
             <div class="nav-item" onclick="goTo(3)" id="nav-3"><i class="fas fa-chart-bar"></i> STATS</div>
             <div class="nav-item" onclick="goTo(4)" id="nav-4"><i class="fas fa-chess-board"></i> STRUCTURE</div>
             <div class="nav-item" onclick="goTo(5)" id="nav-5"><i class="fas fa-cogs"></i> MOTEUR</div>
@@ -448,23 +446,6 @@
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div id="phase-2" class="phase">
-            <h1>REMPLISSAGE DES DONNÉES</h1>
-            <div class="card">
-                <h2>Saisie Manuelle</h2>
-                <p style="color: #94a3b8; margin-bottom: 20px;">Fermez la console, remplissez les onglets sources créés, puis revenez consolider.</p>
-                <button onclick="google.script.host.close()" class="btn btn-secondary" style="margin-bottom: 20px;">
-                    <i class="fas fa-door-open"></i> QUITTER POUR REMPLIR
-                </button>
-
-                <h2>Consolidation</h2>
-                <button onclick="runConso()" id="btn-conso" class="btn btn-primary">
-                    <div class="spinner"></div>
-                    <span>CONSOLIDER & VÉRIFIER</span>
-                </button>
             </div>
         </div>
 
@@ -536,147 +517,10 @@
             <div id="import-result" class="card" style="display: none;">
                 <h2><i class="fas fa-check-circle" style="color: var(--success);"></i> RESULTAT DE L'IMPORT</h2>
                 <div id="import-result-content"></div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
-                    <button onclick="goTo(3)" class="btn btn-success">
-                        <i class="fas fa-chart-bar"></i> VOIR LES STATS
-                    </button>
-                    <button onclick="goTo('scores')" class="btn btn-secondary">
-                        <i class="fas fa-star-half-alt"></i> RECALCULER LES SCORES
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- =============== PHASE SCORES — Calcul depuis Pronote =============== -->
-        <div id="phase-scores" class="phase">
-            <h1>SCORES ÉLÈVES</h1>
-            <div class="card">
-                <h2>1. Préparer les onglets DATA</h2>
-                <p style="color: #94a3b8; margin-bottom: 15px;">
-                    Crée 4 onglets temporaires (DATA_ABS, DATA_INCIDENTS, DATA_PUNITIONS, DATA_NOTES)
-                    dans votre tableur. Vous y collerez les exports Pronote bruts — le moteur
-                    détecte automatiquement les colonnes quel que soit leur ordre.
-                </p>
-                <button onclick="initScoresSheets()" id="btn-init-scores" class="btn btn-secondary" style="margin-bottom: 20px;">
-                    <div class="spinner"></div>
-                    <span><i class="fas fa-folder-plus"></i> CRÉER LES ONGLETS DATA</span>
+                <button onclick="goTo(3)" class="btn btn-success" style="margin-top: 15px;">
+                    <span><i class="fas fa-arrow-right"></i> CONTINUER VERS LES STATS</span>
                 </button>
-
-                <div id="scores-status" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-                </div>
             </div>
-
-            <div class="card">
-                <h2>2. Coller les exports Pronote</h2>
-                <p style="color: #94a3b8; margin-bottom: 10px;">
-                    Réduisez ou fermez la console, puis ouvrez chaque onglet <strong style="color:white;">DATA_*</strong> dans le tableur.
-                    Collez l'export Pronote <strong style="color:#22c55e;">tel quel en cellule A1</strong>, avec ses en-têtes.
-                    Le moteur détecte automatiquement les colonnes.
-                </p>
-                <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:15px; margin-bottom:15px;">
-                    <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:10px;">MODE D'EMPLOI RAPIDE</div>
-                    <ol style="color:#94a3b8; font-size:13px; margin:0; padding-left:18px; line-height:1.8;">
-                        <li>Dans Pronote, faites l'export (copier le tableau)</li>
-                        <li>Dans le tableur, cliquez sur l'onglet <strong style="color:white;">DATA_ABS</strong> (ou DATA_NOTES, etc.)</li>
-                        <li>Cliquez en <strong style="color:white;">A1</strong>, puis <strong style="color:white;">Ctrl+V</strong></li>
-                        <li>Répétez pour chaque onglet DATA</li>
-                    </ol>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; font-size: 13px;">
-                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #6366f1;">
-                        <strong>DATA_ABS</strong><br>
-                        <span style="color: #94a3b8;">Export absences</span><br>
-                        <span style="color: #64748b; font-size:11px;">Colonnes auto-détectées : Nom, Classe, DJ, Justifiée</span>
-                    </div>
-                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #ef4444;">
-                        <strong>DATA_INCIDENTS</strong><br>
-                        <span style="color: #94a3b8;">Export incidents</span><br>
-                        <span style="color: #64748b; font-size:11px;">Colonnes auto-détectées : Nom, Classe, Gravité</span>
-                    </div>
-                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #eab308;">
-                        <strong>DATA_PUNITIONS</strong><br>
-                        <span style="color: #94a3b8;">Export punitions</span><br>
-                        <span style="color: #64748b; font-size:11px;">Colonnes auto-détectées : Nb, Nom, Classe</span>
-                    </div>
-                    <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #22c55e;">
-                        <strong>DATA_NOTES</strong><br>
-                        <span style="color: #94a3b8;">Export notes / moyennes</span><br>
-                        <span style="color: #64748b; font-size:11px;">Matières auto-détectées : FRANC, MATH, AGL1, SVT, etc.</span>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <button onclick="toggleMinimize()" class="btn btn-secondary">
-                        <i class="fas fa-window-minimize"></i> RÉDUIRE LA CONSOLE
-                    </button>
-                    <button onclick="refreshScoresStatus()" class="btn btn-secondary" style="background: transparent; border: 1px solid #334155;">
-                        <i class="fas fa-sync"></i> VÉRIFIER LES DONNÉES
-                    </button>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>3. Calculer et injecter les scores</h2>
-                <p style="color: #94a3b8; margin-bottom: 15px;">
-                    Lit les données collées, calcule les 4 scores (ABS, COM, TRA, PART)
-                    et les écrit directement dans les colonnes correspondantes de vos onglets sources élèves (°1, °2, etc.).
-                </p>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                    <button onclick="calcScore('ABS')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
-                        <span>ABS</span>
-                    </button>
-                    <button onclick="calcScore('COM')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
-                        <span>COM</span>
-                    </button>
-                    <button onclick="calcScore('TRA')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
-                        <span>TRA</span>
-                    </button>
-                    <button onclick="calcScore('PART')" class="btn btn-secondary" style="font-size: 12px; padding: 12px;">
-                        <span>PART</span>
-                    </button>
-                </div>
-
-                <button onclick="calcAllScores()" id="btn-calc-scores" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);">
-                    <div class="spinner"></div>
-                    <span><i class="fas fa-calculator"></i> CALCULER TOUS LES SCORES</span>
-                </button>
-
-                <div id="scores-result" style="margin-top: 15px; display: none;">
-                </div>
-            </div>
-
-            <div class="card" id="scores-preview-card" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <h2 style="margin-bottom:0;"><i class="fas fa-poll"></i> RÉSULTATS DES SCORES</h2>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button onclick="copyScoresToClipboard()" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;">
-                            <i class="fas fa-copy"></i> COPIER
-                        </button>
-                        <button onclick="exportScoresCSV()" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;">
-                            <i class="fas fa-file-csv"></i> EXPORT CSV
-                        </button>
-                        <button onclick="cleanupScoresSheets()" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px; background: #7f1d1d;">
-                            <i class="fas fa-trash"></i> SUPPRIMER DATA
-                        </button>
-                    </div>
-                </div>
-
-                <div id="scores-summary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;"></div>
-
-                <div style="margin-top: 15px; position: relative;">
-                    <input type="text" id="scores-search" placeholder="Rechercher un nom ou une classe..."
-                        oninput="filterScoresTable()"
-                        style="width:100%; padding:10px 14px 10px 36px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px; font-size:13px; box-sizing:border-box;">
-                    <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#64748b;"></i>
-                </div>
-
-                <div id="scores-preview-table" style="max-height: 450px; overflow-y: auto; margin-top: 10px;"></div>
-                <div id="scores-count" style="text-align:center;color:#64748b;margin-top:8px;font-size:12px;"></div>
-            </div>
-
-            <button onclick="goTo(3)" class="btn btn-success" style="margin-top: 20px;">
-                <span><i class="fas fa-arrow-right"></i> CONTINUER VERS STATS</span>
-            </button>
         </div>
 
         <div id="phase-3" class="phase">
@@ -954,7 +798,6 @@
             const nav = document.getElementById('nav-' + n);
             if (nav) nav.classList.add('active');
 
-            if (n === 'scores') refreshScoresStatus();
             if (n === 3) loadStats();
             if (n === 4) {
                 // S'assurer que les stats sont chargées avant d'afficher la structure
@@ -1064,20 +907,8 @@
                 setLoading('btn-init', false);
                 if (res.success) {
                     showToast('Initialisé !', 'success');
-                    saveProgress(2);
-                    setTimeout(() => goTo(2), 1000);
-                } else showModal(res.error, 'error');
-            }, err => showModal(err.message, 'error'));
-        }
-
-        function runConso() {
-            setLoading('btn-conso', true);
-            runServerCall('v3_genererNomPrenomEtID', [], res => {
-                setLoading('btn-conso', false);
-                if (res.success) {
-                    showToast('Consolidation terminée', 'success');
-                    saveProgress(3);
-                    setTimeout(() => goTo('scores'), 1000);
+                    saveProgress('import');
+                    setTimeout(() => goTo('import'), 1000);
                 } else showModal(res.error, 'error');
             }, err => showModal(err.message, 'error'));
         }
@@ -1310,274 +1141,6 @@
                 setLoading('btn-run-import', false);
                 showModal('Erreur serveur : ' + (err.message || err), 'error');
             });
-        }
-
-        // ===================================================================
-        // 5b. SCORES ÉLÈVES
-        // ===================================================================
-        function initScoresSheets() {
-            setLoading('btn-init-scores', true);
-            runServerCall('v3_initScoresSheets', [], function(res) {
-                setLoading('btn-init-scores', false);
-                if (res.success) {
-                    showToast(res.message, 'success');
-                    renderScoresStatus(res.tabs);
-                } else {
-                    showModal(res.error, 'error');
-                }
-            }, function(err) {
-                setLoading('btn-init-scores', false);
-                showModal(err.message, 'error');
-            });
-        }
-
-        function refreshScoresStatus() {
-            runServerCall('v3_getScoresStatus', [], function(res) {
-                if (res.success) renderScoresStatus(res.tabs);
-            }, function() {});
-        }
-
-        function renderScoresStatus(tabs) {
-            var el = document.getElementById('scores-status');
-            if (!el || !tabs) return;
-            var html = '';
-            var icons = { 'DATA_ABS': 'fa-user-clock', 'DATA_INCIDENTS': 'fa-exclamation-triangle', 'DATA_PUNITIONS': 'fa-gavel', 'DATA_NOTES': 'fa-graduation-cap' };
-            var colors = { 'DATA_ABS': '#6366f1', 'DATA_INCIDENTS': '#ef4444', 'DATA_PUNITIONS': '#eab308', 'DATA_NOTES': '#22c55e' };
-            tabs.forEach(function(t) {
-                var statusColor = t.hasData ? '#22c55e' : '#64748b';
-                var statusText = t.hasData ? t.rows + ' lignes' : (t.exists ? 'Vide' : 'Absent');
-                html += '<div style="background:#0f172a;padding:12px;border-radius:8px;border-left:3px solid ' + (colors[t.name] || '#334155') + ';display:flex;align-items:center;gap:10px;">' +
-                    '<i class="fas ' + (icons[t.name] || 'fa-table') + '" style="color:' + (colors[t.name] || '#94a3b8') + ';font-size:18px;"></i>' +
-                    '<div><strong>' + t.name + '</strong><br><span style="color:' + statusColor + ';font-size:12px;">' + statusText + '</span></div></div>';
-            });
-            el.innerHTML = html;
-        }
-
-        function calcScore(type) {
-            showToast('Calcul ' + type + ' en cours...', 'info');
-            runServerCall('v3_calculerScore', [type], function(res) {
-                if (res.success) {
-                    showToast(type + ' : ' + res.count + ' élèves calculés', 'success');
-                } else {
-                    showModal(res.error, 'error');
-                }
-            }, function(err) { showModal(err.message, 'error'); });
-        }
-
-        function calcAllScores() {
-            setLoading('btn-calc-scores', true);
-            runServerCall('v3_calculerTousScores', [], function(res) {
-                setLoading('btn-calc-scores', false);
-                if (res.success) {
-                    var r = res.results;
-                    var resultEl = document.getElementById('scores-result');
-                    resultEl.style.display = 'block';
-                    // Diagnostic injection
-                    var injColor = res.injected.updated > 0 ? '#22c55e' : '#ef4444';
-                    var injIcon = res.injected.updated > 0 ? 'fa-check-circle' : 'fa-exclamation-triangle';
-                    var debugInfo = '';
-                    if (res.debug) {
-                        debugInfo = '<div style="margin-top:10px;padding:10px;background:#1e293b;border-radius:6px;font-size:11px;color:#94a3b8;">' +
-                            '<strong>Diagnostic :</strong><br>' +
-                            'Onglets sources trouvés : <strong style="color:#e2e8f0;">' + (res.debug.sourceSheets && res.debug.sourceSheets.length > 0 ? res.debug.sourceSheets.join(', ') : 'AUCUN !') + '</strong><br>' +
-                            'Clés fusion (ex) : ' + (res.debug.fusionKeys ? res.debug.fusionKeys.join(', ') : 'aucune') + '<br>' +
-                            'Total dans fusion : ' + (res.debug.fusionCount || 0) +
-                            '</div>';
-                    }
-                    resultEl.innerHTML = '<div style="background:#0f172a;padding:20px;border-radius:8px;border:1px solid ' + injColor + ';">' +
-                        '<div style="font-size:20px;font-weight:900;color:' + injColor + ';margin-bottom:10px;"><i class="fas ' + injIcon + '"></i> Scores calculés !</div>' +
-                        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;">' +
-                        '<div>ABS : <strong>' + r.abs.count + '</strong> élèves</div>' +
-                        '<div>COM : <strong>' + r.com.count + '</strong> élèves</div>' +
-                        '<div>TRA : <strong>' + r.tra.count + '</strong> élèves</div>' +
-                        '<div>PART : <strong>' + r.part.count + '</strong> élèves</div>' +
-                        '</div>' +
-                        '<div style="margin-top:10px;font-size:13px;">' +
-                        '<span style="color:' + injColor + ';font-weight:700;">' + res.injected.updated + ' élèves injectés dans les onglets sources</span>' +
-                        (res.injected.notFound > 0 ? ' | <span style="color:#f59e0b;">' + res.injected.notFound + ' non trouvés</span>' : '') +
-                        '</div>' +
-                        debugInfo +
-                        '</div>';
-                    showToast('Scores calculés ! Voir le tableau ci-dessous.', 'success');
-
-                    // Afficher immédiatement les scores depuis la réponse (pas de 2e appel serveur)
-                    if (res.preview && res.preview.length > 0) {
-                        showScoresResults(res.preview, res.totalEleves);
-                    } else {
-                        // Fallback : appel séparé si preview absent (ancien backend)
-                        loadScoresPreview();
-                    }
-                } else {
-                    showModal(res.error, 'error');
-                }
-            }, function(err) {
-                setLoading('btn-calc-scores', false);
-                showModal('Erreur lors du calcul des scores : ' + (err.message || err), 'error');
-            });
-        }
-
-        function showScoresResults(data, totalEleves) {
-            cachedScoresData = data;
-            var card = document.getElementById('scores-preview-card');
-            card.style.display = 'block';
-            renderScoresSummary(data);
-            renderScoresTable(data);
-            document.getElementById('scores-count').textContent = (totalEleves || data.length) + ' élèves au total';
-            // Scroller vers le tableau de résultats
-            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        var cachedScoresData = []; // stocke tous les scores pour export/filtre
-
-        function loadScoresPreview() {
-            runServerCall('v3_getScoresPreview', [], function(res) {
-                if (!res.success) {
-                    showToast('Impossible de charger les scores : ' + (res.error || 'erreur inconnue'), 'error');
-                    return;
-                }
-                showScoresResults(res.preview || [], res.totalEleves);
-            }, function(err) {
-                showToast('Erreur chargement scores : ' + (err.message || err), 'error');
-            });
-        }
-
-        function renderScoresSummary(data) {
-            var el = document.getElementById('scores-summary');
-            if (!el) return;
-            var labels = ['ABS', 'COM', 'TRA', 'PART'];
-            var keys = ['abs', 'com', 'tra', 'part'];
-            var icons = ['fa-user-clock', 'fa-comments', 'fa-book', 'fa-microphone'];
-            var html = '';
-            for (var s = 0; s < labels.length; s++) {
-                var filled = 0, total = data.length, sum = 0;
-                for (var i = 0; i < data.length; i++) {
-                    var v = data[i][keys[s]];
-                    if (v !== null && v !== undefined) { filled++; sum += v; }
-                }
-                var avg = filled > 0 ? (sum / filled).toFixed(1) : '—';
-                var pct = total > 0 ? Math.round(filled / total * 100) : 0;
-                var barColor = pct === 100 ? '#22c55e' : pct > 50 ? '#eab308' : '#ef4444';
-                html += '<div style="background:#0f172a;padding:12px;border-radius:8px;text-align:center;">' +
-                    '<i class="fas ' + icons[s] + '" style="font-size:18px;color:#6366f1;"></i>' +
-                    '<div style="font-size:20px;font-weight:900;margin:4px 0;">' + avg + '<span style="font-size:11px;color:#64748b;">/4</span></div>' +
-                    '<div style="font-size:11px;color:#94a3b8;font-weight:700;">' + labels[s] + '</div>' +
-                    '<div style="margin-top:6px;background:#1e293b;border-radius:4px;height:4px;overflow:hidden;">' +
-                    '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';"></div></div>' +
-                    '<div style="font-size:10px;color:#64748b;margin-top:3px;">' + filled + '/' + total + ' (' + pct + '%)</div>' +
-                    '</div>';
-            }
-            el.innerHTML = html;
-        }
-
-        function renderScoresTable(data) {
-            var el = document.getElementById('scores-preview-table');
-            if (!el) return;
-            var html = '<table id="scores-table-inner" style="width:100%;border-collapse:collapse;font-size:13px;">' +
-                '<thead><tr style="border-bottom:2px solid #334155;position:sticky;top:0;background:#1e293b;z-index:1;">' +
-                '<th style="text-align:left;padding:8px;">Nom</th><th style="padding:8px;">Classe</th>' +
-                '<th style="padding:8px;">ABS</th><th style="padding:8px;">COM</th>' +
-                '<th style="padding:8px;">TRA</th><th style="padding:8px;">PART</th></tr></thead><tbody>';
-            for (var i = 0; i < data.length; i++) {
-                var p = data[i];
-                html += '<tr class="score-row" style="border-bottom:1px solid #1e293b;">' +
-                    '<td style="padding:6px 8px;">' + escapeHtml(p.nom) + '</td>' +
-                    '<td style="text-align:center;padding:6px 4px;">' + escapeHtml(p.classe || '-') + '</td>' +
-                    scoreCell(p.abs) + scoreCell(p.com) + scoreCell(p.tra) + scoreCell(p.part) +
-                    '</tr>';
-            }
-            html += '</tbody></table>';
-            el.innerHTML = html;
-        }
-
-        // Couleurs identiques aux listes déroulantes des onglets sources
-        // 1=rouge, 2=jaune, 3=vert clair, 4=vert foncé
-        function scoreCell(val) {
-            if (val === null || val === undefined) return '<td style="text-align:center;color:#64748b;padding:6px 4px;">—</td>';
-            var colors = { 1: '#e74c3c', 2: '#f9e79f', 3: '#82e0aa', 4: '#1e8449' };
-            var textColors = { 1: '#ffffff', 2: '#000000', 3: '#000000', 4: '#ffffff' };
-            var bg = colors[val] || '#334155';
-            var fc = textColors[val] || '#ffffff';
-            return '<td style="text-align:center;font-weight:900;color:' + fc + ';background:' + bg + ';padding:6px 4px;border-radius:4px;">' + val + '</td>';
-        }
-
-        function filterScoresTable() {
-            var query = (document.getElementById('scores-search').value || '').toLowerCase();
-            var rows = document.querySelectorAll('#scores-table-inner .score-row');
-            var visible = 0;
-            rows.forEach(function(row) {
-                var text = row.textContent.toLowerCase();
-                var show = !query || text.indexOf(query) >= 0;
-                row.style.display = show ? '' : 'none';
-                if (show) visible++;
-            });
-            var countEl = document.getElementById('scores-count');
-            if (query) {
-                countEl.textContent = visible + ' résultat(s) sur ' + cachedScoresData.length + ' élèves';
-            } else {
-                countEl.textContent = cachedScoresData.length + ' élèves au total';
-            }
-        }
-
-        function exportScoresCSV() {
-            if (!cachedScoresData.length) { showToast('Aucun score à exporter', 'error'); return; }
-            var sep = ';'; // Excel-friendly
-            var lines = ['Nom' + sep + 'Classe' + sep + 'ABS' + sep + 'COM' + sep + 'TRA' + sep + 'PART'];
-            cachedScoresData.forEach(function(p) {
-                lines.push(
-                    '"' + (p.nom || '').replace(/"/g, '""') + '"' + sep +
-                    '"' + (p.classe || '').replace(/"/g, '""') + '"' + sep +
-                    (p.abs !== null && p.abs !== undefined ? p.abs : '') + sep +
-                    (p.com !== null && p.com !== undefined ? p.com : '') + sep +
-                    (p.tra !== null && p.tra !== undefined ? p.tra : '') + sep +
-                    (p.part !== null && p.part !== undefined ? p.part : '')
-                );
-            });
-            var csv = '\uFEFF' + lines.join('\n'); // BOM UTF-8 pour Excel
-            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = 'scores_eleves_' + new Date().toISOString().slice(0,10) + '.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-            showToast('Export CSV téléchargé !', 'success');
-        }
-
-        function copyScoresToClipboard() {
-            if (!cachedScoresData.length) { showToast('Aucun score à copier', 'error'); return; }
-            var lines = ['Nom\tClasse\tABS\tCOM\tTRA\tPART'];
-            cachedScoresData.forEach(function(p) {
-                lines.push(
-                    (p.nom || '') + '\t' + (p.classe || '') + '\t' +
-                    (p.abs !== null && p.abs !== undefined ? p.abs : '') + '\t' +
-                    (p.com !== null && p.com !== undefined ? p.com : '') + '\t' +
-                    (p.tra !== null && p.tra !== undefined ? p.tra : '') + '\t' +
-                    (p.part !== null && p.part !== undefined ? p.part : '')
-                );
-            });
-            var text = lines.join('\n');
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(function() {
-                    showToast('Scores copiés ! Collez dans Excel/Sheets avec Ctrl+V', 'success');
-                });
-            } else {
-                var ta = document.createElement('textarea');
-                ta.value = text;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                showToast('Scores copiés ! Collez dans Excel/Sheets avec Ctrl+V', 'success');
-            }
-        }
-
-        function cleanupScoresSheets() {
-            runServerCall('v3_cleanupScoresSheets', [], function(res) {
-                if (res.success) {
-                    showToast('Onglets DATA supprimés : ' + res.deleted.join(', '), 'success');
-                    document.getElementById('scores-status').innerHTML = '';
-                }
-            }, function() {});
         }
 
         // ===================================================================
