@@ -205,7 +205,7 @@ function doGet(e) {
 
 /**
  * Fonction include() pour le système de templates HtmlService
- * Permet de charger des fichiers HTML partiels référencés par <?!= include('filename'); ?>
+ * Permet de charger des fichiers HTML partiels (via include('filename') dans les templates)
  * @param {string} filename - Nom du fichier HTML (sans extension) à inclure
  * @returns {string} Contenu du fichier HTML
  */
