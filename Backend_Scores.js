@@ -303,6 +303,23 @@ function v3_calculerTousScores() {
     var fusion = fusionnerScores_(absResults, comResults, traResults, partResults);
     var injected = injecterScoresDansOngletsSources_(ss, fusion);
 
+    // Construire le tableau détaillé pour affichage immédiat côté client
+    var preview = [];
+    for (var nom in fusion) {
+      var e = fusion[nom];
+      preview.push({
+        nom: nom,
+        classe: e.classe,
+        abs: e.scoreABS !== null ? mapScore_(e.scoreABS) : null,
+        com: e.scoreCOM !== null ? mapScore_(e.scoreCOM) : null,
+        tra: e.scoreTRA !== null ? mapScore_(e.scoreTRA) : null,
+        part: e.scorePART !== null ? mapScore_(e.scorePART) : null
+      });
+    }
+    preview.sort(function(a, b) {
+      return (a.classe || '').localeCompare(b.classe || '') || a.nom.localeCompare(b.nom);
+    });
+
     return {
       success: true,
       results: {
@@ -312,7 +329,8 @@ function v3_calculerTousScores() {
         part: { count: partResults.length, ok: true }
       },
       injected: injected,
-      totalEleves: Object.keys(fusion).length
+      totalEleves: Object.keys(fusion).length,
+      preview: preview
     };
 
   } catch (e) {
@@ -387,7 +405,7 @@ function v3_getScoresPreview() {
     return {
       success: true,
       totalEleves: preview.length,
-      preview: preview.slice(0, 50)
+      preview: preview // tous les élèves — le filtrage se fait côté client
     };
 
   } catch (e) {
