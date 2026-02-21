@@ -5,19 +5,18 @@
  * Calcule 4 scores (ABS, COM, TRA, PART) à partir des exports Pronote
  * et les injecte dans les colonnes des onglets sources élèves.
  *
- * S'intègre dans l'architecture existante :
- * - Lit les exports Pronote depuis des onglets DATA_* temporaires
- * - Calcule les scores sur l'échelle 0-5 (compatible Backend_Eleves.js)
- * - Écrit les résultats dans les colonnes COM, TRA, PART, ABS
- *   des onglets sources (°1, °2, etc.)
+ * DÉTECTION DYNAMIQUE DES COLONNES :
+ * Les en-têtes Pronote varient selon l'établissement (AGL1 MOY, FRANC,
+ * HI-GE, ESP2 MOY, etc.). Ce module détecte les colonnes par pattern
+ * matching sur la ligne d'en-tête au lieu d'utiliser des indices fixes.
  *
  * ARCHITECTURE DES ONGLETS PRONOTE :
  * - DATA_ABS       → Export Pronote des absences
- * - DATA_INCIDENTS  → Export Pronote des incidents/sanctions
- * - DATA_PUNITIONS  → Export Pronote des punitions
- * - DATA_NOTES      → Export Pronote des notes/moyennes
+ * - DATA_INCIDENTS → Export Pronote des incidents/sanctions
+ * - DATA_PUNITIONS → Export Pronote des punitions
+ * - DATA_NOTES     → Export Pronote des notes/moyennes
  *
- * @version 1.0.0
+ * @version 2.0.0 — Détection dynamique des colonnes
  * ===================================================================
  */
 
@@ -25,10 +24,7 @@
 // CONFIGURATION DU MODULE SCORES
 // =============================================================================
 
-const SCORES_CONFIG = {
-  // Échelle de l'app : 0-5 (Backend_Eleves.js utilise validateScore 0-5)
-  // Les seuils ci-dessous produisent des scores de 1 à 4,
-  // puis on les mappe sur 0-5 via mapScore_()
+var SCORES_CONFIG = {
   SEUILS_ABS: {
     DJ: [
       { score: 4, min: 0, max: 5 },
@@ -63,26 +59,130 @@ const SCORES_CONFIG = {
     { score: 2, min: 8, max: 11.99 },
     { score: 1, min: 0, max: 7.99 }
   ],
-  // Pondérations par matière pour le score TRA
-  // cols = indices de colonnes (0-indexed) dans l'export Pronote notes
+
+  // ── Matières pour le score TRA ──
+  // patterns = regex appliqués sur les en-têtes Pronote pour trouver la colonne
+  // preferMoy = true → si "MOY" et "ECRIT" existent, prendre MOY
   MATIERES_TRA: [
-    { nom: 'Français', cols: [8], coeff: 4.5 },
-    { nom: 'Maths', cols: [11], coeff: 3.5 },
-    { nom: 'Histoire-Géo', cols: [9], coeff: 3.0 },
-    { nom: 'Anglais', cols: [2], coeff: 3.0 },
-    { nom: 'Espagnol/It.', cols: [12], coeff: 2.5 },
-    { nom: 'EPS', cols: [6], coeff: 2.0 },
-    { nom: 'Phys.-Chimie', cols: [19, 20], coeff: 1.5 },
-    { nom: 'SVT', cols: [17, 18], coeff: 1.5 },
-    { nom: 'Technologie', cols: [15, 16], coeff: 1.5 },
-    { nom: 'Arts Pla.', cols: [5], coeff: 1.0 },
-    { nom: 'Musique', cols: [7], coeff: 1.0 },
-    { nom: 'Latin', cols: [21], coeff: 1.0 }
+    { nom: 'Français',      patterns: ['FRANC', 'FRAN[CÇ]'], coeff: 4.5 },
+    { nom: 'Maths',         patterns: ['MATH'], coeff: 3.5 },
+    { nom: 'Histoire-Géo',  patterns: ['HI.?GE', 'HIST.*G[EÉ]O', 'HG'], coeff: 3.0 },
+    { nom: 'Anglais',       patterns: ['ANG.*MOY', 'AGL.*MOY', 'ANGLAIS', 'ANG(?!.*(?:ORAL|ECRI))'], coeff: 3.0 },
+    { nom: 'LV2',           patterns: ['ESP.*MOY', 'ALL.*MOY', 'ITA.*MOY', 'ESP[^O]*$', 'ALL[^O]*$', 'ITA[^O]*$'], coeff: 2.5 },
+    { nom: 'EPS',           patterns: ['^EPS'], coeff: 2.0 },
+    { nom: 'Phys.-Chimie',  patterns: ['PH.?CH', 'PHYS', 'SC.?PH'], coeff: 1.5, multi: true },
+    { nom: 'SVT',           patterns: ['^SVT'], coeff: 1.5, multi: true },
+    { nom: 'Technologie',   patterns: ['TECHN'], coeff: 1.5, multi: true },
+    { nom: 'Arts Pla.',     patterns: ['A.?PLA', 'ARTS'], coeff: 1.0 },
+    { nom: 'Musique',       patterns: ['EDMUS', 'MUS'], coeff: 1.0 },
+    { nom: 'Latin',         patterns: ['LAT', 'LCALA'], coeff: 1.0 }
   ],
-  // Colonnes de l'export notes pour le score PART (oral)
-  COL_ORAL_ANG: 4,   // index 0-based
-  COL_ORAL_LV2: 14   // index 0-based
+
+  // ── Patterns pour les colonnes ORAL (score PART) ──
+  PATTERNS_ORAL_ANG: ['ANG.*ORAL', 'AGL.*ORAL', 'ORAL.*ANG'],
+  PATTERNS_ORAL_LV2: ['ESP.*ORAL', 'ALL.*ORAL', 'ITA.*ORAL', 'ORAL.*LV2'],
+
+  // ── Patterns pour DATA_ABS ──
+  PATTERNS_ABS: {
+    nom:       ['NOM'],
+    classe:    ['CLASSE'],
+    dj:        ['DJ', 'DEMI.?JOURN', 'DJ.*BULL'],
+    justifiee: ['JUSTIFI']
+  },
+
+  // ── Patterns pour DATA_INCIDENTS ──
+  PATTERNS_INC: {
+    nom:     ['NOM'],
+    classe:  ['CLASSE'],
+    gravite: ['GRAVIT', 'GRAV']
+  },
+
+  // ── Patterns pour DATA_PUNITIONS ──
+  PATTERNS_PUN: {
+    nom:    ['NOM'],
+    classe: ['CLASSE'],
+    nb:     ['^NB', 'NOMBRE', 'QT', 'QUANT']
+  }
 };
+
+// =============================================================================
+// DÉTECTION DYNAMIQUE DES COLONNES
+// =============================================================================
+
+/**
+ * Cherche l'indice (0-based) de la première colonne dont l'en-tête
+ * matche l'un des patterns fournis.
+ * @param {string[]} headers — ligne d'en-têtes normalisée (uppercase, trimmed)
+ * @param {string[]} patterns — liste de regex patterns à tester
+ * @returns {number} indice 0-based, ou -1 si non trouvé
+ */
+function findCol_(headers, patterns) {
+  for (var p = 0; p < patterns.length; p++) {
+    var re = new RegExp(patterns[p], 'i');
+    for (var c = 0; c < headers.length; c++) {
+      if (re.test(headers[c])) return c;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Cherche TOUS les indices de colonnes matchant les patterns.
+ * Utile pour les matières à groupes (Techno G1/G2, SVT G1/G2, etc.)
+ * @param {string[]} headers
+ * @param {string[]} patterns
+ * @returns {number[]} tableau d'indices 0-based
+ */
+function findAllCols_(headers, patterns) {
+  var found = [];
+  for (var p = 0; p < patterns.length; p++) {
+    var re = new RegExp(patterns[p], 'i');
+    for (var c = 0; c < headers.length; c++) {
+      if (re.test(headers[c]) && found.indexOf(c) === -1) {
+        found.push(c);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * Normalise une ligne d'en-têtes : uppercase + trim.
+ * Scanne les 2 premières lignes de données pour trouver celle
+ * qui ressemble le plus à des en-têtes (texte, pas des nombres).
+ * @param {Array[]} data — toutes les données de la feuille
+ * @returns {{ headers: string[], dataStartRow: number }}
+ */
+function detectHeaders_(data) {
+  if (!data || data.length === 0) return { headers: [], dataStartRow: 0 };
+
+  // Heuristique : la ligne d'en-tête est celle avec le plus de cellules texte
+  var bestRow = 0;
+  var bestTextCount = 0;
+
+  var maxScan = Math.min(data.length, 3);
+  for (var r = 0; r < maxScan; r++) {
+    var textCount = 0;
+    for (var c = 0; c < data[r].length; c++) {
+      var val = String(data[r][c]).trim();
+      if (val && isNaN(val) && val !== 'Abs' && val !== 'Disp') textCount++;
+    }
+    if (textCount > bestTextCount) {
+      bestTextCount = textCount;
+      bestRow = r;
+    }
+  }
+
+  var headers = [];
+  for (var c = 0; c < data[bestRow].length; c++) {
+    headers.push(String(data[bestRow][c]).trim().toUpperCase());
+  }
+
+  return {
+    headers: headers,
+    dataStartRow: bestRow + 1 // données commencent après la ligne d'en-tête
+  };
+}
 
 // =============================================================================
 // FONCTIONS SERVEUR V3 — Adaptateurs pour Console Pilotage V3
@@ -90,8 +190,8 @@ const SCORES_CONFIG = {
 
 /**
  * Initialise les onglets DATA_* pour recevoir les exports Pronote.
- * Appelé depuis la Console V3 phase Scores.
- * @returns {Object} {success, message, tabs}
+ * NE pré-écrit PAS de colonnes : l'utilisateur colle l'export tel quel.
+ * Le moteur détecte dynamiquement les colonnes par leurs en-têtes.
  */
 function v3_initScoresSheets() {
   try {
@@ -106,33 +206,49 @@ function v3_initScoresSheets() {
       }
     });
 
-    // Instructions dans les onglets vides
     var instructions = {
-      'DATA_ABS': 'Collez ici l\'export Pronote des ABSENCES (avec les 2 lignes d\'en-tête)',
-      'DATA_INCIDENTS': 'Collez ici l\'export Pronote des INCIDENTS (avec les 2 lignes d\'en-tête)',
-      'DATA_PUNITIONS': 'Collez ici l\'export Pronote des PUNITIONS (avec la ligne d\'en-tête)',
-      'DATA_NOTES': 'Collez ici l\'export Pronote des NOTES (avec les 2 lignes d\'en-tête)'
+      'DATA_ABS':
+        '📋 ABSENCES — Collez ici l\'export Pronote complet (avec ses en-têtes). ' +
+        'Colonnes attendues : Nom, Classe, Demi-journées (DJ), Justifiée.',
+      'DATA_INCIDENTS':
+        '📋 INCIDENTS — Collez ici l\'export Pronote complet (avec ses en-têtes). ' +
+        'Colonnes attendues : Nom, Classe, Gravité.',
+      'DATA_PUNITIONS':
+        '📋 PUNITIONS — Collez ici l\'export Pronote complet (avec ses en-têtes). ' +
+        'Colonnes attendues : Nb, Nom, Classe.',
+      'DATA_NOTES':
+        '📋 NOTES — Collez ici l\'export Pronote complet (avec ses en-têtes). ' +
+        'Le moteur détecte automatiquement les matières par leurs intitulés (FRANC, MATH, AGL1 MOY, etc.).'
     };
+
+    var instrBg = '#e8eaf6';
+    var instrColor = '#283593';
 
     for (var nom in instructions) {
       var ws = ss.getSheetByName(nom);
-      if (ws && ws.getLastRow() === 0) {
-        ws.getRange('A1').setValue(instructions[nom])
-          .setFontStyle('italic').setFontColor('#808080');
-      }
+      if (!ws) continue;
+      if (ws.getLastRow() > 1) continue; // ne pas écraser si données déjà présentes
+
+      ws.getRange('A1').setValue(instructions[nom]);
+      ws.getRange('A1')
+        .setFontStyle('italic').setFontColor(instrColor)
+        .setBackground(instrBg).setFontSize(11)
+        .setWrap(true);
+      ws.setColumnWidth(1, 800);
     }
 
     return {
       success: true,
       message: created.length > 0
-        ? 'Onglets créés : ' + created.join(', ')
+        ? 'Onglets créés : ' + created.join(', ') +
+          '\nCollez les exports Pronote tels quels — le moteur détecte les colonnes automatiquement.'
         : 'Tous les onglets DATA existent déjà.',
       tabs: onglets.map(function(nom) {
         var ws = ss.getSheetByName(nom);
         return {
           name: nom,
-          rows: ws ? Math.max(0, ws.getLastRow() - 2) : 0,
-          hasData: ws ? ws.getLastRow() > 2 : false
+          rows: ws ? Math.max(0, ws.getLastRow() - 1) : 0,
+          hasData: ws ? ws.getLastRow() > 1 : false
         };
       })
     };
@@ -179,16 +295,12 @@ function v3_calculerTousScores() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // Calculer chaque score
     var absResults = calculerScoreABS_(ss);
     var comResults = calculerScoreCOM_(ss);
     var traResults = calculerScoreTRA_(ss);
     var partResults = calculerScorePART_(ss);
 
-    // Fusionner tous les résultats par nom d'élève
     var fusion = fusionnerScores_(absResults, comResults, traResults, partResults);
-
-    // Injecter dans les onglets sources
     var injected = injecterScoresDansOngletsSources_(ss, fusion);
 
     return {
@@ -231,7 +343,7 @@ function v3_calculerScore(type) {
       success: true,
       type: type,
       count: results.length,
-      results: results.slice(0, 20) // Aperçu des 20 premiers
+      results: results.slice(0, 20)
     };
 
   } catch (e) {
@@ -275,7 +387,7 @@ function v3_getScoresPreview() {
     return {
       success: true,
       totalEleves: preview.length,
-      preview: preview.slice(0, 50) // 50 premiers pour l'aperçu
+      preview: preview.slice(0, 50)
     };
 
   } catch (e) {
@@ -284,40 +396,55 @@ function v3_getScoresPreview() {
 }
 
 // =============================================================================
-// MODULE ABS — Score d'assiduité
+// MODULE ABS — Score d'assiduité (détection dynamique)
 // =============================================================================
 
 function calculerScoreABS_(ss) {
   var wsData = ss.getSheetByName('DATA_ABS');
-  if (!wsData || wsData.getLastRow() < 3) return [];
+  if (!wsData || wsData.getLastRow() < 2) return [];
 
   var data = wsData.getDataRange().getValues();
-  var eleves = {};
-  var seuils = SCORES_CONFIG.SEUILS_ABS;
+  var det = detectHeaders_(data);
+  var h = det.headers;
+  if (h.length === 0) return [];
 
-  for (var i = 2; i < data.length; i++) {
-    var nom = String(data[i][0]).trim();
+  var pats = SCORES_CONFIG.PATTERNS_ABS;
+  var colNom     = findCol_(h, pats.nom);
+  var colClasse  = findCol_(h, pats.classe);
+  var colDJ      = findCol_(h, pats.dj);
+  var colJust    = findCol_(h, pats.justifiee);
+
+  if (colNom === -1) {
+    Logger.log('DATA_ABS: colonne NOM introuvable dans: ' + h.join(' | '));
+    return [];
+  }
+
+  var seuils = SCORES_CONFIG.SEUILS_ABS;
+  var eleves = {};
+
+  for (var i = det.dataStartRow; i < data.length; i++) {
+    var nom = String(data[i][colNom]).trim();
     if (!nom) continue;
-    var classe = String(data[i][1]).trim();
-    var djBulletin = parseNotePronote_(data[i][9]);
-    var justifiee = String(data[i][10]).trim();
+    var classe = colClasse >= 0 ? String(data[i][colClasse]).trim() : '';
+    var djVal  = colDJ >= 0 ? parseNotePronote_(data[i][colDJ]) : null;
+    var justif = colJust >= 0 ? String(data[i][colJust]).trim() : '';
 
     if (!eleves[nom]) {
       eleves[nom] = { classe: classe, djTotal: 0, nonJustifiees: 0 };
     }
-    if (djBulletin !== null) eleves[nom].djTotal += djBulletin;
-    if (justifiee === 'Non') eleves[nom].nonJustifiees++;
+    if (djVal !== null) eleves[nom].djTotal += djVal;
+    if (justif.toUpperCase() === 'NON') eleves[nom].nonJustifiees++;
   }
 
   var resultats = [];
-  for (var nom in eleves) {
-    var e = eleves[nom];
+  for (var nomKey in eleves) {
+    var e = eleves[nomKey];
     var scoreDJ = attribuerScoreParSeuil_(e.djTotal, seuils.DJ);
     var scoreNJ = attribuerScoreParSeuil_(e.nonJustifiees, seuils.NJ);
     var scoreABS = Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
 
     resultats.push({
-      nom: nom, classe: e.classe,
+      nom: nomKey, classe: e.classe,
       dj: Math.round(e.djTotal * 10) / 10,
       nj: e.nonJustifiees,
       scoreABS: scoreABS
@@ -328,50 +455,74 @@ function calculerScoreABS_(ss) {
 }
 
 // =============================================================================
-// MODULE COM — Score de comportement
+// MODULE COM — Score de comportement (détection dynamique)
 // =============================================================================
 
 function calculerScoreCOM_(ss) {
   var wsInc = ss.getSheetByName('DATA_INCIDENTS');
   var wsPun = ss.getSheetByName('DATA_PUNITIONS');
 
-  if ((!wsInc || wsInc.getLastRow() < 3) && (!wsPun || wsPun.getLastRow() < 2)) return [];
+  if ((!wsInc || wsInc.getLastRow() < 2) && (!wsPun || wsPun.getLastRow() < 2)) return [];
 
   var seuils = SCORES_CONFIG.SEUILS_COM;
 
-  // Lire les punitions
+  // ── Punitions ──
   var punitions = {};
   if (wsPun && wsPun.getLastRow() >= 2) {
     var dataPun = wsPun.getDataRange().getValues();
-    for (var i = 1; i < dataPun.length; i++) {
-      var nom = String(dataPun[i][1]).trim();
-      if (!nom) continue;
-      var nb = parseInt(dataPun[i][0]) || 0;
-      var classe = String(dataPun[i][2]).trim();
-      punitions[nom] = { nb: nb, classe: classe };
+    var detPun = detectHeaders_(dataPun);
+    var hPun = detPun.headers;
+    var pPun = SCORES_CONFIG.PATTERNS_PUN;
+    var colPNom    = findCol_(hPun, pPun.nom);
+    var colPClasse = findCol_(hPun, pPun.classe);
+    var colPNb     = findCol_(hPun, pPun.nb);
+
+    if (colPNom >= 0) {
+      for (var i = detPun.dataStartRow; i < dataPun.length; i++) {
+        var nom = String(dataPun[i][colPNom]).trim();
+        if (!nom) continue;
+        var nb = colPNb >= 0 ? (parseInt(dataPun[i][colPNb]) || 0) : 1;
+        var classe = colPClasse >= 0 ? String(dataPun[i][colPClasse]).trim() : '';
+        if (!punitions[nom]) punitions[nom] = { nb: 0, classe: '' };
+        punitions[nom].nb += nb;
+        if (classe) punitions[nom].classe = classe;
+      }
     }
   }
 
-  // Lire les incidents
+  // ── Incidents ──
   var incidents = {};
-  if (wsInc && wsInc.getLastRow() >= 3) {
+  if (wsInc && wsInc.getLastRow() >= 2) {
     var dataInc = wsInc.getDataRange().getValues();
-    for (var i = 2; i < dataInc.length; i++) {
-      var nom = String(dataInc[i][1]).trim();
-      if (!nom) continue;
-      var classe = String(dataInc[i][0]).trim();
-      var gravStr = String(dataInc[i][7]).trim();
-      var grav = 1;
-      if (gravStr && gravStr.indexOf('/') > -1) {
-        grav = parseInt(gravStr.split('/')[0]) || 1;
-      }
+    var detInc = detectHeaders_(dataInc);
+    var hInc = detInc.headers;
+    var pInc = SCORES_CONFIG.PATTERNS_INC;
+    var colINom    = findCol_(hInc, pInc.nom);
+    var colIClasse = findCol_(hInc, pInc.classe);
+    var colIGrav   = findCol_(hInc, pInc.gravite);
 
-      if (!incidents[nom]) {
-        incidents[nom] = { classe: '', nbInc: 0, ptsGrav: 0 };
+    if (colINom >= 0) {
+      for (var i = detInc.dataStartRow; i < dataInc.length; i++) {
+        var nom = String(dataInc[i][colINom]).trim();
+        if (!nom) continue;
+        var classe = colIClasse >= 0 ? String(dataInc[i][colIClasse]).trim() : '';
+        var grav = 1;
+        if (colIGrav >= 0) {
+          var gravStr = String(dataInc[i][colIGrav]).trim();
+          if (gravStr && gravStr.indexOf('/') > -1) {
+            grav = parseInt(gravStr.split('/')[0]) || 1;
+          } else {
+            grav = parseInt(gravStr) || 1;
+          }
+        }
+
+        if (!incidents[nom]) {
+          incidents[nom] = { classe: '', nbInc: 0, ptsGrav: 0 };
+        }
+        if (classe) incidents[nom].classe = classe;
+        incidents[nom].nbInc++;
+        incidents[nom].ptsGrav += grav;
       }
-      if (classe) incidents[nom].classe = classe;
-      incidents[nom].nbInc++;
-      incidents[nom].ptsGrav += grav;
     }
   }
 
@@ -381,52 +532,96 @@ function calculerScoreCOM_(ss) {
   for (var nom in incidents) tousNoms[nom] = true;
 
   var resultats = [];
-  for (var nom in tousNoms) {
-    var ptsPun = punitions[nom] ? punitions[nom].nb : 0;
-    var ptsInc = incidents[nom] ? incidents[nom].ptsGrav * 3 : 0;
+  for (var nomKey in tousNoms) {
+    var ptsPun = punitions[nomKey] ? punitions[nomKey].nb : 0;
+    var ptsInc = incidents[nomKey] ? incidents[nomKey].ptsGrav * 3 : 0;
     var total = ptsPun + ptsInc;
-    var classe = (punitions[nom] ? punitions[nom].classe : '') || (incidents[nom] ? incidents[nom].classe : '');
+    var classe = (punitions[nomKey] ? punitions[nomKey].classe : '') ||
+                 (incidents[nomKey] ? incidents[nomKey].classe : '');
     var scoreCOM = attribuerScoreParSeuil_(total, seuils);
 
-    resultats.push({ nom: nom, classe: classe, total: total, scoreCOM: scoreCOM });
+    resultats.push({ nom: nomKey, classe: classe, total: total, scoreCOM: scoreCOM });
   }
 
   return resultats;
 }
 
 // =============================================================================
-// MODULE TRA — Score de travail (moyenne pondérée)
+// MODULE TRA — Score de travail (détection dynamique des matières)
 // =============================================================================
 
 function calculerScoreTRA_(ss) {
   var wsData = ss.getSheetByName('DATA_NOTES');
-  if (!wsData || wsData.getLastRow() < 3) return [];
+  if (!wsData || wsData.getLastRow() < 2) return [];
+
+  var data = wsData.getDataRange().getValues();
+  var det = detectHeaders_(data);
+  var h = det.headers;
+  if (h.length === 0) return [];
+
+  // Trouver Nom et Classe
+  var colNom    = findCol_(h, ['NOM']);
+  var colClasse = findCol_(h, ['CLASSE']);
+  if (colNom === -1) {
+    Logger.log('DATA_NOTES: colonne NOM introuvable dans: ' + h.join(' | '));
+    return [];
+  }
+
+  // Résoudre dynamiquement les colonnes de chaque matière
+  var matieresConf = SCORES_CONFIG.MATIERES_TRA;
+  var matieresResolues = [];
+  var matieresManquantes = [];
+
+  for (var m = 0; m < matieresConf.length; m++) {
+    var conf = matieresConf[m];
+    var cols;
+    if (conf.multi) {
+      cols = findAllCols_(h, conf.patterns);
+    } else {
+      var idx = findCol_(h, conf.patterns);
+      cols = idx >= 0 ? [idx] : [];
+    }
+    if (cols.length > 0) {
+      matieresResolues.push({ nom: conf.nom, cols: cols, coeff: conf.coeff });
+    } else {
+      matieresManquantes.push(conf.nom);
+    }
+  }
+
+  if (matieresManquantes.length > 0) {
+    Logger.log('DATA_NOTES: matières non trouvées: ' + matieresManquantes.join(', ') +
+               ' | En-têtes: ' + h.join(' | '));
+  }
+
+  if (matieresResolues.length === 0) {
+    Logger.log('DATA_NOTES: aucune matière détectée — abandon calcul TRA');
+    return [];
+  }
 
   var seuils = SCORES_CONFIG.SEUILS_TRA;
-  var matieres = SCORES_CONFIG.MATIERES_TRA;
-  var data = wsData.getDataRange().getValues();
   var resultats = [];
 
-  for (var i = 2; i < data.length; i++) {
-    var nom = String(data[i][0]).trim();
+  for (var i = det.dataStartRow; i < data.length; i++) {
+    var nom = String(data[i][colNom]).trim();
     if (!nom) continue;
-    var classe = String(data[i][1]).trim();
+    var classe = colClasse >= 0 ? String(data[i][colClasse]).trim() : '';
 
     var totalPts = 0;
     var totalCoeff = 0;
 
-    for (var m = 0; m < matieres.length; m++) {
+    for (var mi = 0; mi < matieresResolues.length; mi++) {
+      var mat = matieresResolues[mi];
       var note = null;
-      for (var c = 0; c < matieres[m].cols.length; c++) {
-        var colIdx = matieres[m].cols[c];
+      for (var c = 0; c < mat.cols.length; c++) {
+        var colIdx = mat.cols[c];
         if (colIdx < data[i].length) {
           var n = parseNotePronote_(data[i][colIdx]);
           if (n !== null) { note = n; break; }
         }
       }
       if (note !== null) {
-        totalPts += note * matieres[m].coeff;
-        totalCoeff += matieres[m].coeff;
+        totalPts += note * mat.coeff;
+        totalCoeff += mat.coeff;
       }
     }
 
@@ -440,28 +635,48 @@ function calculerScoreTRA_(ss) {
 }
 
 // =============================================================================
-// MODULE PART — Score de participation orale
+// MODULE PART — Score de participation orale (détection dynamique)
 // =============================================================================
 
 function calculerScorePART_(ss) {
   var wsData = ss.getSheetByName('DATA_NOTES');
-  if (!wsData || wsData.getLastRow() < 3) return [];
+  if (!wsData || wsData.getLastRow() < 2) return [];
+
+  var data = wsData.getDataRange().getValues();
+  var det = detectHeaders_(data);
+  var h = det.headers;
+  if (h.length === 0) return [];
+
+  var colNom    = findCol_(h, ['NOM']);
+  var colClasse = findCol_(h, ['CLASSE']);
+  if (colNom === -1) return [];
+
+  // Trouver les colonnes ORAL
+  var colOralAng = findCol_(h, SCORES_CONFIG.PATTERNS_ORAL_ANG);
+  var colsOralLV2 = findAllCols_(h, SCORES_CONFIG.PATTERNS_ORAL_LV2);
+
+  if (colOralAng === -1 && colsOralLV2.length === 0) {
+    Logger.log('DATA_NOTES: aucune colonne ORAL trouvée — abandon calcul PART');
+    return [];
+  }
 
   var seuils = SCORES_CONFIG.SEUILS_PART;
-  var data = wsData.getDataRange().getValues();
   var resultats = [];
 
-  for (var i = 2; i < data.length; i++) {
-    var nom = String(data[i][0]).trim();
+  for (var i = det.dataStartRow; i < data.length; i++) {
+    var nom = String(data[i][colNom]).trim();
     if (!nom) continue;
-    var classe = String(data[i][1]).trim();
-
-    var oralAng = parseNotePronote_(data[i][SCORES_CONFIG.COL_ORAL_ANG]);
-    var oralLV2 = parseNotePronote_(data[i][SCORES_CONFIG.COL_ORAL_LV2]);
+    var classe = colClasse >= 0 ? String(data[i][colClasse]).trim() : '';
 
     var notes = [];
-    if (oralAng !== null) notes.push(oralAng);
-    if (oralLV2 !== null) notes.push(oralLV2);
+    if (colOralAng >= 0) {
+      var oAng = parseNotePronote_(data[i][colOralAng]);
+      if (oAng !== null) notes.push(oAng);
+    }
+    for (var lv = 0; lv < colsOralLV2.length; lv++) {
+      var oLV2 = parseNotePronote_(data[i][colsOralLV2[lv]]);
+      if (oLV2 !== null) { notes.push(oLV2); break; } // première LV2 trouvée
+    }
 
     var moyOral = notes.length > 0
       ? Math.round(notes.reduce(function(a, b) { return a + b; }, 0) / notes.length * 100) / 100
@@ -544,19 +759,16 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
       var row = data[i];
       if (!row[0]) continue;
 
-      // Construire les clés de matching possibles
       var nomPrenom = idxNomPrenom >= 0 ? String(row[idxNomPrenom]).trim() : '';
       var nom = idxNom >= 0 ? String(row[idxNom]).trim() : '';
       var prenom = idxPrenom >= 0 ? String(row[idxPrenom]).trim() : '';
 
-      // Chercher dans la fusion par différentes clés
       var match = null;
       if (nomPrenom && fusion[nomPrenom]) {
         match = fusion[nomPrenom];
       } else if (nom && fusion[nom]) {
         match = fusion[nom];
       } else {
-        // Essayer NOM Prénom combiné
         var fullName = (nom + ' ' + prenom).trim();
         if (fullName && fusion[fullName]) {
           match = fusion[fullName];
@@ -564,7 +776,7 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
       }
 
       if (match) {
-        var rowNum = i + 1; // 1-indexed pour getRange
+        var rowNum = i + 1;
         if (idxCOM >= 0 && match.scoreCOM !== undefined) {
           sheet.getRange(rowNum, idxCOM + 1).setValue(mapScore_(match.scoreCOM));
         }
@@ -602,7 +814,7 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
  * 1 → 1, 2 → 2.5, 3 → 3.5, 4 → 5
  */
 function mapScore_(score14) {
-  if (score14 === null || score14 === undefined) return 2.5; // défaut
+  if (score14 === null || score14 === undefined) return 2.5;
   var map = { 1: 1, 2: 2.5, 3: 3.5, 4: 5 };
   return map[score14] !== undefined ? map[score14] : 2.5;
 }
