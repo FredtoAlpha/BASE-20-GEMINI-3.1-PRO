@@ -304,16 +304,17 @@ function v3_calculerTousScores() {
     var injected = injecterScoresDansOngletsSources_(ss, fusion);
 
     // Construire le tableau détaillé pour affichage immédiat côté client
+    // Scores bruts 1-4 (identiques à ce qui est injecté dans les onglets sources)
     var preview = [];
     for (var nom in fusion) {
       var e = fusion[nom];
       preview.push({
         nom: nom,
         classe: e.classe,
-        abs: e.scoreABS !== null ? mapScore_(e.scoreABS) : null,
-        com: e.scoreCOM !== null ? mapScore_(e.scoreCOM) : null,
-        tra: e.scoreTRA !== null ? mapScore_(e.scoreTRA) : null,
-        part: e.scorePART !== null ? mapScore_(e.scorePART) : null
+        abs: e.scoreABS,
+        com: e.scoreCOM,
+        tra: e.scoreTRA,
+        part: e.scorePART
       });
     }
     preview.sort(function(a, b) {
@@ -385,16 +386,17 @@ function v3_getScoresPreview() {
 
     var fusion = fusionnerScores_(absResults, comResults, traResults, partResults);
 
+    // Scores bruts 1-4 (identiques à ce qui est dans les onglets sources)
     var preview = [];
     for (var nom in fusion) {
       var e = fusion[nom];
       preview.push({
         nom: nom,
         classe: e.classe,
-        abs: e.scoreABS !== null ? mapScore_(e.scoreABS) : null,
-        com: e.scoreCOM !== null ? mapScore_(e.scoreCOM) : null,
-        tra: e.scoreTRA !== null ? mapScore_(e.scoreTRA) : null,
-        part: e.scorePART !== null ? mapScore_(e.scorePART) : null
+        abs: e.scoreABS,
+        com: e.scoreCOM,
+        tra: e.scoreTRA,
+        part: e.scorePART
       });
     }
 
@@ -405,7 +407,7 @@ function v3_getScoresPreview() {
     return {
       success: true,
       totalEleves: preview.length,
-      preview: preview // tous les élèves — le filtrage se fait côté client
+      preview: preview
     };
 
   } catch (e) {
@@ -795,17 +797,17 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
 
       if (match) {
         var rowNum = i + 1;
-        if (idxCOM >= 0 && match.scoreCOM !== undefined) {
-          sheet.getRange(rowNum, idxCOM + 1).setValue(mapScore_(match.scoreCOM));
+        if (idxCOM >= 0 && match.scoreCOM !== undefined && match.scoreCOM !== null) {
+          sheet.getRange(rowNum, idxCOM + 1).setValue(String(match.scoreCOM));
         }
-        if (idxTRA >= 0 && match.scoreTRA !== undefined) {
-          sheet.getRange(rowNum, idxTRA + 1).setValue(mapScore_(match.scoreTRA));
+        if (idxTRA >= 0 && match.scoreTRA !== undefined && match.scoreTRA !== null) {
+          sheet.getRange(rowNum, idxTRA + 1).setValue(String(match.scoreTRA));
         }
-        if (idxPART >= 0 && match.scorePART !== undefined) {
-          sheet.getRange(rowNum, idxPART + 1).setValue(mapScore_(match.scorePART));
+        if (idxPART >= 0 && match.scorePART !== undefined && match.scorePART !== null) {
+          sheet.getRange(rowNum, idxPART + 1).setValue(String(match.scorePART));
         }
-        if (idxABS >= 0 && match.scoreABS !== undefined) {
-          sheet.getRange(rowNum, idxABS + 1).setValue(mapScore_(match.scoreABS));
+        if (idxABS >= 0 && match.scoreABS !== undefined && match.scoreABS !== null) {
+          sheet.getRange(rowNum, idxABS + 1).setValue(String(match.scoreABS));
         }
         totalUpdated++;
       } else {

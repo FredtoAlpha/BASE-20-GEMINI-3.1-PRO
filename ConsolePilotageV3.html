@@ -1150,7 +1150,7 @@
                 var barColor = pct === 100 ? '#22c55e' : pct > 50 ? '#eab308' : '#ef4444';
                 html += '<div style="background:#0f172a;padding:12px;border-radius:8px;text-align:center;">' +
                     '<i class="fas ' + icons[s] + '" style="font-size:18px;color:#6366f1;"></i>' +
-                    '<div style="font-size:20px;font-weight:900;margin:4px 0;">' + avg + '<span style="font-size:11px;color:#64748b;">/5</span></div>' +
+                    '<div style="font-size:20px;font-weight:900;margin:4px 0;">' + avg + '<span style="font-size:11px;color:#64748b;">/4</span></div>' +
                     '<div style="font-size:11px;color:#94a3b8;font-weight:700;">' + labels[s] + '</div>' +
                     '<div style="margin-top:6px;background:#1e293b;border-radius:4px;height:4px;overflow:hidden;">' +
                     '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';"></div></div>' +
@@ -1180,10 +1180,15 @@
             el.innerHTML = html;
         }
 
+        // Couleurs identiques aux listes déroulantes des onglets sources
+        // 1=rouge, 2=jaune, 3=vert clair, 4=vert foncé
         function scoreCell(val) {
             if (val === null || val === undefined) return '<td style="text-align:center;color:#64748b;padding:6px 4px;">—</td>';
-            var c = val >= 4 ? '#22c55e' : val >= 3 ? '#6366f1' : val >= 2 ? '#eab308' : '#ef4444';
-            return '<td style="text-align:center;font-weight:900;color:' + c + ';padding:6px 4px;">' + val + '</td>';
+            var colors = { 1: '#e74c3c', 2: '#f9e79f', 3: '#82e0aa', 4: '#1e8449' };
+            var textColors = { 1: '#ffffff', 2: '#000000', 3: '#000000', 4: '#ffffff' };
+            var bg = colors[val] || '#334155';
+            var fc = textColors[val] || '#ffffff';
+            return '<td style="text-align:center;font-weight:900;color:' + fc + ';background:' + bg + ';padding:6px 4px;border-radius:4px;">' + val + '</td>';
         }
 
         function filterScoresTable() {
