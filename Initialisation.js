@@ -127,7 +127,15 @@ function initialiserSysteme(niveau, nbSources, nbDest, lv2Options, optOptions, d
 
     // --- Finalisation ---
     SpreadsheetApp.flush(); // Forcer l'application des changements
-    
+
+    // Masquer _CONFIG si elle est encore visible (différé depuis creerOuMajOngletConfig)
+    try {
+      var configSheet = ss.getSheetByName(CONFIG.SHEETS.CONFIG);
+      if (configSheet && !configSheet.isSheetHidden()) {
+        configSheet.hideSheet();
+      }
+    } catch (e) { Logger.log('⚠️ Masquage _CONFIG différé échoué: ' + e.message); }
+
     // Activer l'onglet Accueil à la fin
     try {
         const accueilSheet = ss.getSheetByName("ACCUEIL");
@@ -282,7 +290,13 @@ function creerOuMajOngletConfig(niveau, lv2Options, optOptions, dispoOptions) {
   configSheet.setColumnWidth(1, 180);
   configSheet.setColumnWidth(2, 150);
   configSheet.setColumnWidth(3, 400);
-  configSheet.hideSheet();
+  // Masquer _CONFIG seulement s'il reste d'autres feuilles visibles
+  var visibleSheets = ss.getSheets().filter(function(s) { return !s.isSheetHidden(); });
+  if (visibleSheets.length > 1) {
+    configSheet.hideSheet();
+  } else {
+    Logger.log('⚠️ _CONFIG non masqué : seule feuille visible. Sera masqué après création des autres onglets.');
+  }
   protegerFeuille(configSheet, "Configuration système");
   Logger.log(`Onglet ${configSheetName} configuré.`);
 }
