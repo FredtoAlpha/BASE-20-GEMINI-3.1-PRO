@@ -106,20 +106,97 @@ function v3_initScoresSheets() {
       }
     });
 
-    // Instructions dans les onglets vides
-    var instructions = {
-      'DATA_ABS': 'Collez ici l\'export Pronote des ABSENCES (avec les 2 lignes d\'en-tête)',
-      'DATA_INCIDENTS': 'Collez ici l\'export Pronote des INCIDENTS (avec les 2 lignes d\'en-tête)',
-      'DATA_PUNITIONS': 'Collez ici l\'export Pronote des PUNITIONS (avec la ligne d\'en-tête)',
-      'DATA_NOTES': 'Collez ici l\'export Pronote des NOTES (avec les 2 lignes d\'en-tête)'
+    // ── En-têtes calqués sur le format export Pronote ──
+    // Chaque tableau reproduit l'ordre exact des colonnes attendues par
+    // calculerScoreABS_, calculerScoreCOM_, calculerScoreTRA_, calculerScorePART_
+
+    var headers = {
+      'DATA_ABS': {
+        // 2 lignes d'en-tête Pronote, données à partir de la ligne 3
+        row1: ['Nom', 'Classe', 'Nb retards', 'Nb retards NJ', 'H retard',
+               'Nb abs', 'Nb abs NJ', 'H absence', 'H absence NJ',
+               'DJ Bulletin', 'Justifiée'],
+        instruction: 'Export Pronote ABSENCES — collez les données à partir de la ligne 3'
+      },
+      'DATA_INCIDENTS': {
+        // 2 lignes d'en-tête Pronote, données à partir de la ligne 3
+        row1: ['Classe', 'Nom', 'Prénom', 'Date', 'Objet',
+               'Type', 'Protagoniste', 'Gravité'],
+        instruction: 'Export Pronote INCIDENTS — collez les données à partir de la ligne 3'
+      },
+      'DATA_PUNITIONS': {
+        // 1 seule ligne d'en-tête, données à partir de la ligne 2
+        row1: ['Nb', 'Nom', 'Classe'],
+        instruction: null // pas de ligne d'instruction séparée, 1 seul header row
+      },
+      'DATA_NOTES': {
+        // 2 lignes d'en-tête Pronote, données à partir de la ligne 3
+        // Les indices doivent correspondre à MATIERES_TRA et COL_ORAL_*
+        row1: ['Nom', 'Classe',
+               'Anglais', '(Réservé)', 'Oral Anglais',
+               'Arts Pla.', 'EPS', 'Musique',
+               'Français', 'Hist-Géo', '(Réservé)',
+               'Maths', 'Espagnol/It.', '(Réservé)', 'Oral LV2',
+               'Technologie', 'Techno(2)', 'SVT', 'SVT(2)',
+               'Phys-Chimie', 'PhysCh(2)', 'Latin'],
+        instruction: 'Export Pronote NOTES — collez les données à partir de la ligne 3'
+      }
     };
 
-    for (var nom in instructions) {
+    var headerBg = '#1a237e';
+    var headerColor = '#ffffff';
+    var instrBg = '#e8eaf6';
+    var instrColor = '#283593';
+    var requiredBg = '#fff9c4'; // jaune clair pour colonnes critiques
+
+    // Indices critiques (0-based) lus par le moteur
+    var criticalCols = {
+      'DATA_ABS': [0, 1, 9, 10],
+      'DATA_INCIDENTS': [0, 1, 7],
+      'DATA_PUNITIONS': [0, 1, 2],
+      'DATA_NOTES': [0, 1, 2, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15, 17, 19, 21]
+    };
+
+    for (var nom in headers) {
       var ws = ss.getSheetByName(nom);
-      if (ws && ws.getLastRow() === 0) {
-        ws.getRange('A1').setValue(instructions[nom])
-          .setFontStyle('italic').setFontColor('#808080');
+      if (!ws) continue;
+      // N'écraser que si l'onglet est vide ou ne contient que l'ancienne instruction
+      if (ws.getLastRow() > 2) continue;
+
+      var h = headers[nom];
+      var cols = h.row1.length;
+
+      if (nom === 'DATA_PUNITIONS') {
+        // 1 seule ligne d'en-tête
+        ws.getRange(1, 1, 1, cols).setValues([h.row1]);
+        ws.getRange(1, 1, 1, cols)
+          .setFontWeight('bold').setFontColor(headerColor)
+          .setBackground(headerBg).setHorizontalAlignment('center');
+      } else {
+        // Ligne 1 = instruction, Ligne 2 = en-têtes
+        ws.getRange(1, 1).setValue(h.instruction);
+        ws.getRange(1, 1, 1, cols)
+          .merge().setFontStyle('italic').setFontColor(instrColor)
+          .setBackground(instrBg).setHorizontalAlignment('center');
+
+        ws.getRange(2, 1, 1, cols).setValues([h.row1]);
+        ws.getRange(2, 1, 1, cols)
+          .setFontWeight('bold').setFontColor(headerColor)
+          .setBackground(headerBg).setHorizontalAlignment('center');
       }
+
+      // Surligner les colonnes critiques
+      var critical = criticalCols[nom] || [];
+      var headerRow = (nom === 'DATA_PUNITIONS') ? 1 : 2;
+      for (var c = 0; c < critical.length; c++) {
+        if (critical[c] < cols) {
+          ws.getRange(headerRow, critical[c] + 1)
+            .setBackground(requiredBg).setFontColor('#1a237e');
+        }
+      }
+
+      // Figer la/les ligne(s) d'en-tête
+      ws.setFrozenRows(nom === 'DATA_PUNITIONS' ? 1 : 2);
     }
 
     return {
