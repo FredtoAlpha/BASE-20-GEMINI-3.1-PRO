@@ -173,7 +173,8 @@ function onOpen() {
     .addSeparator()
     .addSubMenu(SpreadsheetApp.getUi().createMenu('🛠️ Outils Spécifiques')
         .addItem('➕ Intégrer un Nouvel Élève', 'ouvrirModuleNouvelEleve')
-        .addItem('👥 Créer des Groupes', 'ouvrirModuleGroupes'))
+        .addItem('👥 Créer des Groupes', 'ouvrirModuleGroupes')
+        .addItem('📊 Scores Élèves (Pronote)', 'ouvrirScoresEleves'))
     .addSeparator()
     .addSubMenu(SpreadsheetApp.getUi().createMenu('🔍 Diagnostic ASSO/DISSO')
         .addItem('📋 Analyser les colonnes', 'diagnosticAssoDisso')
@@ -204,7 +205,7 @@ function doGet(e) {
 
 /**
  * Fonction include() pour le système de templates HtmlService
- * Permet de charger des fichiers HTML partiels référencés par <?!= include('filename'); ?>
+ * Permet de charger des fichiers HTML partiels (via include('filename') dans les templates)
  * @param {string} filename - Nom du fichier HTML (sans extension) à inclure
  * @returns {string} Contenu du fichier HTML
  */
@@ -241,6 +242,20 @@ function ouvrirModuleNouvelEleve() {
   const html = HtmlService.createHtmlOutputFromFile('InterfaceV2_NewStudentModule')
     .setWidth(1000).setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, 'Intégration Nouvel Élève');
+}
+
+/**
+ * Ouvre la Console V3 directement sur la phase Scores Élèves
+ * Raccourci pour accéder au module de calcul des scores Pronote
+ */
+function ouvrirScoresEleves() {
+  var html = HtmlService.createHtmlOutputFromFile('ConsolePilotageV3')
+    .setWidth(1600)
+    .setHeight(900)
+    .setTitle('Scores Élèves - Console de Pilotage V3');
+  SpreadsheetApp.getUi().showModelessDialog(html, 'Scores Élèves');
+  // Note : la console s'ouvre sur phase 1 par défaut.
+  // L'utilisateur navigue vers SCORES via la sidebar.
 }
 
 // ==================== UTILITAIRES ADMIN & COMPATIBILITÉ ====================
