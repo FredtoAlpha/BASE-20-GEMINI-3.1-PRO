@@ -1079,7 +1079,7 @@
                     var resultEl = document.getElementById('scores-result');
                     resultEl.style.display = 'block';
                     resultEl.innerHTML = '<div style="background:#0f172a;padding:20px;border-radius:8px;border:1px solid #22c55e;">' +
-                        '<div style="font-size:20px;font-weight:900;color:#22c55e;margin-bottom:10px;"><i class="fas fa-check-circle"></i> Scores injectés !</div>' +
+                        '<div style="font-size:20px;font-weight:900;color:#22c55e;margin-bottom:10px;"><i class="fas fa-check-circle"></i> Scores calculés et injectés !</div>' +
                         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;">' +
                         '<div>ABS : <strong>' + r.abs.count + '</strong> élèves</div>' +
                         '<div>COM : <strong>' + r.com.count + '</strong> élèves</div>' +
@@ -1087,39 +1087,49 @@
                         '<div>PART : <strong>' + r.part.count + '</strong> élèves</div>' +
                         '</div>' +
                         '<div style="margin-top:10px;color:#94a3b8;font-size:12px;">' +
-                        res.injected.updated + ' élèves mis à jour dans les onglets sources | ' +
+                        res.injected.updated + ' élèves mis à jour | ' +
                         res.injected.notFound + ' non trouvés</div></div>';
-                    showToast('Tous les scores calculés et injectés !', 'success');
-                    loadScoresPreview();
+                    showToast('Scores calculés ! Voir le tableau ci-dessous.', 'success');
+
+                    // Afficher immédiatement les scores depuis la réponse (pas de 2e appel serveur)
+                    if (res.preview && res.preview.length > 0) {
+                        showScoresResults(res.preview, res.totalEleves);
+                    } else {
+                        // Fallback : appel séparé si preview absent (ancien backend)
+                        loadScoresPreview();
+                    }
                 } else {
                     showModal(res.error, 'error');
                 }
             }, function(err) {
                 setLoading('btn-calc-scores', false);
-                showModal(err.message, 'error');
+                showModal('Erreur lors du calcul des scores : ' + (err.message || err), 'error');
             });
+        }
+
+        function showScoresResults(data, totalEleves) {
+            cachedScoresData = data;
+            var card = document.getElementById('scores-preview-card');
+            card.style.display = 'block';
+            renderScoresSummary(data);
+            renderScoresTable(data);
+            document.getElementById('scores-count').textContent = (totalEleves || data.length) + ' élèves au total';
+            // Scroller vers le tableau de résultats
+            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         var cachedScoresData = []; // stocke tous les scores pour export/filtre
 
         function loadScoresPreview() {
             runServerCall('v3_getScoresPreview', [], function(res) {
-                if (!res.success) return;
-                cachedScoresData = res.preview || [];
-                var card = document.getElementById('scores-preview-card');
-                card.style.display = 'block';
-
-                // Résumé par score
-                renderScoresSummary(cachedScoresData);
-                // Tableau complet
-                renderScoresTable(cachedScoresData);
-
-                var countEl = document.getElementById('scores-count');
-                countEl.textContent = res.totalEleves + ' élèves au total';
-
-                // Scroller vers les résultats
-                card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, function() {});
+                if (!res.success) {
+                    showToast('Impossible de charger les scores : ' + (res.error || 'erreur inconnue'), 'error');
+                    return;
+                }
+                showScoresResults(res.preview || [], res.totalEleves);
+            }, function(err) {
+                showToast('Erreur chargement scores : ' + (err.message || err), 'error');
+            });
         }
 
         function renderScoresSummary(data) {
