@@ -566,14 +566,32 @@
             </div>
 
             <div class="card" id="scores-preview-card" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2>Aperçu des scores</h2>
-                    <button onclick="cleanupScoresSheets()" class="btn btn-secondary" style="width: auto; padding: 10px 20px; font-size: 12px; background: #7f1d1d;">
-                        <i class="fas fa-trash"></i> SUPPRIMER ONGLETS DATA
-                    </button>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <h2 style="margin-bottom:0;"><i class="fas fa-poll"></i> RÉSULTATS DES SCORES</h2>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button onclick="copyScoresToClipboard()" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;">
+                            <i class="fas fa-copy"></i> COPIER
+                        </button>
+                        <button onclick="exportScoresCSV()" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px;">
+                            <i class="fas fa-file-csv"></i> EXPORT CSV
+                        </button>
+                        <button onclick="cleanupScoresSheets()" class="btn btn-secondary" style="width: auto; padding: 8px 16px; font-size: 12px; background: #7f1d1d;">
+                            <i class="fas fa-trash"></i> SUPPRIMER DATA
+                        </button>
+                    </div>
                 </div>
-                <div id="scores-preview-table" style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
+
+                <div id="scores-summary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;"></div>
+
+                <div style="margin-top: 15px; position: relative;">
+                    <input type="text" id="scores-search" placeholder="Rechercher un nom ou une classe..."
+                        oninput="filterScoresTable()"
+                        style="width:100%; padding:10px 14px 10px 36px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px; font-size:13px; box-sizing:border-box;">
+                    <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#64748b;"></i>
                 </div>
+
+                <div id="scores-preview-table" style="max-height: 450px; overflow-y: auto; margin-top: 10px;"></div>
+                <div id="scores-count" style="text-align:center;color:#64748b;margin-top:8px;font-size:12px;"></div>
             </div>
 
             <button onclick="goTo(3)" class="btn btn-success" style="margin-top: 20px;">
@@ -1082,34 +1100,151 @@
             });
         }
 
+        var cachedScoresData = []; // stocke tous les scores pour export/filtre
+
         function loadScoresPreview() {
             runServerCall('v3_getScoresPreview', [], function(res) {
                 if (!res.success) return;
+                cachedScoresData = res.preview || [];
                 var card = document.getElementById('scores-preview-card');
-                var el = document.getElementById('scores-preview-table');
                 card.style.display = 'block';
-                var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
-                    '<tr style="border-bottom:2px solid #334155;"><th style="text-align:left;padding:8px;">Nom</th><th>Classe</th><th>ABS</th><th>COM</th><th>TRA</th><th>PART</th></tr>';
-                res.preview.forEach(function(p) {
-                    html += '<tr style="border-bottom:1px solid #1e293b;">' +
-                        '<td style="padding:6px 8px;">' + p.nom + '</td>' +
-                        '<td style="text-align:center;">' + (p.classe || '-') + '</td>' +
-                        scoreCell(p.abs) + scoreCell(p.com) + scoreCell(p.tra) + scoreCell(p.part) +
-                        '</tr>';
-                });
-                html += '</table>';
-                if (res.totalEleves > 50) {
-                    html += '<div style="text-align:center;color:#64748b;margin-top:10px;font-size:12px;">Affichage des 50 premiers sur ' + res.totalEleves + ' élèves</div>';
-                }
-                el.innerHTML = html;
+
+                // Résumé par score
+                renderScoresSummary(cachedScoresData);
+                // Tableau complet
+                renderScoresTable(cachedScoresData);
+
+                var countEl = document.getElementById('scores-count');
+                countEl.textContent = res.totalEleves + ' élèves au total';
+
+                // Scroller vers les résultats
+                card.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, function() {});
         }
 
+        function renderScoresSummary(data) {
+            var el = document.getElementById('scores-summary');
+            if (!el) return;
+            var labels = ['ABS', 'COM', 'TRA', 'PART'];
+            var keys = ['abs', 'com', 'tra', 'part'];
+            var icons = ['fa-user-clock', 'fa-comments', 'fa-book', 'fa-microphone'];
+            var html = '';
+            for (var s = 0; s < labels.length; s++) {
+                var filled = 0, total = data.length, sum = 0;
+                for (var i = 0; i < data.length; i++) {
+                    var v = data[i][keys[s]];
+                    if (v !== null && v !== undefined) { filled++; sum += v; }
+                }
+                var avg = filled > 0 ? (sum / filled).toFixed(1) : '—';
+                var pct = total > 0 ? Math.round(filled / total * 100) : 0;
+                var barColor = pct === 100 ? '#22c55e' : pct > 50 ? '#eab308' : '#ef4444';
+                html += '<div style="background:#0f172a;padding:12px;border-radius:8px;text-align:center;">' +
+                    '<i class="fas ' + icons[s] + '" style="font-size:18px;color:#6366f1;"></i>' +
+                    '<div style="font-size:20px;font-weight:900;margin:4px 0;">' + avg + '<span style="font-size:11px;color:#64748b;">/5</span></div>' +
+                    '<div style="font-size:11px;color:#94a3b8;font-weight:700;">' + labels[s] + '</div>' +
+                    '<div style="margin-top:6px;background:#1e293b;border-radius:4px;height:4px;overflow:hidden;">' +
+                    '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';"></div></div>' +
+                    '<div style="font-size:10px;color:#64748b;margin-top:3px;">' + filled + '/' + total + ' (' + pct + '%)</div>' +
+                    '</div>';
+            }
+            el.innerHTML = html;
+        }
+
+        function renderScoresTable(data) {
+            var el = document.getElementById('scores-preview-table');
+            if (!el) return;
+            var html = '<table id="scores-table-inner" style="width:100%;border-collapse:collapse;font-size:13px;">' +
+                '<thead><tr style="border-bottom:2px solid #334155;position:sticky;top:0;background:#1e293b;z-index:1;">' +
+                '<th style="text-align:left;padding:8px;">Nom</th><th style="padding:8px;">Classe</th>' +
+                '<th style="padding:8px;">ABS</th><th style="padding:8px;">COM</th>' +
+                '<th style="padding:8px;">TRA</th><th style="padding:8px;">PART</th></tr></thead><tbody>';
+            for (var i = 0; i < data.length; i++) {
+                var p = data[i];
+                html += '<tr class="score-row" style="border-bottom:1px solid #1e293b;">' +
+                    '<td style="padding:6px 8px;">' + escapeHtml(p.nom) + '</td>' +
+                    '<td style="text-align:center;padding:6px 4px;">' + escapeHtml(p.classe || '-') + '</td>' +
+                    scoreCell(p.abs) + scoreCell(p.com) + scoreCell(p.tra) + scoreCell(p.part) +
+                    '</tr>';
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
         function scoreCell(val) {
-            if (val === null || val === undefined) return '<td style="text-align:center;color:#64748b;">—</td>';
-            var colors = { 5: '#22c55e', 3.5: '#6366f1', 2.5: '#eab308', 1: '#ef4444' };
-            var c = colors[val] || '#94a3b8';
-            return '<td style="text-align:center;font-weight:900;color:' + c + ';">' + val + '</td>';
+            if (val === null || val === undefined) return '<td style="text-align:center;color:#64748b;padding:6px 4px;">—</td>';
+            var c = val >= 4 ? '#22c55e' : val >= 3 ? '#6366f1' : val >= 2 ? '#eab308' : '#ef4444';
+            return '<td style="text-align:center;font-weight:900;color:' + c + ';padding:6px 4px;">' + val + '</td>';
+        }
+
+        function filterScoresTable() {
+            var query = (document.getElementById('scores-search').value || '').toLowerCase();
+            var rows = document.querySelectorAll('#scores-table-inner .score-row');
+            var visible = 0;
+            rows.forEach(function(row) {
+                var text = row.textContent.toLowerCase();
+                var show = !query || text.indexOf(query) >= 0;
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            var countEl = document.getElementById('scores-count');
+            if (query) {
+                countEl.textContent = visible + ' résultat(s) sur ' + cachedScoresData.length + ' élèves';
+            } else {
+                countEl.textContent = cachedScoresData.length + ' élèves au total';
+            }
+        }
+
+        function exportScoresCSV() {
+            if (!cachedScoresData.length) { showToast('Aucun score à exporter', 'error'); return; }
+            var sep = ';'; // Excel-friendly
+            var lines = ['Nom' + sep + 'Classe' + sep + 'ABS' + sep + 'COM' + sep + 'TRA' + sep + 'PART'];
+            cachedScoresData.forEach(function(p) {
+                lines.push(
+                    '"' + (p.nom || '').replace(/"/g, '""') + '"' + sep +
+                    '"' + (p.classe || '').replace(/"/g, '""') + '"' + sep +
+                    (p.abs !== null && p.abs !== undefined ? p.abs : '') + sep +
+                    (p.com !== null && p.com !== undefined ? p.com : '') + sep +
+                    (p.tra !== null && p.tra !== undefined ? p.tra : '') + sep +
+                    (p.part !== null && p.part !== undefined ? p.part : '')
+                );
+            });
+            var csv = '\uFEFF' + lines.join('\n'); // BOM UTF-8 pour Excel
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'scores_eleves_' + new Date().toISOString().slice(0,10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Export CSV téléchargé !', 'success');
+        }
+
+        function copyScoresToClipboard() {
+            if (!cachedScoresData.length) { showToast('Aucun score à copier', 'error'); return; }
+            var lines = ['Nom\tClasse\tABS\tCOM\tTRA\tPART'];
+            cachedScoresData.forEach(function(p) {
+                lines.push(
+                    (p.nom || '') + '\t' + (p.classe || '') + '\t' +
+                    (p.abs !== null && p.abs !== undefined ? p.abs : '') + '\t' +
+                    (p.com !== null && p.com !== undefined ? p.com : '') + '\t' +
+                    (p.tra !== null && p.tra !== undefined ? p.tra : '') + '\t' +
+                    (p.part !== null && p.part !== undefined ? p.part : '')
+                );
+            });
+            var text = lines.join('\n');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showToast('Scores copiés ! Collez dans Excel/Sheets avec Ctrl+V', 'success');
+                });
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('Scores copiés ! Collez dans Excel/Sheets avec Ctrl+V', 'success');
+            }
         }
 
         function cleanupScoresSheets() {

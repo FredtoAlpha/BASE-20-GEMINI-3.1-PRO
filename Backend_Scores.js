@@ -387,7 +387,7 @@ function v3_getScoresPreview() {
     return {
       success: true,
       totalEleves: preview.length,
-      preview: preview.slice(0, 50)
+      preview: preview // tous les élèves — le filtrage se fait côté client
     };
 
   } catch (e) {
