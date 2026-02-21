@@ -1078,17 +1078,32 @@
                     var r = res.results;
                     var resultEl = document.getElementById('scores-result');
                     resultEl.style.display = 'block';
-                    resultEl.innerHTML = '<div style="background:#0f172a;padding:20px;border-radius:8px;border:1px solid #22c55e;">' +
-                        '<div style="font-size:20px;font-weight:900;color:#22c55e;margin-bottom:10px;"><i class="fas fa-check-circle"></i> Scores calculés et injectés !</div>' +
+                    // Diagnostic injection
+                    var injColor = res.injected.updated > 0 ? '#22c55e' : '#ef4444';
+                    var injIcon = res.injected.updated > 0 ? 'fa-check-circle' : 'fa-exclamation-triangle';
+                    var debugInfo = '';
+                    if (res.debug) {
+                        debugInfo = '<div style="margin-top:10px;padding:10px;background:#1e293b;border-radius:6px;font-size:11px;color:#94a3b8;">' +
+                            '<strong>Diagnostic :</strong><br>' +
+                            'Onglets sources trouvés : <strong style="color:#e2e8f0;">' + (res.debug.sourceSheets && res.debug.sourceSheets.length > 0 ? res.debug.sourceSheets.join(', ') : 'AUCUN !') + '</strong><br>' +
+                            'Clés fusion (ex) : ' + (res.debug.fusionKeys ? res.debug.fusionKeys.join(', ') : 'aucune') + '<br>' +
+                            'Total dans fusion : ' + (res.debug.fusionCount || 0) +
+                            '</div>';
+                    }
+                    resultEl.innerHTML = '<div style="background:#0f172a;padding:20px;border-radius:8px;border:1px solid ' + injColor + ';">' +
+                        '<div style="font-size:20px;font-weight:900;color:' + injColor + ';margin-bottom:10px;"><i class="fas ' + injIcon + '"></i> Scores calculés !</div>' +
                         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;">' +
                         '<div>ABS : <strong>' + r.abs.count + '</strong> élèves</div>' +
                         '<div>COM : <strong>' + r.com.count + '</strong> élèves</div>' +
                         '<div>TRA : <strong>' + r.tra.count + '</strong> élèves</div>' +
                         '<div>PART : <strong>' + r.part.count + '</strong> élèves</div>' +
                         '</div>' +
-                        '<div style="margin-top:10px;color:#94a3b8;font-size:12px;">' +
-                        res.injected.updated + ' élèves mis à jour | ' +
-                        res.injected.notFound + ' non trouvés</div></div>';
+                        '<div style="margin-top:10px;font-size:13px;">' +
+                        '<span style="color:' + injColor + ';font-weight:700;">' + res.injected.updated + ' élèves injectés dans les onglets sources</span>' +
+                        (res.injected.notFound > 0 ? ' | <span style="color:#f59e0b;">' + res.injected.notFound + ' non trouvés</span>' : '') +
+                        '</div>' +
+                        debugInfo +
+                        '</div>';
                     showToast('Scores calculés ! Voir le tableau ci-dessous.', 'success');
 
                     // Afficher immédiatement les scores depuis la réponse (pas de 2e appel serveur)
