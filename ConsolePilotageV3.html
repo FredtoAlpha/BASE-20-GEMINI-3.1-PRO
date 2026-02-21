@@ -23,7 +23,7 @@
             background: var(--bg-dark);
             color: var(--text);
             margin: 0;
-            height: 100vh;
+            height: calc(100vh - 36px);
             display: grid;
             grid-template-columns: 200px 1fr 280px; /* Gauche/Droite réduites, Centre LARGE */
             overflow: hidden;
@@ -304,10 +304,48 @@
         .modal-btn-primary { background: var(--primary); color: white; }
         .modal-btn-secondary { background: #334155; color: white; }
         @keyframes modalSlideIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* MINIMIZE BAR */
+        .minimize-bar {
+            position: fixed; top: 0; left: 0; right: 0; height: 36px; z-index: 9998;
+            background: #020617; border-bottom: 1px solid #334155;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px; font-family: 'Inter', sans-serif;
+        }
+        .minimize-bar .bar-title {
+            font-size: 13px; font-weight: 700; color: #94a3b8;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .minimize-bar .bar-actions { display: flex; gap: 6px; }
+        .minimize-bar .bar-btn {
+            width: 28px; height: 28px; border: none; border-radius: 6px;
+            cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+            transition: background 0.15s;
+        }
+        .bar-btn.minimize { background: #eab308; color: #1e293b; }
+        .bar-btn.minimize:hover { background: #facc15; }
+        .bar-btn.close { background: #ef4444; color: white; }
+        .bar-btn.close:hover { background: #f87171; }
+        body { padding-top: 36px; }
+        body.minimized .sidebar,
+        body.minimized .main,
+        body.minimized .panel-right,
+        body.minimized .toast,
+        body.minimized .modal-overlay,
+        body.minimized .welcome-overlay { display: none !important; }
+        body.minimized { height: auto; overflow: hidden; }
     </style>
 </head>
 
 <body>
+
+    <div class="minimize-bar">
+        <div class="bar-title"><i class="fas fa-rocket"></i> PILOTE V3</div>
+        <div class="bar-actions">
+            <button class="bar-btn minimize" id="btn-minimize" onclick="toggleMinimize()" title="Réduire / Agrandir">&#x2796;</button>
+            <button class="bar-btn close" onclick="google.script.host.close()" title="Fermer">&#x2716;</button>
+        </div>
+    </div>
 
     <div id="toast" class="toast"></div>
 
@@ -653,6 +691,29 @@
 
     <script>
     // ===================================================================
+        // MINIMIZE / MAXIMIZE
+        // ===================================================================
+        const FULL_HEIGHT = 900;
+        const MINI_HEIGHT = 36;
+        let isMinimized = false;
+
+        function toggleMinimize() {
+            isMinimized = !isMinimized;
+            const btn = document.getElementById('btn-minimize');
+            if (isMinimized) {
+                document.body.classList.add('minimized');
+                google.script.host.setHeight(MINI_HEIGHT);
+                btn.innerHTML = '&#x2795;'; // ➕
+                btn.title = 'Agrandir';
+            } else {
+                google.script.host.setHeight(FULL_HEIGHT);
+                document.body.classList.remove('minimized');
+                btn.innerHTML = '&#x2796;'; // ➖
+                btn.title = 'Réduire';
+            }
+        }
+
+        // ===================================================================
         // 0. UTILITAIRE SÉCURITÉ - ÉCHAPPEMENT HTML
         // ===================================================================
         function escapeHtml(str) {
