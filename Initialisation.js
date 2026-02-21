@@ -36,6 +36,25 @@ function determinerNiveauSource(niveau) {
   }
 }
 
+/**
+ * Enregistre une action dans l'onglet _JOURNAL
+ * @param {string} action - Description de l'action à journaliser
+ */
+function logAction(action) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('_JOURNAL');
+    if (!sheet) return;
+    sheet.appendRow([
+      new Date().toISOString(),
+      action,
+      Session.getActiveUser().getEmail() || 'système'
+    ]);
+  } catch (e) {
+    Logger.log('logAction error: ' + e.message);
+  }
+}
+
 // --- Processus d'Initialisation Principal ---
 
 /**
