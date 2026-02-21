@@ -986,7 +986,7 @@ function loadFINSheetsWithScores() {
  * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {Object} {success: boolean}
  */
-function updateStructureRules(newRules, ss = null) {
+function updateStructureRules(newRules) {
   try {
     // Validation des paramètres
     if (!newRules || typeof newRules !== 'object' || Object.keys(newRules).length === 0) {
@@ -1053,7 +1053,7 @@ function updateStructureRules(newRules, ss = null) {
  * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {Object} {success: boolean, scores: Array}
  */
-function getINTScores(ss = null) {
+function getINTScores() {
   try {
     const ss = getActiveSpreadsheetCached();
     const intSheets = ss.getSheets().filter(s => SHEET_PATTERNS.INT.test(s.getName()));
@@ -1068,7 +1068,7 @@ function getINTScores(ss = null) {
       const data = sheet.getDataRange().getValues();
       if (data.length < 2) return;
 
-      const headers = data[0].map(h => toUpperTrimmedString(h)); // ✅ Utilisation fonction utilitaire
+      const headers = data[0].map(h => String(h || '').trim().toUpperCase());
       const idIdx = headers.findIndex(h => h.includes('ID') || h.includes('ELEVE'));
       const mathIdx = headers.findIndex(h => h.includes('MATH') || h === 'M');
       const frIdx = headers.findIndex(h => h.includes('FR') || h.includes('FRANÇAIS') || h === 'F');
