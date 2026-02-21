@@ -473,7 +473,9 @@
             <div class="card">
                 <h2>1. Préparer les onglets DATA</h2>
                 <p style="color: #94a3b8; margin-bottom: 15px;">
-                    Crée les onglets temporaires pour coller les exports Pronote.
+                    Crée 4 onglets temporaires (DATA_ABS, DATA_INCIDENTS, DATA_PUNITIONS, DATA_NOTES)
+                    dans votre tableur. Vous y collerez les exports Pronote bruts — le moteur
+                    détecte automatiquement les colonnes quel que soit leur ordre.
                 </p>
                 <button onclick="initScoresSheets()" id="btn-init-scores" class="btn btn-secondary" style="margin-bottom: 20px;">
                     <div class="spinner"></div>
@@ -486,35 +488,57 @@
 
             <div class="card">
                 <h2>2. Coller les exports Pronote</h2>
-                <p style="color: #94a3b8; margin-bottom: 15px;">
-                    Fermez la console, collez vos exports Pronote dans les onglets DATA_*, puis revenez.
+                <p style="color: #94a3b8; margin-bottom: 10px;">
+                    Réduisez ou fermez la console, puis ouvrez chaque onglet <strong style="color:white;">DATA_*</strong> dans le tableur.
+                    Collez l'export Pronote <strong style="color:#22c55e;">tel quel en cellule A1</strong>, avec ses en-têtes.
+                    Le moteur détecte automatiquement les colonnes.
                 </p>
+                <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:15px; margin-bottom:15px;">
+                    <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:10px;">MODE D'EMPLOI RAPIDE</div>
+                    <ol style="color:#94a3b8; font-size:13px; margin:0; padding-left:18px; line-height:1.8;">
+                        <li>Dans Pronote, faites l'export (copier le tableau)</li>
+                        <li>Dans le tableur, cliquez sur l'onglet <strong style="color:white;">DATA_ABS</strong> (ou DATA_NOTES, etc.)</li>
+                        <li>Cliquez en <strong style="color:white;">A1</strong>, puis <strong style="color:white;">Ctrl+V</strong></li>
+                        <li>Répétez pour chaque onglet DATA</li>
+                    </ol>
+                </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; font-size: 13px;">
                     <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #6366f1;">
-                        <strong>DATA_ABS</strong><br><span style="color: #94a3b8;">Absences (2 lignes en-tête)</span>
+                        <strong>DATA_ABS</strong><br>
+                        <span style="color: #94a3b8;">Export absences</span><br>
+                        <span style="color: #64748b; font-size:11px;">Colonnes auto-détectées : Nom, Classe, DJ, Justifiée</span>
                     </div>
                     <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #ef4444;">
-                        <strong>DATA_INCIDENTS</strong><br><span style="color: #94a3b8;">Incidents (2 lignes en-tête)</span>
+                        <strong>DATA_INCIDENTS</strong><br>
+                        <span style="color: #94a3b8;">Export incidents</span><br>
+                        <span style="color: #64748b; font-size:11px;">Colonnes auto-détectées : Nom, Classe, Gravité</span>
                     </div>
                     <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #eab308;">
-                        <strong>DATA_PUNITIONS</strong><br><span style="color: #94a3b8;">Punitions (1 ligne en-tête)</span>
+                        <strong>DATA_PUNITIONS</strong><br>
+                        <span style="color: #94a3b8;">Export punitions</span><br>
+                        <span style="color: #64748b; font-size:11px;">Colonnes auto-détectées : Nb, Nom, Classe</span>
                     </div>
                     <div style="background: #0f172a; padding: 12px; border-radius: 8px; border-left: 3px solid #22c55e;">
-                        <strong>DATA_NOTES</strong><br><span style="color: #94a3b8;">Notes/Moyennes (2 lignes en-tête)</span>
+                        <strong>DATA_NOTES</strong><br>
+                        <span style="color: #94a3b8;">Export notes / moyennes</span><br>
+                        <span style="color: #64748b; font-size:11px;">Matières auto-détectées : FRANC, MATH, AGL1, SVT, etc.</span>
                     </div>
                 </div>
-                <button onclick="google.script.host.close()" class="btn btn-secondary" style="margin-bottom: 10px;">
-                    <i class="fas fa-door-open"></i> QUITTER POUR COLLER LES DONNÉES
-                </button>
-                <button onclick="refreshScoresStatus()" class="btn btn-secondary" style="background: transparent; border: 1px solid #334155;">
-                    <i class="fas fa-sync"></i> VÉRIFIER LES DONNÉES
-                </button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button onclick="toggleMinimize()" class="btn btn-secondary">
+                        <i class="fas fa-window-minimize"></i> RÉDUIRE LA CONSOLE
+                    </button>
+                    <button onclick="refreshScoresStatus()" class="btn btn-secondary" style="background: transparent; border: 1px solid #334155;">
+                        <i class="fas fa-sync"></i> VÉRIFIER LES DONNÉES
+                    </button>
+                </div>
             </div>
 
             <div class="card">
                 <h2>3. Calculer et injecter les scores</h2>
                 <p style="color: #94a3b8; margin-bottom: 15px;">
-                    Calcule ABS, COM, TRA, PART depuis les exports et les injecte dans les onglets sources élèves.
+                    Lit les données collées, calcule les 4 scores (ABS, COM, TRA, PART)
+                    et les écrit directement dans les colonnes correspondantes de vos onglets sources élèves (°1, °2, etc.).
                 </p>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
