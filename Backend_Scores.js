@@ -301,19 +301,28 @@ function v3_calculerTousScores() {
     var partResults = calculerScorePART_(ss);
 
     var fusion = fusionnerScores_(absResults, comResults, traResults, partResults);
+
+    // Lister les onglets sources pour diagnostic
+    var allSheetNames = ss.getSheets().map(function(s) { return s.getName(); });
+    var sourceSheetNames = allSheetNames.filter(function(n) { return /.+°\d+$/.test(n); });
+    Logger.log('Onglets sources trouvés pour injection: ' + sourceSheetNames.join(', '));
+
     var injected = injecterScoresDansOngletsSources_(ss, fusion);
 
+    Logger.log('=== RÉSULTAT INJECTION: ' + injected.updated + ' mis à jour, ' + injected.notFound + ' non trouvés ===');
+
     // Construire le tableau détaillé pour affichage immédiat côté client
+    // Scores bruts 1-4 (identiques à ce qui est injecté dans les onglets sources)
     var preview = [];
     for (var nom in fusion) {
       var e = fusion[nom];
       preview.push({
         nom: nom,
         classe: e.classe,
-        abs: e.scoreABS !== null ? mapScore_(e.scoreABS) : null,
-        com: e.scoreCOM !== null ? mapScore_(e.scoreCOM) : null,
-        tra: e.scoreTRA !== null ? mapScore_(e.scoreTRA) : null,
-        part: e.scorePART !== null ? mapScore_(e.scorePART) : null
+        abs: e.scoreABS,
+        com: e.scoreCOM,
+        tra: e.scoreTRA,
+        part: e.scorePART
       });
     }
     preview.sort(function(a, b) {
@@ -330,7 +339,12 @@ function v3_calculerTousScores() {
       },
       injected: injected,
       totalEleves: Object.keys(fusion).length,
-      preview: preview
+      preview: preview,
+      debug: {
+        sourceSheets: sourceSheetNames,
+        fusionKeys: Object.keys(fusion).slice(0, 5),
+        fusionCount: Object.keys(fusion).length
+      }
     };
 
   } catch (e) {
@@ -385,16 +399,17 @@ function v3_getScoresPreview() {
 
     var fusion = fusionnerScores_(absResults, comResults, traResults, partResults);
 
+    // Scores bruts 1-4 (identiques à ce qui est dans les onglets sources)
     var preview = [];
     for (var nom in fusion) {
       var e = fusion[nom];
       preview.push({
         nom: nom,
         classe: e.classe,
-        abs: e.scoreABS !== null ? mapScore_(e.scoreABS) : null,
-        com: e.scoreCOM !== null ? mapScore_(e.scoreCOM) : null,
-        tra: e.scoreTRA !== null ? mapScore_(e.scoreTRA) : null,
-        part: e.scorePART !== null ? mapScore_(e.scorePART) : null
+        abs: e.scoreABS,
+        com: e.scoreCOM,
+        tra: e.scoreTRA,
+        part: e.scorePART
       });
     }
 
@@ -405,7 +420,7 @@ function v3_getScoresPreview() {
     return {
       success: true,
       totalEleves: preview.length,
-      preview: preview // tous les élèves — le filtrage se fait côté client
+      preview: preview
     };
 
   } catch (e) {
@@ -750,9 +765,19 @@ function fusionnerScores_(absResults, comResults, traResults, partResults) {
  * @returns {Object} {updated, notFound, total}
  */
 function injecterScoresDansOngletsSources_(ss, fusion) {
-  var sheets = ss.getSheets().filter(function(s) {
+  var allSheets = ss.getSheets();
+  var sheets = allSheets.filter(function(s) {
     return /.+°\d+$/.test(s.getName());
   });
+
+  Logger.log('=== INJECTION SCORES ===');
+  Logger.log('Tous les onglets: ' + allSheets.map(function(s) { return s.getName(); }).join(', '));
+  Logger.log('Onglets sources détectés (pattern °digit): ' + sheets.map(function(s) { return s.getName(); }).join(', '));
+  Logger.log('Nombre élèves dans fusion: ' + Object.keys(fusion).length);
+  if (Object.keys(fusion).length > 0) {
+    var premierNom = Object.keys(fusion)[0];
+    Logger.log('Exemple fusion: "' + premierNom + '" => ' + JSON.stringify(fusion[premierNom]));
+  }
 
   var totalUpdated = 0;
   var totalNotFound = 0;
@@ -762,56 +787,114 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
     if (data.length < 2) return;
 
     var headers = data[0];
-    var idxNom = headers.indexOf('NOM');
-    var idxPrenom = headers.indexOf('PRENOM');
-    var idxNomPrenom = headers.indexOf('NOM_PRENOM');
-    var idxCOM = headers.indexOf('COM');
-    var idxTRA = headers.indexOf('TRA');
-    var idxPART = headers.indexOf('PART');
-    var idxABS = headers.indexOf('ABSENCE');
-    if (idxABS === -1) idxABS = headers.indexOf('ABS');
+    // Normaliser les en-têtes : trim + majuscules pour éviter les espaces invisibles
+    var headersNorm = headers.map(function(h) { return String(h).trim().toUpperCase(); });
 
-    if (idxCOM === -1 && idxTRA === -1 && idxPART === -1 && idxABS === -1) return;
+    var idxNom = headersNorm.indexOf('NOM');
+    var idxPrenom = headersNorm.indexOf('PRENOM');
+    var idxNomPrenom = headersNorm.indexOf('NOM_PRENOM');
+    var idxCOM = headersNorm.indexOf('COM');
+    var idxTRA = headersNorm.indexOf('TRA');
+    var idxPART = headersNorm.indexOf('PART');
+    var idxABS = headersNorm.indexOf('ABSENCE');
+    if (idxABS === -1) idxABS = headersNorm.indexOf('ABS');
+
+    Logger.log('Onglet ' + sheet.getName() + ' — headers bruts: [' + headers.join(' | ') + ']');
+    Logger.log('  idx: NOM=' + idxNom + ' PRENOM=' + idxPrenom + ' NOM_PRENOM=' + idxNomPrenom + ' COM=' + idxCOM + ' TRA=' + idxTRA + ' PART=' + idxPART + ' ABS=' + idxABS);
+    Logger.log('  Lignes de données: ' + (data.length - 1));
+
+    if (idxCOM === -1 && idxTRA === -1 && idxPART === -1 && idxABS === -1) {
+      Logger.log('  ⚠️ SKIP: aucune colonne score trouvée !');
+      return;
+    }
+
+    var sheetUpdated = 0;
+    var sheetNotFound = 0;
 
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
-      if (!row[0]) continue;
+      if (!row[0] && (idxNom === -1 || !row[idxNom])) continue;
 
       var nomPrenom = idxNomPrenom >= 0 ? String(row[idxNomPrenom]).trim() : '';
       var nom = idxNom >= 0 ? String(row[idxNom]).trim() : '';
       var prenom = idxPrenom >= 0 ? String(row[idxPrenom]).trim() : '';
 
+      // Essayer plusieurs stratégies de matching
       var match = null;
+      var matchKey = '';
+
+      // 1) Match exact NOM_PRENOM
       if (nomPrenom && fusion[nomPrenom]) {
         match = fusion[nomPrenom];
-      } else if (nom && fusion[nom]) {
+        matchKey = 'NOM_PRENOM exact';
+      }
+      // 2) Match exact NOM seul
+      if (!match && nom && fusion[nom]) {
         match = fusion[nom];
-      } else {
+        matchKey = 'NOM exact';
+      }
+      // 3) Match "NOM PRENOM" concaténé
+      if (!match) {
         var fullName = (nom + ' ' + prenom).trim();
         if (fullName && fusion[fullName]) {
           match = fusion[fullName];
+          matchKey = 'NOM+PRENOM';
+        }
+      }
+      // 4) Match "PRENOM NOM" (format inverse)
+      if (!match) {
+        var reverseName = (prenom + ' ' + nom).trim();
+        if (reverseName && fusion[reverseName]) {
+          match = fusion[reverseName];
+          matchKey = 'PRENOM+NOM inverse';
+        }
+      }
+      // 5) Recherche insensible à la casse dans les clés de fusion
+      if (!match && nomPrenom) {
+        var npUpper = nomPrenom.toUpperCase();
+        for (var key in fusion) {
+          if (key.toUpperCase() === npUpper) {
+            match = fusion[key];
+            matchKey = 'NOM_PRENOM case-insensitive';
+            break;
+          }
         }
       }
 
       if (match) {
         var rowNum = i + 1;
-        if (idxCOM >= 0 && match.scoreCOM !== undefined) {
-          sheet.getRange(rowNum, idxCOM + 1).setValue(mapScore_(match.scoreCOM));
+        var wrote = [];
+        if (idxCOM >= 0 && match.scoreCOM !== undefined && match.scoreCOM !== null) {
+          sheet.getRange(rowNum, idxCOM + 1).setValue(String(match.scoreCOM));
+          wrote.push('COM=' + match.scoreCOM);
         }
-        if (idxTRA >= 0 && match.scoreTRA !== undefined) {
-          sheet.getRange(rowNum, idxTRA + 1).setValue(mapScore_(match.scoreTRA));
+        if (idxTRA >= 0 && match.scoreTRA !== undefined && match.scoreTRA !== null) {
+          sheet.getRange(rowNum, idxTRA + 1).setValue(String(match.scoreTRA));
+          wrote.push('TRA=' + match.scoreTRA);
         }
-        if (idxPART >= 0 && match.scorePART !== undefined) {
-          sheet.getRange(rowNum, idxPART + 1).setValue(mapScore_(match.scorePART));
+        if (idxPART >= 0 && match.scorePART !== undefined && match.scorePART !== null) {
+          sheet.getRange(rowNum, idxPART + 1).setValue(String(match.scorePART));
+          wrote.push('PART=' + match.scorePART);
         }
-        if (idxABS >= 0 && match.scoreABS !== undefined) {
-          sheet.getRange(rowNum, idxABS + 1).setValue(mapScore_(match.scoreABS));
+        if (idxABS >= 0 && match.scoreABS !== undefined && match.scoreABS !== null) {
+          sheet.getRange(rowNum, idxABS + 1).setValue(String(match.scoreABS));
+          wrote.push('ABS=' + match.scoreABS);
         }
+        if (sheetUpdated < 3) {
+          Logger.log('  ✅ Ligne ' + rowNum + ' match (' + matchKey + '): ' + (nomPrenom || nom) + ' → ' + wrote.join(', '));
+        }
+        sheetUpdated++;
         totalUpdated++;
       } else {
+        if (sheetNotFound < 5) {
+          Logger.log('  ❌ Ligne ' + (i+1) + ' PAS TROUVÉ: nom="' + nom + '" prenom="' + prenom + '" nom_prenom="' + nomPrenom + '"');
+        }
+        sheetNotFound++;
         totalNotFound++;
       }
     }
+
+    Logger.log('  → ' + sheet.getName() + ': ' + sheetUpdated + ' mis à jour, ' + sheetNotFound + ' non trouvés');
   });
 
   SpreadsheetApp.flush();
