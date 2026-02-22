@@ -449,75 +449,145 @@
             </div>
         </div>
 
-        <!-- =============== PHASE IMPORT — Base de donnees Pronote =============== -->
+        <!-- =============== PHASE IMPORT — Multi-paste Pronote =============== -->
         <div id="phase-import" class="phase">
-            <h1>IMPORT BASE PRONOTE</h1>
+            <h1>IMPORT MULTI-PASTE PRONOTE</h1>
 
-            <div class="card">
-                <h2>1. Telecharger le modele</h2>
-                <p style="color: #94a3b8; margin-bottom: 15px;">
-                    Telechargez le template CSV, remplissez-le avec les donnees Pronote de vos eleves,
-                    puis importez-le. Le systeme remplira automatiquement les onglets sources
-                    et calculera les scores (COM, TRA, PART, ABS).
-                </p>
-                <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:15px; margin-bottom:15px;">
-                    <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:10px;">COLONNES DU TEMPLATE</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #94a3b8;">
-                        <div><strong style="color:white;">Identite</strong> : CLASSE, NOM, PRENOM, SEXE, LV2, OPT, DISPO</div>
-                        <div><strong style="color:white;">Absences</strong> : DJ (demi-journees), NJ (non justifiees)</div>
-                        <div><strong style="color:white;">Comportement</strong> : NB_PUNITIONS, NB_INCIDENTS</div>
-                        <div><strong style="color:white;">Notes</strong> : FRANCAIS, MATHS, HIST_GEO, ANGLAIS, LV2_MOY, EPS...</div>
-                        <div><strong style="color:white;">Oral</strong> : ORAL_ANGLAIS, ORAL_LV2</div>
-                        <div style="color:#64748b;">Seules CLASSE et NOM sont obligatoires. Le reste est optionnel.</div>
-                    </div>
-                </div>
-                <button onclick="downloadImportTemplate()" class="btn btn-secondary" style="margin-bottom: 10px;">
-                    <i class="fas fa-download"></i> TELECHARGER LE MODELE CSV
-                </button>
+            <!-- Barre de progression des 4 etapes -->
+            <div style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
+                <span id="badge-eleves" class="import-badge" style="background:#334155; color:#94a3b8; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700;">1. Eleves</span>
+                <span id="badge-notes" class="import-badge" style="background:#334155; color:#94a3b8; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700;">2. Notes</span>
+                <span id="badge-absences" class="import-badge" style="background:#334155; color:#94a3b8; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700;">3. Absences</span>
+                <span id="badge-comportement" class="import-badge" style="background:#334155; color:#94a3b8; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700;">4. Comportement</span>
             </div>
 
-            <div class="card">
-                <h2>2. Importer le fichier rempli</h2>
-                <p style="color: #94a3b8; margin-bottom: 15px;">
-                    Selectionnez le fichier CSV rempli avec les donnees Pronote.
-                    Le separateur peut etre <strong style="color:white;">;</strong> (Excel FR) ou <strong style="color:white;">,</strong> (international).
+            <!-- ETAPE 1 : Liste des eleves -->
+            <div id="import-step-eleves" class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h2>1. Liste des Eleves</h2>
+                    <button onclick="clearImportStep('eleves')" class="btn btn-secondary" style="width:auto; padding:6px 12px; font-size:11px;">
+                        <i class="fas fa-eraser"></i> Effacer
+                    </button>
+                </div>
+                <p style="color:#94a3b8; margin-bottom:10px; font-size:13px;">
+                    Dans Pronote, ouvrez la liste des eleves (Eleves &gt; Listes), selectionnez toutes les lignes et collez ici.
+                    Colonnes attendues : NOM, PRENOM, SEXE, CLASSE et idealement les options (Toutes les options).
                 </p>
-
-                <div id="import-dropzone" style="border: 2px dashed #334155; border-radius: 12px; padding: 40px; text-align: center; margin-bottom: 15px; cursor: pointer; transition: 0.2s;"
-                     onclick="document.getElementById('import-file-input').click()"
-                     ondragover="event.preventDefault(); this.style.borderColor='var(--primary)'; this.style.background='rgba(99,102,241,0.05)';"
-                     ondragleave="this.style.borderColor='#334155'; this.style.background='transparent';"
-                     ondrop="handleFileDrop(event)">
-                    <i class="fas fa-cloud-upload-alt" style="font-size: 36px; color: #6366f1; margin-bottom: 10px;"></i>
-                    <div style="font-size: 16px; font-weight: 700; margin-bottom: 5px;">Glissez votre fichier ici</div>
-                    <div style="font-size: 13px; color: #64748b;">ou cliquez pour parcourir (CSV, Excel)</div>
-                    <input type="file" id="import-file-input" accept=".csv,.txt,.tsv" style="display:none;" onchange="handleFileSelect(event)">
-                </div>
-
-                <div id="import-file-info" style="display:none; background:#0f172a; padding:15px; border-radius:8px; margin-bottom:15px; border-left:3px solid var(--primary);">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <div style="font-weight:700;" id="import-file-name">-</div>
-                            <div style="font-size:12px; color:#94a3b8;" id="import-file-stats">-</div>
-                        </div>
-                        <button onclick="clearImportFile()" style="background:transparent; border:1px solid #334155; color:#94a3b8; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">
-                            <i class="fas fa-times"></i> Retirer
-                        </button>
-                    </div>
-                </div>
-
-                <div id="import-preview" style="display:none; max-height:250px; overflow-y:auto; margin-bottom:15px;"></div>
-
-                <button onclick="runImport()" id="btn-run-import" class="btn btn-primary" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);" disabled>
+                <textarea id="paste-eleves" rows="6" placeholder="Collez ici le tableau Pronote des eleves (Ctrl+V)..."
+                    style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <div id="preview-eleves" style="max-height:150px; overflow-y:auto; margin-top:8px;"></div>
+                <button onclick="parseImportEleves()" class="btn btn-primary" style="margin-top:10px;">
                     <div class="spinner"></div>
-                    <span><i class="fas fa-file-import"></i> IMPORTER ET CALCULER LES SCORES</span>
+                    <span><i class="fas fa-user-check"></i> VALIDER LES ELEVES</span>
                 </button>
             </div>
 
-            <div id="import-result" class="card" style="display: none;">
-                <h2><i class="fas fa-check-circle" style="color: var(--success);"></i> RESULTAT DE L'IMPORT</h2>
+            <!-- ETAPE 2 : Notes / Moyennes -->
+            <div id="import-step-notes" class="card" style="opacity:0.5; pointer-events:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h2>2. Notes / Moyennes</h2>
+                    <button onclick="clearImportStep('notes')" class="btn btn-secondary" style="width:auto; padding:6px 12px; font-size:11px;">
+                        <i class="fas fa-eraser"></i> Effacer
+                    </button>
+                </div>
+                <p style="color:#94a3b8; margin-bottom:10px; font-size:13px;">
+                    Collez les moyennes d'une classe a la fois. Apres chaque collage, cliquez "Ajouter cette classe".
+                    Repetez pour chaque classe source.
+                </p>
+                <div id="notes-classes-badges" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;"></div>
+                <textarea id="paste-notes" rows="6" placeholder="Collez ici les moyennes Pronote d'UNE classe (Ctrl+V)..."
+                    style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <div id="preview-notes" style="max-height:150px; overflow-y:auto; margin-top:8px;"></div>
+                <button onclick="parseImportNotes()" class="btn btn-primary" style="margin-top:10px;">
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-plus-circle"></i> AJOUTER CETTE CLASSE</span>
+                </button>
+                <button onclick="toggleImportStep('absences')" class="btn btn-success" style="margin-top:8px; display:none;" id="btn-notes-done">
+                    <span><i class="fas fa-arrow-right"></i> NOTES TERMINEES — PASSER AUX ABSENCES</span>
+                </button>
+            </div>
+
+            <!-- ETAPE 3 : Absences -->
+            <div id="import-step-absences" class="card" style="opacity:0.5; pointer-events:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h2>3. Absences</h2>
+                    <button onclick="clearImportStep('absences')" class="btn btn-secondary" style="width:auto; padding:6px 12px; font-size:11px;">
+                        <i class="fas fa-eraser"></i> Effacer
+                    </button>
+                </div>
+                <p style="color:#94a3b8; margin-bottom:10px; font-size:13px;">
+                    Collez le recapitulatif des absences Pronote (toutes classes). Format attendu : NOM, demi-journees d'absence, non justifiees.
+                </p>
+                <textarea id="paste-absences" rows="6" placeholder="Collez ici le recapitulatif des absences (Ctrl+V)..."
+                    style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <div id="preview-absences" style="max-height:150px; overflow-y:auto; margin-top:8px;"></div>
+                <button onclick="parseImportAbsences()" class="btn btn-primary" style="margin-top:10px;">
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-calendar-check"></i> VALIDER LES ABSENCES</span>
+                </button>
+            </div>
+
+            <!-- ETAPE 4 : Comportement (Punitions + Observations) -->
+            <div id="import-step-comportement" class="card" style="opacity:0.5; pointer-events:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h2>4. Comportement</h2>
+                    <button onclick="clearImportStep('comportement')" class="btn btn-secondary" style="width:auto; padding:6px 12px; font-size:11px;">
+                        <i class="fas fa-eraser"></i> Effacer
+                    </button>
+                </div>
+                <p style="color:#94a3b8; margin-bottom:10px; font-size:13px;">
+                    Collez les punitions puis les observations (vie scolaire). Les deux zones sont independantes.
+                </p>
+                <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:6px;">PUNITIONS</div>
+                <textarea id="paste-punitions" rows="5" placeholder="Collez ici la liste des punitions Pronote..."
+                    style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical; margin-bottom:10px;"></textarea>
+                <div id="preview-punitions" style="max-height:120px; overflow-y:auto; margin-bottom:10px;"></div>
+                <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:6px;">OBSERVATIONS</div>
+                <textarea id="paste-observations" rows="5" placeholder="Collez ici les observations de vie scolaire..."
+                    style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+                <div id="preview-observations" style="max-height:120px; overflow-y:auto; margin-top:8px;"></div>
+                <button onclick="parseImportComportement()" class="btn btn-primary" style="margin-top:10px;">
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-user-shield"></i> VALIDER LE COMPORTEMENT</span>
+                </button>
+            </div>
+
+            <!-- Compilation finale -->
+            <div id="import-compile-section" class="card" style="display:none; border:2px solid var(--success);">
+                <h2><i class="fas fa-cogs" style="color:var(--success);"></i> COMPILATION FINALE</h2>
+                <div id="import-summary" style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:15px;">
+                    <div style="background:#0f172a; padding:12px; border-radius:8px; text-align:center;">
+                        <div id="sum-eleves" style="font-size:24px; font-weight:900; color:var(--primary);">0</div>
+                        <div style="font-size:10px; color:#94a3b8; font-weight:700;">ELEVES</div>
+                    </div>
+                    <div style="background:#0f172a; padding:12px; border-radius:8px; text-align:center;">
+                        <div id="sum-notes" style="font-size:24px; font-weight:900; color:#eab308;">0</div>
+                        <div style="font-size:10px; color:#94a3b8; font-weight:700;">NOTES</div>
+                    </div>
+                    <div style="background:#0f172a; padding:12px; border-radius:8px; text-align:center;">
+                        <div id="sum-absences" style="font-size:24px; font-weight:900; color:#f97316;">0</div>
+                        <div style="font-size:10px; color:#94a3b8; font-weight:700;">ABSENCES</div>
+                    </div>
+                    <div style="background:#0f172a; padding:12px; border-radius:8px; text-align:center;">
+                        <div id="sum-comportement" style="font-size:24px; font-weight:900; color:#ef4444;">0</div>
+                        <div style="font-size:10px; color:#94a3b8; font-weight:700;">COMPORT.</div>
+                    </div>
+                </div>
+                <button onclick="runCompileImport()" id="btn-compile-import" class="btn" style="background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-file-import"></i> COMPILER ET INJECTER DANS LES ONGLETS SOURCE</span>
+                </button>
+            </div>
+
+            <!-- Resultat / DISSO suggestions -->
+            <div id="import-result" class="card" style="display:none;">
+                <h2><i class="fas fa-check-circle" style="color:var(--success);"></i> RESULTAT DE L'IMPORT</h2>
                 <div id="import-result-content"></div>
-                <button onclick="goTo(3)" class="btn btn-success" style="margin-top: 15px;">
+                <div id="import-disso-suggestions" style="display:none; margin-top:15px; background:#0f172a; border:1px solid #eab308; border-radius:8px; padding:15px;">
+                    <div style="font-size:13px; font-weight:700; color:#eab308; margin-bottom:8px;">SUGGESTIONS DISSO (eleves a separer)</div>
+                    <div id="disso-groups-content"></div>
+                </div>
+                <button onclick="goTo(3)" class="btn btn-success" style="margin-top:15px;">
                     <span><i class="fas fa-arrow-right"></i> CONTINUER VERS LES STATS</span>
                 </button>
             </div>
@@ -930,215 +1000,336 @@
         }
 
         // ===================================================================
-        // 5a. IMPORT BASE PRONOTE
+        // 5a. IMPORT MULTI-PASTE PRONOTE
         // ===================================================================
-        var importParsedData = null; // { headers: [], rows: [[]] }
+        var importState = {
+            eleves: null,     // { success, count, students: [{nom,prenom,sexe,classe,lv2,opt}] }
+            notes: [],        // [ {classe, count, subjects} ] — une entree par classe ajoutee
+            absences: null,   // { success, count }
+            punitions: null,  // { success, count }
+            observations: null // { success, count }
+        };
 
-        function downloadImportTemplate() {
-            runServerCall('v3_generateImportTemplate', [], function(res) {
-                if (!res.success) { showModal(res.error, 'error'); return; }
-                var blob = new Blob([res.csv], { type: 'text/csv;charset=utf-8;' });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = res.filename || 'modele_import_pronote.csv';
-                a.click();
-                URL.revokeObjectURL(url);
-                showToast('Modele CSV telecharge !', 'success');
-            }, function(err) { showModal(err.message, 'error'); });
-        }
-
-        function handleFileDrop(e) {
-            e.preventDefault();
-            e.currentTarget.style.borderColor = '#334155';
-            e.currentTarget.style.background = 'transparent';
-            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                processImportFile(e.dataTransfer.files[0]);
-            }
-        }
-
-        function handleFileSelect(e) {
-            if (e.target.files && e.target.files.length > 0) {
-                processImportFile(e.target.files[0]);
-            }
-        }
-
-        function processImportFile(file) {
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    var text = e.target.result;
-                    var parsed = parseCSVImport(text);
-                    if (parsed.rows.length === 0) {
-                        showToast('Fichier vide ou format non reconnu', 'error');
-                        return;
-                    }
-                    importParsedData = parsed;
-
-                    // Afficher infos fichier
-                    document.getElementById('import-file-info').style.display = 'block';
-                    document.getElementById('import-file-name').textContent = file.name;
-                    document.getElementById('import-file-stats').textContent =
-                        parsed.rows.length + ' eleves | ' + parsed.headers.length + ' colonnes | sep: "' + parsed.separator + '"';
-
-                    // Apercu
-                    renderImportPreview(parsed);
-
-                    // Activer le bouton import
-                    document.getElementById('btn-run-import').disabled = false;
-                } catch (err) {
-                    showModal('Erreur de lecture du fichier : ' + err.message, 'error');
-                }
-            };
-            reader.readAsText(file, 'UTF-8');
-        }
-
-        function clearImportFile() {
-            importParsedData = null;
-            document.getElementById('import-file-info').style.display = 'none';
-            document.getElementById('import-preview').style.display = 'none';
-            document.getElementById('btn-run-import').disabled = true;
-            document.getElementById('import-file-input').value = '';
-        }
-
-        function parseCSVImport(text) {
+        function parseTSV(text) {
+            if (!text || !text.trim()) return [];
             // Remove BOM
             if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
-
-            // Auto-detect separator
-            var firstLine = text.split('\n')[0];
-            var sepSemicolon = (firstLine.match(/;/g) || []).length;
-            var sepComma = (firstLine.match(/,/g) || []).length;
-            var sepTab = (firstLine.match(/\t/g) || []).length;
-            var sep = ';';
-            if (sepTab > sepSemicolon && sepTab > sepComma) sep = '\t';
-            else if (sepComma > sepSemicolon) sep = ',';
-
-            // Parse CSV
-            var allRows = [];
-            var current = '';
-            var inQuotes = false;
-            var row = [];
-
-            for (var i = 0; i < text.length; i++) {
-                var ch = text[i];
-                if (inQuotes) {
-                    if (ch === '"') {
-                        if (i + 1 < text.length && text[i + 1] === '"') {
-                            current += '"';
-                            i++;
-                        } else {
-                            inQuotes = false;
-                        }
-                    } else {
-                        current += ch;
-                    }
-                } else {
-                    if (ch === '"') {
-                        inQuotes = true;
-                    } else if (ch === sep) {
-                        row.push(current.trim());
-                        current = '';
-                    } else if (ch === '\n' || ch === '\r') {
-                        if (ch === '\r' && i + 1 < text.length && text[i + 1] === '\n') i++;
-                        row.push(current.trim());
-                        if (row.some(function(c) { return c !== ''; })) allRows.push(row);
-                        row = [];
-                        current = '';
-                    } else {
-                        current += ch;
-                    }
-                }
+            var lines = text.split('\n');
+            var rows = [];
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].replace(/\r$/, '');
+                if (line.trim() === '') continue;
+                rows.push(line.split('\t'));
             }
-            // Derniere ligne
-            row.push(current.trim());
-            if (row.some(function(c) { return c !== ''; })) allRows.push(row);
-
-            if (allRows.length === 0) return { headers: [], rows: [], separator: sep };
-
-            var headers = allRows[0].map(function(h) { return h.toUpperCase().trim(); });
-            var dataRows = allRows.slice(1);
-
-            return { headers: headers, rows: dataRows, separator: sep };
+            return rows;
         }
 
-        function renderImportPreview(parsed) {
-            var el = document.getElementById('import-preview');
-            if (!el) return;
-            el.style.display = 'block';
-
-            var maxPreview = Math.min(parsed.rows.length, 5);
-            var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
-            html += '<thead><tr style="border-bottom:2px solid #334155;position:sticky;top:0;background:#1e293b;">';
-            for (var h = 0; h < parsed.headers.length && h < 10; h++) {
-                html += '<th style="padding:6px 4px;color:#94a3b8;font-size:10px;">' + escapeHtml(parsed.headers[h]) + '</th>';
+        function updateImportBadge(step, status, detail) {
+            var badge = document.getElementById('badge-' + step);
+            if (!badge) return;
+            var labels = { eleves: '1. Eleves', notes: '2. Notes', absences: '3. Absences', comportement: '4. Comportement' };
+            if (status === 'done') {
+                badge.style.background = '#22c55e';
+                badge.style.color = '#fff';
+                badge.textContent = labels[step] + (detail ? ' (' + detail + ')' : ' OK');
+            } else if (status === 'partial') {
+                badge.style.background = '#eab308';
+                badge.style.color = '#000';
+                badge.textContent = labels[step] + (detail ? ' (' + detail + ')' : '...');
+            } else {
+                badge.style.background = '#334155';
+                badge.style.color = '#94a3b8';
+                badge.textContent = labels[step];
             }
-            if (parsed.headers.length > 10) html += '<th style="padding:6px;color:#64748b;">...</th>';
-            html += '</tr></thead><tbody>';
+        }
 
-            for (var i = 0; i < maxPreview; i++) {
-                var row = parsed.rows[i];
-                html += '<tr style="border-bottom:1px solid #1e293b;">';
-                for (var c = 0; c < Math.min(row.length, 10); c++) {
-                    html += '<td style="padding:4px;color:#e2e8f0;font-size:11px;">' + escapeHtml(row[c] || '') + '</td>';
+        function updateImportSummary() {
+            var el = document.getElementById('sum-eleves');
+            if (el) el.textContent = importState.eleves ? importState.eleves.count : 0;
+            var en = document.getElementById('sum-notes');
+            if (en) {
+                var totalNotes = 0;
+                importState.notes.forEach(function(n) { totalNotes += n.count; });
+                en.textContent = totalNotes;
+            }
+            var ea = document.getElementById('sum-absences');
+            if (ea) ea.textContent = importState.absences ? importState.absences.count : 0;
+            var ec = document.getElementById('sum-comportement');
+            if (ec) {
+                var cp = importState.punitions ? importState.punitions.count : 0;
+                var co = importState.observations ? importState.observations.count : 0;
+                ec.textContent = cp + co;
+            }
+
+            // Afficher section compilation si eleves sont charges
+            var compileSection = document.getElementById('import-compile-section');
+            if (compileSection && importState.eleves && importState.eleves.count > 0) {
+                compileSection.style.display = 'block';
+            }
+        }
+
+        function toggleImportStep(step) {
+            var steps = ['eleves', 'notes', 'absences', 'comportement'];
+            for (var i = 0; i < steps.length; i++) {
+                var el = document.getElementById('import-step-' + steps[i]);
+                if (!el) continue;
+                if (steps[i] === step) {
+                    el.style.opacity = '1';
+                    el.style.pointerEvents = 'auto';
+                } else if (el.style.opacity === '1') {
+                    // Deja active, on le laisse
                 }
-                if (row.length > 10) html += '<td style="color:#64748b;">...</td>';
+            }
+        }
+
+        function clearImportStep(step) {
+            if (step === 'eleves') {
+                document.getElementById('paste-eleves').value = '';
+                document.getElementById('preview-eleves').innerHTML = '';
+                importState.eleves = null;
+                updateImportBadge('eleves', 'pending');
+            } else if (step === 'notes') {
+                document.getElementById('paste-notes').value = '';
+                document.getElementById('preview-notes').innerHTML = '';
+                document.getElementById('notes-classes-badges').innerHTML = '';
+                importState.notes = [];
+                document.getElementById('btn-notes-done').style.display = 'none';
+                updateImportBadge('notes', 'pending');
+            } else if (step === 'absences') {
+                document.getElementById('paste-absences').value = '';
+                document.getElementById('preview-absences').innerHTML = '';
+                importState.absences = null;
+                updateImportBadge('absences', 'pending');
+            } else if (step === 'comportement') {
+                document.getElementById('paste-punitions').value = '';
+                document.getElementById('paste-observations').value = '';
+                document.getElementById('preview-punitions').innerHTML = '';
+                document.getElementById('preview-observations').innerHTML = '';
+                importState.punitions = null;
+                importState.observations = null;
+                updateImportBadge('comportement', 'pending');
+            }
+            updateImportSummary();
+        }
+
+        function renderMiniTable(rows, maxRows, containerId) {
+            var el = document.getElementById(containerId);
+            if (!el || !rows || rows.length === 0) { if (el) el.innerHTML = ''; return; }
+            var limit = Math.min(rows.length, maxRows || 5);
+            var maxCols = Math.min(rows[0].length, 8);
+            var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+            html += '<thead><tr style="border-bottom:2px solid #334155;background:#0f172a;">';
+            for (var h = 0; h < maxCols; h++) {
+                html += '<th style="padding:4px;color:#94a3b8;font-size:10px;text-align:left;">' + escapeHtml(String(rows[0][h] || '')) + '</th>';
+            }
+            if (rows[0].length > maxCols) html += '<th style="color:#64748b;">...</th>';
+            html += '</tr></thead><tbody>';
+            for (var i = 1; i <= limit; i++) {
+                if (!rows[i]) break;
+                html += '<tr style="border-bottom:1px solid #1e293b;">';
+                for (var c = 0; c < maxCols; c++) {
+                    html += '<td style="padding:3px;color:#e2e8f0;font-size:11px;">' + escapeHtml(String(rows[i][c] || '')) + '</td>';
+                }
+                if (rows[i].length > maxCols) html += '<td style="color:#64748b;">...</td>';
                 html += '</tr>';
             }
-            if (parsed.rows.length > maxPreview) {
-                html += '<tr><td colspan="' + Math.min(parsed.headers.length, 11) + '" style="text-align:center;color:#64748b;padding:8px;font-size:11px;">... et ' + (parsed.rows.length - maxPreview) + ' autres lignes</td></tr>';
+            if (rows.length - 1 > limit) {
+                html += '<tr><td colspan="' + (maxCols + 1) + '" style="text-align:center;color:#64748b;padding:6px;font-size:11px;">... et ' + (rows.length - 1 - limit) + ' autres lignes</td></tr>';
             }
             html += '</tbody></table>';
             el.innerHTML = html;
         }
 
-        function runImport() {
-            if (!importParsedData || !importParsedData.rows.length) {
-                showToast('Aucun fichier charge', 'error');
+        // --- Etape 1 : Eleves ---
+        function parseImportEleves() {
+            var text = document.getElementById('paste-eleves').value;
+            var rows = parseTSV(text);
+            if (rows.length < 2) { showToast('Collez au moins un en-tete et une ligne de donnees', 'error'); return; }
+
+            renderMiniTable(rows, 5, 'preview-eleves');
+            showToast('Envoi au serveur...', 'info');
+
+            runServerCall('v3_parseListeEleves', [rows], function(res) {
+                if (!res.success) { showToast('Erreur : ' + res.error, 'error'); return; }
+                importState.eleves = res;
+                updateImportBadge('eleves', 'done', res.count + ' eleves');
+                toggleImportStep('notes');
+                updateImportSummary();
+                showToast(res.count + ' eleves detectes !', 'success');
+            }, function(err) { showModal('Erreur serveur : ' + (err.message || err), 'error'); });
+        }
+
+        // --- Etape 2 : Notes (classe par classe) ---
+        function parseImportNotes() {
+            var text = document.getElementById('paste-notes').value;
+            var rows = parseTSV(text);
+            if (rows.length < 2) { showToast('Collez au moins un en-tete et une ligne', 'error'); return; }
+
+            renderMiniTable(rows, 3, 'preview-notes');
+            showToast('Analyse des notes...', 'info');
+
+            runServerCall('v3_parseNotesMoyennes', [rows], function(res) {
+                if (!res.success) { showToast('Erreur : ' + res.error, 'error'); return; }
+                importState.notes.push(res);
+                // Ajouter badge classe
+                var badgesEl = document.getElementById('notes-classes-badges');
+                if (badgesEl) {
+                    var span = document.createElement('span');
+                    span.style.cssText = 'background:#6366f1; color:white; padding:4px 10px; border-radius:12px; font-size:11px; font-weight:700;';
+                    span.textContent = (res.classe || 'Classe ' + importState.notes.length) + ' (' + res.count + ')';
+                    badgesEl.appendChild(span);
+                }
+                updateImportBadge('notes', 'partial', importState.notes.length + ' classe(s)');
+                document.getElementById('btn-notes-done').style.display = 'block';
+                document.getElementById('paste-notes').value = '';
+                document.getElementById('preview-notes').innerHTML = '';
+                updateImportSummary();
+                showToast(res.count + ' eleves avec notes (' + (res.classe || '?') + ')', 'success');
+            }, function(err) { showModal('Erreur serveur : ' + (err.message || err), 'error'); });
+        }
+
+        // --- Etape 3 : Absences ---
+        function parseImportAbsences() {
+            var text = document.getElementById('paste-absences').value;
+            var rows = parseTSV(text);
+            if (rows.length < 2) { showToast('Collez au moins un en-tete et une ligne', 'error'); return; }
+
+            renderMiniTable(rows, 5, 'preview-absences');
+            showToast('Analyse des absences...', 'info');
+
+            runServerCall('v3_parseAbsences', [rows], function(res) {
+                if (!res.success) { showToast('Erreur : ' + res.error, 'error'); return; }
+                importState.absences = res;
+                updateImportBadge('absences', 'done', res.count + ' eleves');
+                toggleImportStep('comportement');
+                updateImportSummary();
+                showToast(res.count + ' lignes d\'absences traitees', 'success');
+            }, function(err) { showModal('Erreur serveur : ' + (err.message || err), 'error'); });
+        }
+
+        // --- Etape 4 : Comportement ---
+        function parseImportComportement() {
+            var textPuni = document.getElementById('paste-punitions').value;
+            var textObs = document.getElementById('paste-observations').value;
+
+            var rowsPuni = parseTSV(textPuni);
+            var rowsObs = parseTSV(textObs);
+
+            if (rowsPuni.length < 2 && rowsObs.length < 2) {
+                showToast('Collez au moins des punitions OU des observations', 'error');
                 return;
             }
 
-            setLoading('btn-run-import', true);
-            showToast('Import en cours... cela peut prendre quelques secondes', 'info');
+            if (rowsPuni.length > 1) renderMiniTable(rowsPuni, 3, 'preview-punitions');
+            if (rowsObs.length > 1) renderMiniTable(rowsObs, 3, 'preview-observations');
 
-            runServerCall('v3_importDatabase', [importParsedData.headers, importParsedData.rows], function(res) {
-                setLoading('btn-run-import', false);
-                if (res.success) {
-                    var s = res.summary;
-                    var resultEl = document.getElementById('import-result');
-                    resultEl.style.display = 'block';
+            showToast('Analyse du comportement...', 'info');
+            var pending = 0;
+            var errors = [];
 
-                    var gradesHtml = s.gradesDetected && s.gradesDetected.length > 0
-                        ? '<div style="margin-top:8px;font-size:12px;color:#94a3b8;">Matieres detectees : <strong style="color:white;">' + s.gradesDetected.join(', ') + '</strong></div>'
-                        : '<div style="margin-top:8px;font-size:12px;color:#f59e0b;">Aucune colonne de notes detectee (scores TRA/PART non calcules)</div>';
+            if (rowsPuni.length >= 2) {
+                pending++;
+                runServerCall('v3_parsePunitions', [rowsPuni], function(res) {
+                    pending--;
+                    if (!res.success) { errors.push(res.error); }
+                    else { importState.punitions = res; }
+                    if (pending === 0) finishComportement(errors);
+                }, function(err) { pending--; errors.push(err.message || err); if (pending === 0) finishComportement(errors); });
+            }
 
-                    document.getElementById('import-result-content').innerHTML =
-                        '<div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 15px;">' +
-                        '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
-                            '<div style="font-size:28px;font-weight:900;color:var(--success);">' + s.totalStudents + '</div>' +
-                            '<div style="font-size:11px;color:#94a3b8;font-weight:700;">ELEVES IMPORTES</div></div>' +
-                        '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
-                            '<div style="font-size:28px;font-weight:900;color:var(--primary);">' + s.classesProcessed + '</div>' +
-                            '<div style="font-size:11px;color:#94a3b8;font-weight:700;">CLASSES</div></div>' +
-                        '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
-                            '<div style="font-size:28px;font-weight:900;color:#eab308;">' + s.scoresInjected + '</div>' +
-                            '<div style="font-size:11px;color:#94a3b8;font-weight:700;">SCORES CALCULES</div></div>' +
-                        '</div>' +
-                        '<div style="font-size:13px;color:#94a3b8;">' +
-                        'Classes : <strong style="color:white;">' + s.classesList.join(', ') + '</strong><br>' +
-                        'Onglets crees : ' + s.sheetsCreated + ' | Mis a jour : ' + s.sheetsUpdated +
-                        (s.skippedRows > 0 ? '<br><span style="color:#f59e0b;">Lignes ignorees (vides) : ' + s.skippedRows + '</span>' : '') +
-                        gradesHtml +
-                        '</div>';
+            if (rowsObs.length >= 2) {
+                pending++;
+                runServerCall('v3_parseObservations', [rowsObs], function(res) {
+                    pending--;
+                    if (!res.success) { errors.push(res.error); }
+                    else { importState.observations = res; }
+                    if (pending === 0) finishComportement(errors);
+                }, function(err) { pending--; errors.push(err.message || err); if (pending === 0) finishComportement(errors); });
+            }
 
-                    showToast('Import termine ! ' + s.totalStudents + ' eleves importes.', 'success');
-                    saveProgress('scores');
-                } else {
-                    showModal('Erreur import : ' + res.error, 'error');
+            if (pending === 0) finishComportement(errors);
+        }
+
+        function finishComportement(errors) {
+            if (errors && errors.length > 0) {
+                showToast('Erreurs : ' + errors.join('; '), 'error');
+            }
+            var cp = importState.punitions ? importState.punitions.count : 0;
+            var co = importState.observations ? importState.observations.count : 0;
+            if (cp > 0 || co > 0) {
+                updateImportBadge('comportement', 'done', cp + ' puni, ' + co + ' obs');
+            }
+            updateImportSummary();
+            showToast('Comportement : ' + cp + ' punitions, ' + co + ' observations', 'success');
+        }
+
+        // --- Compilation finale ---
+        function runCompileImport() {
+            if (!importState.eleves || importState.eleves.count === 0) {
+                showToast('Aucun eleve charge — completez l\'etape 1', 'error');
+                return;
+            }
+
+            setLoading('btn-compile-import', true);
+            showToast('Compilation en cours... cela peut prendre quelques secondes', 'info');
+
+            var data = {
+                eleves: importState.eleves,
+                notes: importState.notes,
+                absences: importState.absences,
+                punitions: importState.punitions,
+                observations: importState.observations
+            };
+
+            runServerCall('v3_compileImport', [data], function(res) {
+                setLoading('btn-compile-import', false);
+                if (!res.success) { showModal('Erreur compilation : ' + res.error, 'error'); return; }
+
+                var s = res.summary;
+                var resultEl = document.getElementById('import-result');
+                resultEl.style.display = 'block';
+
+                document.getElementById('import-result-content').innerHTML =
+                    '<div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 15px;">' +
+                    '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
+                        '<div style="font-size:28px;font-weight:900;color:var(--success);">' + (s.totalStudents || 0) + '</div>' +
+                        '<div style="font-size:11px;color:#94a3b8;font-weight:700;">ELEVES IMPORTES</div></div>' +
+                    '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
+                        '<div style="font-size:28px;font-weight:900;color:var(--primary);">' + (s.classesProcessed || 0) + '</div>' +
+                        '<div style="font-size:11px;color:#94a3b8;font-weight:700;">CLASSES</div></div>' +
+                    '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
+                        '<div style="font-size:28px;font-weight:900;color:#eab308;">' + (s.scoresCalculated || 0) + '</div>' +
+                        '<div style="font-size:11px;color:#94a3b8;font-weight:700;">SCORES CALCULES</div></div>' +
+                    '</div>' +
+                    '<div style="font-size:13px;color:#94a3b8;">' +
+                    'Classes : <strong style="color:white;">' + (s.classesList || []).join(', ') + '</strong>' +
+                    '</div>';
+
+                // Afficher suggestions DISSO si presentes
+                if (res.dissoSuggestions && res.dissoSuggestions.length > 0) {
+                    var dissoEl = document.getElementById('import-disso-suggestions');
+                    if (dissoEl) {
+                        dissoEl.style.display = 'block';
+                        var dhtml = '';
+                        for (var g = 0; g < res.dissoSuggestions.length; g++) {
+                            var group = res.dissoSuggestions[g];
+                            dhtml += '<div style="margin-bottom:8px;">';
+                            dhtml += '<span style="font-weight:700; color:#f59e0b;">Lot ' + (g + 1) + ' :</span> ';
+                            for (var s2 = 0; s2 < group.length; s2++) {
+                                dhtml += '<span style="background:#1e293b; padding:3px 8px; border-radius:6px; margin:2px; display:inline-block; font-size:12px; color:#e2e8f0;">';
+                                dhtml += escapeHtml(group[s2].nom + ' ' + group[s2].prenom) + ' <span style="color:#ef4444;">(' + group[s2].score + ')</span>';
+                                dhtml += '</span>';
+                            }
+                            dhtml += '</div>';
+                        }
+                        document.getElementById('disso-groups-content').innerHTML = dhtml;
+                    }
                 }
+
+                showToast('Import termine ! ' + (s.totalStudents || 0) + ' eleves importes.', 'success');
+                saveProgress('scores');
             }, function(err) {
-                setLoading('btn-run-import', false);
+                setLoading('btn-compile-import', false);
                 showModal('Erreur serveur : ' + (err.message || err), 'error');
             });
         }

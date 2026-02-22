@@ -347,6 +347,17 @@ function v3_runPreFinalizeDiagnostics() {
 
 /**
  * ===================================================================
+ * PHASE IMPORT : MULTI-PASTE PRONOTE
+ * ===================================================================
+ * Les fonctions v3_parseListeEleves, v3_parseNotesMoyennes,
+ * v3_parseAbsences, v3_parsePunitions, v3_parseObservations,
+ * v3_compileImport et v3_getImportStatus sont définies directement
+ * dans Backend_ImportDB.js — pas besoin de wrappers ici.
+ * ===================================================================
+ */
+
+/**
+ * ===================================================================
  * FONCTIONS UTILITAIRES
  * ===================================================================
  */
