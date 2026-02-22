@@ -10,7 +10,7 @@
  *   1. Liste Eleves    -> NOM, PRENOM, SEXE, LV2, OPT, CLASSE
  *   2. Notes/Moyennes  -> TRA + PART (1 collage par classe)
  *   3. Absences         -> ABS (recap avec justifications)
- *   4. Comportement     -> COM (punitions + observations)
+ *   4. Comportement     -> COM (punitions + retenues + incidents)
  *
  * COMPILATION : fusionne toutes les donnees, calcule les scores 1-4,
  * peuple les onglets sources avec listes deroulantes.
@@ -76,6 +76,20 @@ function parseSexe_(val) {
   if (s === '\u2640' || s === 'F' || s === 'f') return 'F';
   if (s === '\u2642' || s === 'M' || s === 'm') return 'M';
   return s.toUpperCase();
+}
+
+/**
+ * Normalise le nom de classe Pronote en format X°Y
+ * "4E 1" -> "4°1", "4e1" -> "4°1", "4EME1" -> "4°1", "4eme 1" -> "4°1"
+ */
+function normaliserClasse_(classe) {
+  if (!classe) return '';
+  var s = String(classe).trim();
+  // "4E 1" / "4e1" / "4E1" / "4EME 1" / "4ème 1"
+  s = s.replace(/(\d+)\s*[eèéÈÉ][mM]?[eèéÈÉ]?\s*(\d+)/i, '$1°$2');
+  // Si toujours pas converti, essayer "4 E 1"
+  s = s.replace(/(\d+)\s+[eèéÈÉ]\s+(\d+)/i, '$1°$2');
+  return s;
 }
 
 /**
@@ -181,7 +195,7 @@ function v3_parseListeEleves(rows) {
 
       var prenom = colPrenom >= 0 ? String(row[colPrenom] || '').trim() : '';
       var sexe = colSexe >= 0 ? parseSexe_(row[colSexe]) : '';
-      var classe = String(row[colClasse] || '').trim();
+      var classe = normaliserClasse_(row[colClasse]);
       if (!classe) continue;
 
       var opts = { lv2: '', opt: '' };
@@ -327,7 +341,7 @@ function v3_parseNotesMoyennes(rows) {
 
       if (colNom >= 0) nom = String(row[colNom] || '').trim();
       if (colPrenom >= 0) prenom = String(row[colPrenom] || '').trim();
-      if (colClasse >= 0) classe = String(row[colClasse] || '').trim();
+      if (colClasse >= 0) classe = normaliserClasse_(row[colClasse]);
 
       // Si pas de colonne NOM explicite, chercher dans les cellules
       if (!nom) {
@@ -348,7 +362,7 @@ function v3_parseNotesMoyennes(rows) {
       }
 
       if (!nom) continue;
-      if (classe) classeDetected = classe;
+      if (classe) classeDetected = normaliserClasse_(classe);
 
       var moyennes = {};
       for (var gid in gradeMap) {
@@ -377,7 +391,7 @@ function v3_parseNotesMoyennes(rows) {
       success: true,
       notes: notes,
       count: notes.length,
-      classe: classeDetected,
+      classe: normaliserClasse_(classeDetected),
       headersDetected: detectedSubjects,
       oralDetected: Object.keys(oralMap)
     };
@@ -441,7 +455,7 @@ function v3_parseAbsences(rows) {
           var justif = parseNote_(row[colJustif]) || 0;
           nj = Math.max(0, dj - justif);
         }
-        absences.push({ nom: nom.toUpperCase(), prenom: prenom, classe: classe, dj: dj, nj: nj });
+        absences.push({ nom: nom.toUpperCase(), prenom: prenom, classe: normaliserClasse_(classe), dj: dj, nj: nj });
       }
     } else {
       // Evenementiel: agreger par eleve
@@ -454,7 +468,7 @@ function v3_parseAbsences(rows) {
         var classe2 = colClasse >= 0 ? String(row2[colClasse] || '').trim() : '';
         var cle = cleEleve_(nom2, prenom2);
         if (!perStudent[cle]) {
-          perStudent[cle] = { nom: nom2, prenom: prenom2, classe: classe2, dj: 0, nj: 0 };
+          perStudent[cle] = { nom: nom2, prenom: prenom2, classe: normaliserClasse_(classe2), dj: 0, nj: 0 };
         }
         var djVal = colDJ >= 0 ? (parseNote_(row2[colDJ]) || 1) : 1;
         perStudent[cle].dj += djVal;
@@ -549,7 +563,7 @@ function v3_parsePunitions(rows) {
       if (!nom) continue;
       if (colClasse >= 0) classe = String(row[colClasse] || '').trim();
 
-      punitions.push({ nom: nom, prenom: prenom, classe: classe, nb: nb });
+      punitions.push({ nom: nom, prenom: prenom, classe: normaliserClasse_(classe), nb: nb });
     }
 
     Logger.log('Punitions: ' + punitions.length + ' eleves parses');
@@ -609,7 +623,7 @@ function v3_parseObservations(rows) {
       if (nom.match(/^[\u25B2\u25BC\u25BA\u25CF\u25A0\u25A1]/) || nom.length < 2) continue;
 
       var prenom = colPrenom >= 0 ? String(row[colPrenom] || '').trim() : '';
-      var classe = colClasse >= 0 ? String(row[colClasse] || '').trim() : currentClasse;
+      var classe = normaliserClasse_(colClasse >= 0 ? String(row[colClasse] || '').trim() : currentClasse);
 
       var nbIncidents = 0;
       if (colDefCarnet >= 0) nbIncidents += (parseNote_(row[colDefCarnet]) || 0);
@@ -640,26 +654,234 @@ function v3_parseObservations(rows) {
 }
 
 // =============================================================================
+// 5. PARSING RETENUES (HEURES DE RETENUE)
+// =============================================================================
+
+/**
+ * Parse les retenues (heures de retenue). Format libre : NOM, CLASSE, NB ou liste evenementielle.
+ * @param {Array[]} rows
+ * @returns {Object} {success, retenues, count}
+ */
+function v3_parseRetenues(rows) {
+  try {
+    if (!rows || rows.length < 2) {
+      return { success: false, error: 'Donnees insuffisantes pour les retenues.' };
+    }
+
+    var headerRow = 0;
+    var maxText = 0;
+    for (var r = 0; r < Math.min(rows.length, 3); r++) {
+      var textCount = 0;
+      for (var c = 0; c < rows[r].length; c++) {
+        var v = String(rows[r][c] || '').trim();
+        if (v && isNaN(v)) textCount++;
+      }
+      if (textCount > maxText) { maxText = textCount; headerRow = r; }
+    }
+
+    var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
+    Logger.log('Retenues - Headers: ' + headers.join(' | '));
+
+    var colNom = findImportCol_(headers, ['^NOM$', 'NOM']);
+    var colPrenom = findImportCol_(headers, ['PR[EÉ]NOM', 'PRENOM']);
+    var colClasse = findImportCol_(headers, ['CLASSE']);
+    var colNb = findImportCol_(headers, ['^NB', 'NOMBRE', 'TOTAL', 'RETENUE', 'HEURE']);
+    var colDate = findImportCol_(headers, ['DATE', 'DU']);
+
+    // Si pas de colonne NB, c'est une liste evenementielle (1 ligne = 1 retenue)
+    var isEventList = colNb === -1 || colDate >= 0;
+
+    var retenues;
+    if (isEventList) {
+      // Compter le nombre de lignes par eleve
+      var perStudent = {};
+      for (var i = headerRow + 1; i < rows.length; i++) {
+        var row = rows[i];
+        var nom = '', prenom = '';
+        if (colNom >= 0) {
+          var nomVal = String(row[colNom] || '').trim();
+          if (!nomVal) continue;
+          var parts = nomVal.split(/\s+/);
+          if (parts.length >= 2 && colPrenom === -1) {
+            nom = parts[0].toUpperCase();
+            prenom = parts.slice(1).join(' ');
+          } else {
+            nom = nomVal.toUpperCase();
+          }
+        }
+        if (colPrenom >= 0) prenom = String(row[colPrenom] || '').trim();
+        if (!nom) continue;
+        var classe = colClasse >= 0 ? normaliserClasse_(row[colClasse]) : '';
+        var cle = cleEleve_(nom, prenom);
+        if (!perStudent[cle]) perStudent[cle] = { nom: nom, prenom: prenom, classe: classe, nb: 0 };
+        perStudent[cle].nb++;
+        if (classe) perStudent[cle].classe = classe;
+      }
+      retenues = [];
+      for (var key in perStudent) retenues.push(perStudent[key]);
+    } else {
+      retenues = [];
+      for (var i2 = headerRow + 1; i2 < rows.length; i2++) {
+        var row2 = rows[i2];
+        var nom2 = '', prenom2 = '';
+        if (colNom >= 0) {
+          var nomVal2 = String(row2[colNom] || '').trim();
+          if (!nomVal2) continue;
+          var parts2 = nomVal2.split(/\s+/);
+          if (parts2.length >= 2 && colPrenom === -1) {
+            nom2 = parts2[0].toUpperCase();
+            prenom2 = parts2.slice(1).join(' ');
+          } else {
+            nom2 = nomVal2.toUpperCase();
+          }
+        }
+        if (colPrenom >= 0) prenom2 = String(row2[colPrenom] || '').trim();
+        if (!nom2) continue;
+        var classe2 = colClasse >= 0 ? normaliserClasse_(row2[colClasse]) : '';
+        var nb = colNb >= 0 ? (parseNote_(row2[colNb]) || 0) : 1;
+        retenues.push({ nom: nom2, prenom: prenom2, classe: classe2, nb: nb });
+      }
+    }
+
+    Logger.log('Retenues: ' + retenues.length + ' eleves parses');
+    return { success: true, retenues: retenues, count: retenues.length };
+
+  } catch (e) {
+    Logger.log('Erreur v3_parseRetenues: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+// =============================================================================
+// 6. PARSING INCIDENTS (FAITS GRAVES)
+// =============================================================================
+
+/**
+ * Parse les incidents Pronote. Format : NOM, CLASSE, (NB ou evenementiel)
+ * @param {Array[]} rows
+ * @returns {Object} {success, incidents, count}
+ */
+function v3_parseIncidents(rows) {
+  try {
+    if (!rows || rows.length < 2) {
+      return { success: false, error: 'Donnees insuffisantes pour les incidents.' };
+    }
+
+    var headerRow = 0;
+    var maxText = 0;
+    for (var r = 0; r < Math.min(rows.length, 3); r++) {
+      var textCount = 0;
+      for (var c = 0; c < rows[r].length; c++) {
+        var v = String(rows[r][c] || '').trim();
+        if (v && isNaN(v)) textCount++;
+      }
+      if (textCount > maxText) { maxText = textCount; headerRow = r; }
+    }
+
+    var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
+    Logger.log('Incidents - Headers: ' + headers.join(' | '));
+
+    var colNom = findImportCol_(headers, ['^NOM$', 'NOM']);
+    var colPrenom = findImportCol_(headers, ['PR[EÉ]NOM', 'PRENOM']);
+    var colClasse = findImportCol_(headers, ['CLASSE']);
+    var colNb = findImportCol_(headers, ['^NB', 'NOMBRE', 'TOTAL', 'INCIDENT']);
+    var colDate = findImportCol_(headers, ['DATE', 'DU']);
+
+    var isEventList = colNb === -1 || colDate >= 0;
+
+    var incidents;
+    if (isEventList) {
+      var perStudent = {};
+      for (var i = headerRow + 1; i < rows.length; i++) {
+        var row = rows[i];
+        var nom = '', prenom = '';
+        if (colNom >= 0) {
+          var nomVal = String(row[colNom] || '').trim();
+          if (!nomVal) continue;
+          var parts = nomVal.split(/\s+/);
+          if (parts.length >= 2 && colPrenom === -1) {
+            nom = parts[0].toUpperCase();
+            prenom = parts.slice(1).join(' ');
+          } else {
+            nom = nomVal.toUpperCase();
+          }
+        }
+        if (colPrenom >= 0) prenom = String(row[colPrenom] || '').trim();
+        if (!nom) continue;
+        var classe = colClasse >= 0 ? normaliserClasse_(row[colClasse]) : '';
+        var cle = cleEleve_(nom, prenom);
+        if (!perStudent[cle]) perStudent[cle] = { nom: nom, prenom: prenom, classe: classe, nb: 0 };
+        perStudent[cle].nb++;
+        if (classe) perStudent[cle].classe = classe;
+      }
+      incidents = [];
+      for (var key in perStudent) incidents.push(perStudent[key]);
+    } else {
+      incidents = [];
+      for (var i2 = headerRow + 1; i2 < rows.length; i2++) {
+        var row2 = rows[i2];
+        var nom2 = '', prenom2 = '';
+        if (colNom >= 0) {
+          var nomVal2 = String(row2[colNom] || '').trim();
+          if (!nomVal2) continue;
+          var parts2 = nomVal2.split(/\s+/);
+          if (parts2.length >= 2 && colPrenom === -1) {
+            nom2 = parts2[0].toUpperCase();
+            prenom2 = parts2.slice(1).join(' ');
+          } else {
+            nom2 = nomVal2.toUpperCase();
+          }
+        }
+        if (colPrenom >= 0) prenom2 = String(row2[colPrenom] || '').trim();
+        if (!nom2) continue;
+        var classe2 = colClasse >= 0 ? normaliserClasse_(row2[colClasse]) : '';
+        var nb = colNb >= 0 ? (parseNote_(row2[colNb]) || 0) : 1;
+        incidents.push({ nom: nom2, prenom: prenom2, classe: classe2, nb: nb });
+      }
+    }
+
+    Logger.log('Incidents: ' + incidents.length + ' eleves parses');
+    return { success: true, incidents: incidents, count: incidents.length };
+
+  } catch (e) {
+    Logger.log('Erreur v3_parseIncidents: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+// =============================================================================
 // COMPILATION : FUSION + SCORES + ECRITURE ONGLETS SOURCES
 // =============================================================================
 
 /**
  * Compile toutes les donnees importees et cree les onglets sources peuples.
  *
- * @param {Object} data - Toutes les donnees parsees
- * @param {Object[]} data.eleves
- * @param {Object[]} data.notes
- * @param {Object[]} data.absences
- * @param {Object[]} data.punitions
- * @param {Object[]} data.observations
- * @returns {Object} {success, summary}
+ * IMPORTANT : Le client envoie des objets-resultat (ex: data.eleves = {success, eleves: [...], count})
+ * Il faut donc UNWRAP pour acceder aux tableaux bruts.
+ *
+ * @param {Object} data - Toutes les donnees parsees (objets-resultat du client)
+ * @returns {Object} {success, summary, dissoSuggestions}
  */
 function v3_compileImport(data) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     Logger.log('=== COMPILATION IMPORT MULTI-PASTE ===');
 
-    if (!data || !data.eleves || data.eleves.length === 0) {
+    // *** UNWRAP : extraire les tableaux bruts des objets-resultat ***
+    var elevesList = (data.eleves && data.eleves.eleves) ? data.eleves.eleves : (Array.isArray(data.eleves) ? data.eleves : []);
+    var notesResults = Array.isArray(data.notes) ? data.notes : [];
+    var absencesList = (data.absences && data.absences.absences) ? data.absences.absences : (Array.isArray(data.absences) ? data.absences : []);
+    var punitionsList = (data.punitions && data.punitions.punitions) ? data.punitions.punitions : (Array.isArray(data.punitions) ? data.punitions : []);
+    var observationsList = (data.observations && data.observations.observations) ? data.observations.observations : (Array.isArray(data.observations) ? data.observations : []);
+    var retenuesList = (data.retenues && data.retenues.retenues) ? data.retenues.retenues : (Array.isArray(data.retenues) ? data.retenues : []);
+    var incidentsList = (data.incidents && data.incidents.incidents) ? data.incidents.incidents : (Array.isArray(data.incidents) ? data.incidents : []);
+
+    Logger.log('UNWRAP: eleves=' + elevesList.length + ' notesResults=' + notesResults.length +
+      ' absences=' + absencesList.length + ' punitions=' + punitionsList.length +
+      ' retenues=' + retenuesList.length + ' incidents=' + incidentsList.length +
+      ' observations=' + observationsList.length);
+
+    if (elevesList.length === 0) {
       return { success: false, error: 'Aucun eleve dans la liste. Collez d\'abord la liste eleves (etape 1).' };
     }
 
@@ -667,28 +889,33 @@ function v3_compileImport(data) {
     var studentMap = {};
     var classeGroups = {};
 
-    for (var i = 0; i < data.eleves.length; i++) {
-      var e = data.eleves[i];
+    for (var i = 0; i < elevesList.length; i++) {
+      var e = elevesList[i];
+      var classe = normaliserClasse_(e.classe);
       var cle = cleEleve_(e.nom, e.prenom);
       studentMap[cle] = {
-        nom: e.nom, prenom: e.prenom, sexe: e.sexe || '', classe: e.classe,
+        nom: e.nom, prenom: e.prenom, sexe: e.sexe || '', classe: classe,
         lv2: e.lv2 || '', opt: e.opt || '',
         moyennes: {}, oraux: {},
         dj: 0, nj: 0,
-        nbPunitions: 0, nbObservations: 0, nbIncidents: 0, nbEncourage: 0
+        nbPunitions: 0, nbRetenues: 0, nbIncidents: 0, nbObservations: 0, nbEncourage: 0
       };
-      if (!classeGroups[e.classe]) classeGroups[e.classe] = [];
-      classeGroups[e.classe].push(cle);
+      if (!classeGroups[classe]) classeGroups[classe] = [];
+      classeGroups[classe].push(cle);
     }
 
     Logger.log('Eleves mappes: ' + Object.keys(studentMap).length);
     Logger.log('Classes: ' + Object.keys(classeGroups).join(', '));
 
-    // 2. FUSIONNER LES NOTES
+    // 2. FUSIONNER LES NOTES (notesResults = [ {success, notes: [{nom,prenom,moyennes,oraux}], classe} ])
     var notesMatched = 0;
-    if (data.notes && data.notes.length > 0) {
-      for (var n = 0; n < data.notes.length; n++) {
-        var noteData = data.notes[n];
+    var notesTotal = 0;
+    for (var nr = 0; nr < notesResults.length; nr++) {
+      var noteResult = notesResults[nr];
+      var noteList = (noteResult && noteResult.notes) ? noteResult.notes : (Array.isArray(noteResult) ? noteResult : []);
+      notesTotal += noteList.length;
+      for (var n = 0; n < noteList.length; n++) {
+        var noteData = noteList[n];
         var cle2 = findMatchingStudent_(studentMap, noteData.nom, noteData.prenom);
         if (cle2) {
           studentMap[cle2].moyennes = noteData.moyennes || {};
@@ -696,68 +923,85 @@ function v3_compileImport(data) {
           notesMatched++;
         }
       }
-      Logger.log('Notes fusionnees: ' + notesMatched + '/' + data.notes.length);
     }
+    Logger.log('Notes fusionnees: ' + notesMatched + '/' + notesTotal);
 
     // 3. FUSIONNER LES ABSENCES
     var absMatched = 0;
-    if (data.absences && data.absences.length > 0) {
-      for (var a = 0; a < data.absences.length; a++) {
-        var absData = data.absences[a];
-        var cle3 = findMatchingStudent_(studentMap, absData.nom, absData.prenom);
-        if (cle3) {
-          studentMap[cle3].dj = absData.dj || 0;
-          studentMap[cle3].nj = absData.nj || 0;
-          absMatched++;
-        }
+    for (var a = 0; a < absencesList.length; a++) {
+      var absData = absencesList[a];
+      var cle3 = findMatchingStudent_(studentMap, absData.nom, absData.prenom);
+      if (cle3) {
+        studentMap[cle3].dj = absData.dj || 0;
+        studentMap[cle3].nj = absData.nj || 0;
+        absMatched++;
       }
-      Logger.log('Absences fusionnees: ' + absMatched + '/' + data.absences.length);
     }
+    Logger.log('Absences fusionnees: ' + absMatched + '/' + absencesList.length);
 
     // 4. FUSIONNER PUNITIONS
     var punMatched = 0;
-    if (data.punitions && data.punitions.length > 0) {
-      for (var p = 0; p < data.punitions.length; p++) {
-        var punData = data.punitions[p];
-        var cle4 = findMatchingStudent_(studentMap, punData.nom, punData.prenom);
-        if (cle4) {
-          studentMap[cle4].nbPunitions += (punData.nb || 0);
-          punMatched++;
-        }
+    for (var p = 0; p < punitionsList.length; p++) {
+      var punData = punitionsList[p];
+      var cle4 = findMatchingStudent_(studentMap, punData.nom, punData.prenom);
+      if (cle4) {
+        studentMap[cle4].nbPunitions += (punData.nb || 0);
+        punMatched++;
       }
-      Logger.log('Punitions fusionnees: ' + punMatched + '/' + data.punitions.length);
     }
+    Logger.log('Punitions fusionnees: ' + punMatched + '/' + punitionsList.length);
 
-    // 5. FUSIONNER OBSERVATIONS
+    // 5. FUSIONNER RETENUES
+    var retMatched = 0;
+    for (var rt = 0; rt < retenuesList.length; rt++) {
+      var retData = retenuesList[rt];
+      var cle5 = findMatchingStudent_(studentMap, retData.nom, retData.prenom);
+      if (cle5) {
+        studentMap[cle5].nbRetenues += (retData.nb || 0);
+        retMatched++;
+      }
+    }
+    Logger.log('Retenues fusionnees: ' + retMatched + '/' + retenuesList.length);
+
+    // 6. FUSIONNER INCIDENTS
+    var incMatched = 0;
+    for (var ic = 0; ic < incidentsList.length; ic++) {
+      var incData = incidentsList[ic];
+      var cle6 = findMatchingStudent_(studentMap, incData.nom, incData.prenom);
+      if (cle6) {
+        studentMap[cle6].nbIncidents += (incData.nb || 0);
+        incMatched++;
+      }
+    }
+    Logger.log('Incidents fusionnes: ' + incMatched + '/' + incidentsList.length);
+
+    // 7. FUSIONNER OBSERVATIONS (vie scolaire : oublis, defaut carnet, etc.)
     var obsMatched = 0;
-    if (data.observations && data.observations.length > 0) {
-      for (var o = 0; o < data.observations.length; o++) {
-        var obsData = data.observations[o];
-        var cle5 = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
-        if (cle5) {
-          studentMap[cle5].nbObservations += (obsData.nbObs || 0);
-          studentMap[cle5].nbIncidents += (obsData.nbIncidents || 0);
-          studentMap[cle5].nbEncourage += (obsData.nbEncourage || 0);
-          obsMatched++;
-        }
+    for (var o = 0; o < observationsList.length; o++) {
+      var obsData = observationsList[o];
+      var cle7 = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
+      if (cle7) {
+        studentMap[cle7].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
+        studentMap[cle7].nbEncourage += (obsData.nbEncourage || 0);
+        obsMatched++;
       }
-      Logger.log('Observations fusionnees: ' + obsMatched + '/' + data.observations.length);
     }
+    Logger.log('Observations fusionnees: ' + obsMatched + '/' + observationsList.length);
 
-    // 6. CALCULER LES SCORES
+    // 8. CALCULER LES SCORES
     var scoresCount = 0;
-    for (var cle6 in studentMap) {
-      var st = studentMap[cle6];
+    for (var cleS in studentMap) {
+      var st = studentMap[cleS];
       st.scoreTRA = calcScoreTRA_import_(st.moyennes);
       st.scorePART = calcScorePART_import_(st.oraux);
       st.scoreABS = calcScoreABS_import_(st.dj, st.nj);
-      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations);
+      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbRetenues, st.nbIncidents, st.nbObservations);
       if (st.scoreTRA || st.scorePART || st.scoreABS || st.scoreCOM) scoresCount++;
     }
 
     Logger.log('Scores calcules: ' + scoresCount);
 
-    // 7. ECRIRE DANS LES ONGLETS SOURCES
+    // 9. ECRIRE DANS LES ONGLETS SOURCES
     var sourceHeaders = [
       'ID_ELEVE', 'NOM', 'PRENOM', 'NOM_PRENOM', 'SEXE', 'LV2', 'OPT',
       'COM', 'TRA', 'PART', 'ABS', 'DISPO', 'ASSO', 'DISSO', 'SOURCE'
@@ -792,7 +1036,7 @@ function v3_compileImport(data) {
       for (var si = 0; si < studentKeys.length; si++) {
         var stKey = studentKeys[si];
         var st2 = studentMap[stKey];
-        var id = classeName.replace(/\s/g, '') + String(si + 1).padStart(3, '0');
+        var id = classeName.replace(/[°\s]/g, '') + String(si + 1).padStart(3, '0');
         var nomPrenom = st2.nom + (st2.prenom ? ' ' + st2.prenom : '');
 
         studentRows.push([
@@ -816,33 +1060,32 @@ function v3_compileImport(data) {
       for (var col in widths) sheet.setColumnWidth(parseInt(col), widths[col]);
     }
 
-    // 8. LISTES DEROULANTES + FORMATAGE CONDITIONNEL
+    // 10. LISTES DEROULANTES + FORMATAGE CONDITIONNEL
     try { ajouterListesDeroulantes(); } catch (e2) { Logger.log('ajouterListesDeroulantes: ' + e2.message); }
 
-    // 9. NOM_PRENOM + IDs + CONSOLIDATION
+    // 11. NOM_PRENOM + IDs + CONSOLIDATION
     try { genererNomPrenomEtID(); } catch (e3) { Logger.log('genererNomPrenomEtID: ' + e3.message); }
 
     var consolResult = '';
     try { consolResult = consoliderDonnees(); } catch (e4) { consolResult = 'Non disponible'; }
 
-    // 10. DISSO AUTO-SUGGESTION
+    // 12. DISSO AUTO-SUGGESTION
     var dissoSuggestion = suggestDissoGroups_(studentMap, classeGroups);
 
     Logger.log('=== COMPILATION TERMINEE ===');
     var summary = {
-      totalStudents: data.eleves.length,
+      totalStudents: elevesList.length,
       classesProcessed: Object.keys(classeGroups).length,
       classesList: Object.keys(classeGroups),
       sheetsCreated: sheetsCreated, sheetsUpdated: sheetsUpdated,
-      scoresInjected: scoresCount,
+      scoresCalculated: scoresCount,
       notesMatched: notesMatched, absMatched: absMatched,
-      punMatched: punMatched, obsMatched: obsMatched,
-      consolidation: consolResult,
-      dissoSuggestion: dissoSuggestion
+      punMatched: punMatched, retMatched: retMatched, incMatched: incMatched, obsMatched: obsMatched,
+      consolidation: consolResult
     };
 
-    logAction('Import multi-paste: ' + data.eleves.length + ' eleves dans ' + Object.keys(classeGroups).length + ' classes');
-    return { success: true, summary: summary };
+    logAction('Import multi-paste: ' + elevesList.length + ' eleves dans ' + Object.keys(classeGroups).length + ' classes');
+    return { success: true, summary: summary, dissoSuggestions: dissoSuggestion.groups || [] };
 
   } catch (e) {
     Logger.log('Erreur v3_compileImport: ' + e.toString());
@@ -928,8 +1171,9 @@ function calcScoreABS_import_(dj, nj) {
   return Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
 }
 
-function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations) {
-  var total = (nbPunitions || 0) + (nbIncidents || 0) + Math.ceil((nbObservations || 0) * 0.5);
+function calcScoreCOM_import_(nbPunitions, nbRetenues, nbIncidents, nbObservations) {
+  // Ponderation : incidents x3, retenues x2, punitions x1, observations x0.5
+  var total = (nbPunitions || 0) + (nbRetenues || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil((nbObservations || 0) * 0.5);
   return attribuerScoreParSeuil_(total, SCORES_CONFIG.SEUILS_COM);
 }
 
@@ -941,12 +1185,12 @@ function suggestDissoGroups_(studentMap, classeGroups) {
   var ranked = [];
   for (var cle in studentMap) {
     var st = studentMap[cle];
-    var penibilite = (st.nbPunitions || 0) * 2 + (st.nbIncidents || 0) * 3 + (st.nbObservations || 0);
+    var penibilite = (st.nbPunitions || 0) + (st.nbRetenues || 0) * 2 + (st.nbIncidents || 0) * 3 + (st.nbObservations || 0);
     if (penibilite > 0) {
       ranked.push({
         nom: st.nom, prenom: st.prenom, classe: st.classe,
-        penibilite: penibilite,
-        details: { punitions: st.nbPunitions || 0, incidents: st.nbIncidents || 0, observations: st.nbObservations || 0 }
+        penibilite: penibilite, score: penibilite,
+        details: { punitions: st.nbPunitions || 0, retenues: st.nbRetenues || 0, incidents: st.nbIncidents || 0, observations: st.nbObservations || 0 }
       });
     }
   }
