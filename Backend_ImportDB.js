@@ -1036,11 +1036,9 @@ function v3_compileImport(data) {
       for (var si = 0; si < studentKeys.length; si++) {
         var stKey = studentKeys[si];
         var st2 = studentMap[stKey];
-        var id = classeName.replace(/[°\s]/g, '') + String(si + 1).padStart(3, '0');
-        var nomPrenom = st2.nom + (st2.prenom ? ' ' + st2.prenom : '');
 
         studentRows.push([
-          id, st2.nom, st2.prenom, nomPrenom, st2.sexe, st2.lv2, st2.opt,
+          '', st2.nom, st2.prenom, '', st2.sexe, st2.lv2, st2.opt,
           st2.scoreCOM !== null ? String(st2.scoreCOM) : '',
           st2.scoreTRA !== null ? String(st2.scoreTRA) : '',
           st2.scorePART !== null ? String(st2.scorePART) : '',
