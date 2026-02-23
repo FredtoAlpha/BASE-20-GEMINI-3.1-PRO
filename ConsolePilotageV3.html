@@ -527,7 +527,7 @@
                 </button>
             </div>
 
-            <!-- ETAPE 4 : Comportement (Punitions + Retenues + Incidents) -->
+            <!-- ETAPE 4 : Comportement (Observations + Punitions + Incidents) -->
             <div id="import-step-comportement" class="card" style="opacity:0.5; pointer-events:none;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <h2>4. Comportement</h2>
@@ -536,17 +536,20 @@
                     </button>
                 </div>
                 <p style="color:#94a3b8; margin-bottom:10px; font-size:13px;">
-                    Collez les punitions, les retenues et les incidents. Chaque zone est independante — remplissez celles que vous avez.
+                    Collez les observations, punitions et incidents depuis Pronote. Chaque zone est independante — remplissez celles que vous avez.
                 </p>
-                <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:6px;">PUNITIONS</div>
-                <textarea id="paste-punitions" rows="4" placeholder="Collez ici la liste des punitions Pronote..."
+                <div style="font-size:12px; font-weight:700; color:#eab308; margin-bottom:4px;">OBSERVATIONS SUR FEUILLES D'APPEL</div>
+                <div style="font-size:11px; color:#64748b; margin-bottom:6px;">Pronote : Absences &rarr; Recapitulatifs (3e icone) &rarr; Selectionner les classes</div>
+                <textarea id="paste-observations" rows="4" placeholder="Collez ici le recapitulatif des observations (oublis materiel, travail non fait...)..."
+                    style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical; margin-bottom:8px;"></textarea>
+                <div id="preview-observations" style="max-height:100px; overflow-y:auto; margin-bottom:10px;"></div>
+                <div style="font-size:12px; font-weight:700; color:#f97316; margin-bottom:4px;">PUNITIONS (observations et heures de retenue)</div>
+                <div style="font-size:11px; color:#64748b; margin-bottom:6px;">Pronote : Discipline &rarr; Recapitulatif par eleve (2e icone) &rarr; Selectionner les classes</div>
+                <textarea id="paste-punitions" rows="4" placeholder="Collez ici le recapitulatif des punitions Pronote..."
                     style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical; margin-bottom:8px;"></textarea>
                 <div id="preview-punitions" style="max-height:100px; overflow-y:auto; margin-bottom:10px;"></div>
-                <div style="font-size:12px; font-weight:700; color:#f97316; margin-bottom:6px;">RETENUES (heures de retenue)</div>
-                <textarea id="paste-retenues" rows="4" placeholder="Collez ici les retenues Pronote..."
-                    style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical; margin-bottom:8px;"></textarea>
-                <div id="preview-retenues" style="max-height:100px; overflow-y:auto; margin-bottom:10px;"></div>
-                <div style="font-size:12px; font-weight:700; color:#ef4444; margin-bottom:6px;">INCIDENTS (faits graves)</div>
+                <div style="font-size:12px; font-weight:700; color:#ef4444; margin-bottom:4px;">INCIDENTS (faits graves)</div>
+                <div style="font-size:11px; color:#64748b; margin-bottom:6px;">Pronote : Discipline &rarr; Recapitulatif par eleve (2e icone)</div>
                 <textarea id="paste-incidents" rows="4" placeholder="Collez ici les incidents Pronote (faits graves)..."
                     style="width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; padding:10px; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
                 <div id="preview-incidents" style="max-height:100px; overflow-y:auto; margin-top:8px;"></div>
@@ -1007,13 +1010,12 @@
         // 5a. IMPORT MULTI-PASTE PRONOTE
         // ===================================================================
         var importState = {
-            eleves: null,      // { success, eleves: [...], count, classes }
-            notes: [],         // [ {success, notes: [...], count, classe} ] — une entree par classe
-            absences: null,    // { success, absences: [...], count }
-            punitions: null,   // { success, punitions: [...], count }
-            retenues: null,    // { success, retenues: [...], count }
-            incidents: null,   // { success, incidents: [...], count }
-            observations: null // { success, observations: [...], count }
+            eleves: null,       // { success, eleves: [...], count, classes }
+            notes: [],          // [ {success, notes: [...], count, classe} ] — une entree par classe
+            absences: null,     // { success, absences: [...], count }
+            observations: null, // { success, observations: [...], count } — feuilles d'appel
+            punitions: null,    // { success, punitions: [...], count } — discipline
+            incidents: null     // { success, incidents: [...], count } — faits graves
         };
 
         function parseTSV(text) {
@@ -1062,10 +1064,10 @@
             if (ea) ea.textContent = importState.absences ? importState.absences.count : 0;
             var ec = document.getElementById('sum-comportement');
             if (ec) {
+                var co = importState.observations ? importState.observations.count : 0;
                 var cp = importState.punitions ? importState.punitions.count : 0;
-                var cr = importState.retenues ? importState.retenues.count : 0;
                 var ci = importState.incidents ? importState.incidents.count : 0;
-                ec.textContent = cp + cr + ci;
+                ec.textContent = co + cp + ci;
             }
 
             // Afficher section compilation si eleves sont charges
@@ -1108,14 +1110,14 @@
                 importState.absences = null;
                 updateImportBadge('absences', 'pending');
             } else if (step === 'comportement') {
+                document.getElementById('paste-observations').value = '';
                 document.getElementById('paste-punitions').value = '';
-                document.getElementById('paste-retenues').value = '';
                 document.getElementById('paste-incidents').value = '';
+                document.getElementById('preview-observations').innerHTML = '';
                 document.getElementById('preview-punitions').innerHTML = '';
-                document.getElementById('preview-retenues').innerHTML = '';
                 document.getElementById('preview-incidents').innerHTML = '';
+                importState.observations = null;
                 importState.punitions = null;
-                importState.retenues = null;
                 importState.incidents = null;
                 updateImportBadge('comportement', 'pending');
             }
@@ -1217,28 +1219,38 @@
             }, function(err) { showModal('Erreur serveur : ' + (err.message || err), 'error'); });
         }
 
-        // --- Etape 4 : Comportement (punitions + retenues + incidents) ---
+        // --- Etape 4 : Comportement (observations + punitions + incidents) ---
         function parseImportComportement() {
+            var textObs = document.getElementById('paste-observations').value;
             var textPuni = document.getElementById('paste-punitions').value;
-            var textRet = document.getElementById('paste-retenues').value;
             var textInc = document.getElementById('paste-incidents').value;
 
+            var rowsObs = parseTSV(textObs);
             var rowsPuni = parseTSV(textPuni);
-            var rowsRet = parseTSV(textRet);
             var rowsInc = parseTSV(textInc);
 
-            if (rowsPuni.length < 2 && rowsRet.length < 2 && rowsInc.length < 2) {
-                showToast('Collez au moins des punitions, retenues OU incidents', 'error');
+            if (rowsObs.length < 2 && rowsPuni.length < 2 && rowsInc.length < 2) {
+                showToast('Collez au moins des observations, punitions OU incidents', 'error');
                 return;
             }
 
+            if (rowsObs.length > 1) renderMiniTable(rowsObs, 3, 'preview-observations');
             if (rowsPuni.length > 1) renderMiniTable(rowsPuni, 3, 'preview-punitions');
-            if (rowsRet.length > 1) renderMiniTable(rowsRet, 3, 'preview-retenues');
             if (rowsInc.length > 1) renderMiniTable(rowsInc, 3, 'preview-incidents');
 
             showToast('Analyse du comportement...', 'info');
             var pending = 0;
             var errors = [];
+
+            if (rowsObs.length >= 2) {
+                pending++;
+                runServerCall('v3_parseObservations', [rowsObs], function(res) {
+                    pending--;
+                    if (!res.success) { errors.push('Observations: ' + res.error); }
+                    else { importState.observations = res; }
+                    if (pending === 0) finishComportement(errors);
+                }, function(err) { pending--; errors.push('Observations: ' + (err.message || err)); if (pending === 0) finishComportement(errors); });
+            }
 
             if (rowsPuni.length >= 2) {
                 pending++;
@@ -1248,16 +1260,6 @@
                     else { importState.punitions = res; }
                     if (pending === 0) finishComportement(errors);
                 }, function(err) { pending--; errors.push('Punitions: ' + (err.message || err)); if (pending === 0) finishComportement(errors); });
-            }
-
-            if (rowsRet.length >= 2) {
-                pending++;
-                runServerCall('v3_parseRetenues', [rowsRet], function(res) {
-                    pending--;
-                    if (!res.success) { errors.push('Retenues: ' + res.error); }
-                    else { importState.retenues = res; }
-                    if (pending === 0) finishComportement(errors);
-                }, function(err) { pending--; errors.push('Retenues: ' + (err.message || err)); if (pending === 0) finishComportement(errors); });
             }
 
             if (rowsInc.length >= 2) {
@@ -1277,14 +1279,14 @@
             if (errors && errors.length > 0) {
                 showToast('Erreurs : ' + errors.join('; '), 'error');
             }
+            var co = importState.observations ? importState.observations.count : 0;
             var cp = importState.punitions ? importState.punitions.count : 0;
-            var cr = importState.retenues ? importState.retenues.count : 0;
             var ci = importState.incidents ? importState.incidents.count : 0;
-            if (cp > 0 || cr > 0 || ci > 0) {
-                updateImportBadge('comportement', 'done', cp + 'P ' + cr + 'R ' + ci + 'I');
+            if (co > 0 || cp > 0 || ci > 0) {
+                updateImportBadge('comportement', 'done', co + 'O ' + cp + 'P ' + ci + 'I');
             }
             updateImportSummary();
-            showToast('Comportement : ' + cp + ' punitions, ' + cr + ' retenues, ' + ci + ' incidents', 'success');
+            showToast('Comportement : ' + co + ' observations, ' + cp + ' punitions, ' + ci + ' incidents', 'success');
         }
 
         // --- Compilation finale ---
@@ -1301,10 +1303,9 @@
                 eleves: importState.eleves,
                 notes: importState.notes,
                 absences: importState.absences,
+                observations: importState.observations,
                 punitions: importState.punitions,
-                retenues: importState.retenues,
-                incidents: importState.incidents,
-                observations: importState.observations
+                incidents: importState.incidents
             };
 
             runServerCall('v3_compileImport', [data], function(res) {

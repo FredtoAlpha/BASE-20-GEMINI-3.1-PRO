@@ -10,7 +10,7 @@
  *   1. Liste Eleves    -> NOM, PRENOM, SEXE, LV2, OPT, CLASSE
  *   2. Notes/Moyennes  -> TRA + PART (1 collage par classe)
  *   3. Absences         -> ABS (recap avec justifications)
- *   4. Comportement     -> COM (punitions + retenues + incidents)
+ *   4. Comportement     -> COM (observations + punitions + incidents)
  *
  * COMPILATION : fusionne toutes les donnees, calcule les scores 1-4,
  * peuple les onglets sources avec listes deroulantes.
@@ -871,15 +871,13 @@ function v3_compileImport(data) {
     var elevesList = (data.eleves && data.eleves.eleves) ? data.eleves.eleves : (Array.isArray(data.eleves) ? data.eleves : []);
     var notesResults = Array.isArray(data.notes) ? data.notes : [];
     var absencesList = (data.absences && data.absences.absences) ? data.absences.absences : (Array.isArray(data.absences) ? data.absences : []);
-    var punitionsList = (data.punitions && data.punitions.punitions) ? data.punitions.punitions : (Array.isArray(data.punitions) ? data.punitions : []);
     var observationsList = (data.observations && data.observations.observations) ? data.observations.observations : (Array.isArray(data.observations) ? data.observations : []);
-    var retenuesList = (data.retenues && data.retenues.retenues) ? data.retenues.retenues : (Array.isArray(data.retenues) ? data.retenues : []);
+    var punitionsList = (data.punitions && data.punitions.punitions) ? data.punitions.punitions : (Array.isArray(data.punitions) ? data.punitions : []);
     var incidentsList = (data.incidents && data.incidents.incidents) ? data.incidents.incidents : (Array.isArray(data.incidents) ? data.incidents : []);
 
     Logger.log('UNWRAP: eleves=' + elevesList.length + ' notesResults=' + notesResults.length +
-      ' absences=' + absencesList.length + ' punitions=' + punitionsList.length +
-      ' retenues=' + retenuesList.length + ' incidents=' + incidentsList.length +
-      ' observations=' + observationsList.length);
+      ' absences=' + absencesList.length + ' observations=' + observationsList.length +
+      ' punitions=' + punitionsList.length + ' incidents=' + incidentsList.length);
 
     if (elevesList.length === 0) {
       return { success: false, error: 'Aucun eleve dans la liste. Collez d\'abord la liste eleves (etape 1).' };
@@ -898,7 +896,7 @@ function v3_compileImport(data) {
         lv2: e.lv2 || '', opt: e.opt || '',
         moyennes: {}, oraux: {},
         dj: 0, nj: 0,
-        nbPunitions: 0, nbRetenues: 0, nbIncidents: 0, nbObservations: 0, nbEncourage: 0
+        nbObservations: 0, nbPunitions: 0, nbIncidents: 0, nbEncourage: 0
       };
       if (!classeGroups[classe]) classeGroups[classe] = [];
       classeGroups[classe].push(cle);
@@ -951,57 +949,45 @@ function v3_compileImport(data) {
     }
     Logger.log('Punitions fusionnees: ' + punMatched + '/' + punitionsList.length);
 
-    // 5. FUSIONNER RETENUES
-    var retMatched = 0;
-    for (var rt = 0; rt < retenuesList.length; rt++) {
-      var retData = retenuesList[rt];
-      var cle5 = findMatchingStudent_(studentMap, retData.nom, retData.prenom);
-      if (cle5) {
-        studentMap[cle5].nbRetenues += (retData.nb || 0);
-        retMatched++;
-      }
-    }
-    Logger.log('Retenues fusionnees: ' + retMatched + '/' + retenuesList.length);
-
-    // 6. FUSIONNER INCIDENTS
+    // 5. FUSIONNER INCIDENTS
     var incMatched = 0;
     for (var ic = 0; ic < incidentsList.length; ic++) {
       var incData = incidentsList[ic];
-      var cle6 = findMatchingStudent_(studentMap, incData.nom, incData.prenom);
-      if (cle6) {
+      var cle5 = findMatchingStudent_(studentMap, incData.nom, incData.prenom);
+      if (cle5) {
         studentMap[cle6].nbIncidents += (incData.nb || 0);
         incMatched++;
       }
     }
     Logger.log('Incidents fusionnes: ' + incMatched + '/' + incidentsList.length);
 
-    // 7. FUSIONNER OBSERVATIONS (vie scolaire : oublis, defaut carnet, etc.)
+    // 6. FUSIONNER OBSERVATIONS (feuilles d'appel : oublis, defaut carnet, etc.)
     var obsMatched = 0;
     for (var o = 0; o < observationsList.length; o++) {
       var obsData = observationsList[o];
-      var cle7 = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
-      if (cle7) {
-        studentMap[cle7].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
-        studentMap[cle7].nbEncourage += (obsData.nbEncourage || 0);
+      var cle6 = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
+      if (cle6) {
+        studentMap[cle6].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
+        studentMap[cle6].nbEncourage += (obsData.nbEncourage || 0);
         obsMatched++;
       }
     }
     Logger.log('Observations fusionnees: ' + obsMatched + '/' + observationsList.length);
 
-    // 8. CALCULER LES SCORES
+    // 7. CALCULER LES SCORES
     var scoresCount = 0;
     for (var cleS in studentMap) {
       var st = studentMap[cleS];
       st.scoreTRA = calcScoreTRA_import_(st.moyennes);
       st.scorePART = calcScorePART_import_(st.oraux);
       st.scoreABS = calcScoreABS_import_(st.dj, st.nj);
-      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbRetenues, st.nbIncidents, st.nbObservations);
+      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations);
       if (st.scoreTRA || st.scorePART || st.scoreABS || st.scoreCOM) scoresCount++;
     }
 
     Logger.log('Scores calcules: ' + scoresCount);
 
-    // 9. ECRIRE DANS LES ONGLETS SOURCES
+    // 8. ECRIRE DANS LES ONGLETS SOURCES
     var sourceHeaders = [
       'ID_ELEVE', 'NOM', 'PRENOM', 'NOM_PRENOM', 'SEXE', 'LV2', 'OPT',
       'COM', 'TRA', 'PART', 'ABS', 'DISPO', 'ASSO', 'DISSO', 'SOURCE'
@@ -1058,16 +1044,16 @@ function v3_compileImport(data) {
       for (var col in widths) sheet.setColumnWidth(parseInt(col), widths[col]);
     }
 
-    // 10. LISTES DEROULANTES + FORMATAGE CONDITIONNEL
+    // 9. LISTES DEROULANTES + FORMATAGE CONDITIONNEL
     try { ajouterListesDeroulantes(); } catch (e2) { Logger.log('ajouterListesDeroulantes: ' + e2.message); }
 
-    // 11. NOM_PRENOM + IDs + CONSOLIDATION
+    // 10. NOM_PRENOM + IDs + CONSOLIDATION
     try { genererNomPrenomEtID(); } catch (e3) { Logger.log('genererNomPrenomEtID: ' + e3.message); }
 
     var consolResult = '';
     try { consolResult = consoliderDonnees(); } catch (e4) { consolResult = 'Non disponible'; }
 
-    // 12. DISSO AUTO-SUGGESTION
+    // 11. DISSO AUTO-SUGGESTION
     var dissoSuggestion = suggestDissoGroups_(studentMap, classeGroups);
 
     Logger.log('=== COMPILATION TERMINEE ===');
@@ -1078,7 +1064,7 @@ function v3_compileImport(data) {
       sheetsCreated: sheetsCreated, sheetsUpdated: sheetsUpdated,
       scoresCalculated: scoresCount,
       notesMatched: notesMatched, absMatched: absMatched,
-      punMatched: punMatched, retMatched: retMatched, incMatched: incMatched, obsMatched: obsMatched,
+      obsMatched: obsMatched, punMatched: punMatched, incMatched: incMatched,
       consolidation: consolResult
     };
 
@@ -1169,9 +1155,9 @@ function calcScoreABS_import_(dj, nj) {
   return Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
 }
 
-function calcScoreCOM_import_(nbPunitions, nbRetenues, nbIncidents, nbObservations) {
-  // Ponderation : incidents x3, retenues x2, punitions x1, observations x0.5
-  var total = (nbPunitions || 0) + (nbRetenues || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil((nbObservations || 0) * 0.5);
+function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations) {
+  // Ponderation : incidents x3, punitions (incl. retenues) x2, observations x0.5
+  var total = (nbPunitions || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil((nbObservations || 0) * 0.5);
   return attribuerScoreParSeuil_(total, SCORES_CONFIG.SEUILS_COM);
 }
 
@@ -1183,12 +1169,12 @@ function suggestDissoGroups_(studentMap, classeGroups) {
   var ranked = [];
   for (var cle in studentMap) {
     var st = studentMap[cle];
-    var penibilite = (st.nbPunitions || 0) + (st.nbRetenues || 0) * 2 + (st.nbIncidents || 0) * 3 + (st.nbObservations || 0);
+    var penibilite = (st.nbPunitions || 0) * 2 + (st.nbIncidents || 0) * 3 + (st.nbObservations || 0);
     if (penibilite > 0) {
       ranked.push({
         nom: st.nom, prenom: st.prenom, classe: st.classe,
         penibilite: penibilite, score: penibilite,
-        details: { punitions: st.nbPunitions || 0, retenues: st.nbRetenues || 0, incidents: st.nbIncidents || 0, observations: st.nbObservations || 0 }
+        details: { observations: st.nbObservations || 0, punitions: st.nbPunitions || 0, incidents: st.nbIncidents || 0 }
       });
     }
   }
