@@ -514,9 +514,16 @@ function v3_genererNomPrenomEtID() {
 
 /**
  * Récupère les statistiques complètes depuis CONSOLIDATION
+ * Re-consolide d'abord les onglets sources pour capter les corrections manuelles
  * @returns {Object} Statistiques complètes pour Phase STATS
  */
 function v3_getStats() {
+  try {
+    genererNomPrenomEtID();
+    consoliderDonnees();
+  } catch (e) {
+    Logger.log('v3_getStats - Re-consolidation: ' + e.message);
+  }
   return getConsolidationStats();
 }
 

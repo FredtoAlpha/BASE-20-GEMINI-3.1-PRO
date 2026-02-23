@@ -228,6 +228,9 @@ function verifierDonnees() {
 function consoliderDonnees() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // Flush pour s'assurer que les ecritures precedentes sont persistees
+  SpreadsheetApp.flush();
+
   // Trouver les onglets sources avec le pattern universel
   const allSheets = ss.getSheets();
   const sourceSheets = allSheets.filter(s => /.+°\d+$/.test(s.getName()));
@@ -294,9 +297,10 @@ function consoliderDonnees() {
   Logger.log("🗑️ Nettoyage de CONSOLIDATION...");
   consolidationSheet.clear();
 
-  // Créer l'en-tête depuis le premier onglet source
+  // Creer l'en-tete depuis le premier onglet source (ecrire les headers BRUTS)
   const firstSource = sourceSheets[0];
   const firstHeaders = firstSource.getRange(1, 1, 1, firstSource.getLastColumn()).getValues()[0];
+  // Ecrire les headers bruts dans CONSOLIDATION (preserve la casse d'origine)
   consolidationSheet.getRange(1, 1, 1, firstHeaders.length).setValues([firstHeaders]);
 
   // Appliquer le formatage à l'en-tête
@@ -305,16 +309,16 @@ function consoliderDonnees() {
   headerRange.setBackground('#4a5568');
   headerRange.setFontColor('#ffffff');
 
-  // Lire les en-têtes pour déterminer les indices des colonnes
-  const headers = firstHeaders;
+  // NORMALISER les en-tetes pour comparaison robuste (trim + uppercase)
+  const headers = firstHeaders.map(h => String(h || '').trim().toUpperCase());
   const idIndex = headers.indexOf("ID_ELEVE");
   const sourceIndex = headers.indexOf("SOURCE");
   const optIndex = headers.indexOf("OPT");
 
-  Logger.log(`📋 En-têtes copiés: ${headers.join(', ')}`);
+  Logger.log(`📋 En-têtes normalisés: ${headers.join(', ')}`);
 
   if (idIndex === -1) {
-    Logger.log("❌ Colonne ID_ELEVE manquante dans les sources");
+    Logger.log("❌ Colonne ID_ELEVE manquante dans les sources. Headers: " + headers.join(', '));
     return "Colonne ID_ELEVE manquante";
   }
 
@@ -327,11 +331,14 @@ function consoliderDonnees() {
     const lastRowSource = Math.max(sheet.getLastRow(), 1);
     if (lastRowSource <= 1) continue; // Onglet vide
 
-    // Lire les en-têtes de CETTE feuille source spécifique
-    const sourceHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    // Lire les en-têtes de CETTE feuille source spécifique - NORMALISEES
+    const sourceHeadersRaw = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const sourceHeaders = sourceHeadersRaw.map(h => String(h || '').trim().toUpperCase());
     const sourceData = sheet.getRange(2, 1, lastRowSource - 1, sheet.getLastColumn()).getValues();
 
-    // Créer un mapping des colonnes pour cette feuille
+    Logger.log(`  Source ${sheetName}: ${sourceData.length} lignes, headers: [${sourceHeaders.join(' | ')}]`);
+
+    // Créer un mapping des colonnes pour cette feuille (comparaison normalisée)
     const colMap = {};
     headers.forEach((h, destIdx) => {
       const srcIdx = sourceHeaders.indexOf(h);
@@ -346,8 +353,10 @@ function consoliderDonnees() {
       const srcNomIdx = sourceHeaders.indexOf("NOM");
       const srcPrenomIdx = sourceHeaders.indexOf("PRENOM");
 
-      if (srcNomIdx !== -1 && srcPrenomIdx !== -1 && (!sourceRow[srcNomIdx] || !sourceRow[srcPrenomIdx])) {
-        return; // Skip empty row
+      if (srcNomIdx !== -1 && srcPrenomIdx !== -1) {
+        var nomVal = String(sourceRow[srcNomIdx] || '').trim();
+        var prenomVal = String(sourceRow[srcPrenomIdx] || '').trim();
+        if (!nomVal && !prenomVal) return; // Skip empty row
       }
 
       // Créer la nouvelle ligne consolidée
@@ -361,32 +370,38 @@ function consoliderDonnees() {
       // Logique spécifique (ID, Source, etc.)
       // ... (rest of the logic adapted to use newRow)
 
-      // Si pas d'ID, en générer un
-      if (!newRow[idIndex]) {
+      // Si pas d'ID, en generer un (robuste: traite null/undefined/whitespace)
+      var rawId = (newRow[idIndex] === null || newRow[idIndex] === undefined) ? '' : String(newRow[idIndex]).trim();
+      if (!rawId) {
         newRow[idIndex] = `${sheetName}${(toutesLesDonnees.length + 1).toString().padStart(3, '0')}`;
       }
 
       // Assigner la source
-      newRow[sourceIndex] = sheetName;
+      if (sourceIndex !== -1) newRow[sourceIndex] = sheetName;
 
-      // Générer NOM_PRENOM si manquant
+      // Generer NOM_PRENOM si manquant (utilise indices normalises)
       const nomIndex = headers.indexOf("NOM");
       const prenomIndex = headers.indexOf("PRENOM");
       const nomPrenomIndex = headers.indexOf("NOM_PRENOM");
 
       if (nomIndex !== -1 && prenomIndex !== -1 && nomPrenomIndex !== -1) {
-        if (!newRow[nomPrenomIndex] && newRow[nomIndex] && newRow[prenomIndex]) {
-          newRow[nomPrenomIndex] = `${newRow[nomIndex]} ${newRow[prenomIndex]}`;
+        var npExisting = String(newRow[nomPrenomIndex] || '').trim();
+        if (!npExisting && newRow[nomIndex] && newRow[prenomIndex]) {
+          newRow[nomPrenomIndex] = `${String(newRow[nomIndex]).trim()} ${String(newRow[prenomIndex]).trim()}`;
         }
       }
 
       // Nettoyer OPT
-      if (optIndex !== -1 && newRow[optIndex] && !optionsValides.includes(newRow[optIndex])) {
-        newRow[optIndex] = "";
+      if (optIndex !== -1 && newRow[optIndex]) {
+        var optVal = String(newRow[optIndex]).trim().toUpperCase();
+        if (!optionsValides.includes(optVal)) {
+          newRow[optIndex] = "";
+        }
       }
 
       // Gestion des IDs uniques
-      let idOriginal = newRow[idIndex];
+      let idOriginal = String(newRow[idIndex]).trim();
+      newRow[idIndex] = idOriginal;
       let compteur = 1;
       while (idsUtilises.has(newRow[idIndex])) {
         newRow[idIndex] = `${idOriginal}_${compteur}`;

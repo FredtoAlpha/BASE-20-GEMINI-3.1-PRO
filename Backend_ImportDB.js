@@ -10,7 +10,7 @@
  *   1. Liste Eleves    -> NOM, PRENOM, SEXE, LV2, OPT, CLASSE
  *   2. Notes/Moyennes  -> TRA + PART (1 collage par classe)
  *   3. Absences         -> ABS (recap avec justifications)
- *   4. Comportement     -> COM (punitions + retenues + incidents)
+ *   4. Comportement     -> COM (observations + punitions + incidents)
  *
  * COMPILATION : fusionne toutes les donnees, calcule les scores 1-4,
  * peuple les onglets sources avec listes deroulantes.
@@ -181,11 +181,22 @@ function v3_parseListeEleves(rows) {
     var colSexe = findImportCol_(headers, ['^S$', '^S\\.$', 'SEXE']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
     var colOptions = findImportCol_(headers, ['TOUTES.*OPT', 'OPTIONS']);
+    // Colonnes directes LV2 et DISPO (prioritaires sur parseOptions_ si presentes)
+    var colLangue = findImportCol_(headers, ['LANGUE', '^LV2$']);
+    var colDispo = findImportCol_(headers, ['DISPO', 'DISPOSITIF']);
 
     if (colNom === -1) return { success: false, error: 'Colonne NOM introuvable. Headers: ' + headers.join(', ') };
     if (colClasse === -1) return { success: false, error: 'Colonne CLASSE introuvable. Headers: ' + headers.join(', ') };
 
-    Logger.log('Colonnes: NOM=' + colNom + ' PRENOM=' + colPrenom + ' SEXE=' + colSexe + ' CLASSE=' + colClasse + ' OPT=' + colOptions);
+    Logger.log('Colonnes: NOM=' + colNom + ' PRENOM=' + colPrenom + ' SEXE=' + colSexe +
+      ' CLASSE=' + colClasse + ' OPT=' + colOptions + ' LANGUE=' + colLangue + ' DISPO=' + colDispo);
+
+    // Map de normalisation LV2 : nom complet Pronote -> code court Base Opti
+    var languesLV2Map = {
+      'ESPAGNOL': 'ESP', 'ALLEMAND': 'ALL', 'ITALIEN': 'ITA',
+      'CHINOIS': 'CHI', 'PORTUGAIS': 'PT', 'ARABE': 'ARA',
+      'RUSSE': 'RUS', 'JAPONAIS': 'JAP'
+    };
 
     var eleves = [];
     for (var i = headerRow + 1; i < rows.length; i++) {
@@ -198,9 +209,24 @@ function v3_parseListeEleves(rows) {
       var classe = normaliserClasse_(row[colClasse]);
       if (!classe) continue;
 
+      // Fallback : parseOptions_ sur la colonne "Toutes les options"
       var opts = { lv2: '', opt: '' };
       if (colOptions >= 0) {
         opts = parseOptions_(row[colOptions]);
+      }
+
+      // PRIORITE : extraction directe colonne LANGUE/LV2 (court-circuite parseOptions_)
+      if (colLangue >= 0) {
+        var lv2Direct = String(row[colLangue] || '').trim().toUpperCase();
+        if (lv2Direct) {
+          opts.lv2 = languesLV2Map[lv2Direct] || lv2Direct;
+        }
+      }
+
+      // Extraction directe colonne DISPO/DISPOSITIF
+      var dispoDirect = '';
+      if (colDispo >= 0) {
+        dispoDirect = String(row[colDispo] || '').trim().toUpperCase();
       }
 
       eleves.push({
@@ -209,7 +235,8 @@ function v3_parseListeEleves(rows) {
         sexe: sexe,
         classe: classe,
         lv2: opts.lv2,
-        opt: opts.opt
+        opt: opts.opt,
+        dispo: dispoDirect
       });
     }
 
@@ -871,15 +898,13 @@ function v3_compileImport(data) {
     var elevesList = (data.eleves && data.eleves.eleves) ? data.eleves.eleves : (Array.isArray(data.eleves) ? data.eleves : []);
     var notesResults = Array.isArray(data.notes) ? data.notes : [];
     var absencesList = (data.absences && data.absences.absences) ? data.absences.absences : (Array.isArray(data.absences) ? data.absences : []);
-    var punitionsList = (data.punitions && data.punitions.punitions) ? data.punitions.punitions : (Array.isArray(data.punitions) ? data.punitions : []);
     var observationsList = (data.observations && data.observations.observations) ? data.observations.observations : (Array.isArray(data.observations) ? data.observations : []);
-    var retenuesList = (data.retenues && data.retenues.retenues) ? data.retenues.retenues : (Array.isArray(data.retenues) ? data.retenues : []);
+    var punitionsList = (data.punitions && data.punitions.punitions) ? data.punitions.punitions : (Array.isArray(data.punitions) ? data.punitions : []);
     var incidentsList = (data.incidents && data.incidents.incidents) ? data.incidents.incidents : (Array.isArray(data.incidents) ? data.incidents : []);
 
     Logger.log('UNWRAP: eleves=' + elevesList.length + ' notesResults=' + notesResults.length +
-      ' absences=' + absencesList.length + ' punitions=' + punitionsList.length +
-      ' retenues=' + retenuesList.length + ' incidents=' + incidentsList.length +
-      ' observations=' + observationsList.length);
+      ' absences=' + absencesList.length + ' observations=' + observationsList.length +
+      ' punitions=' + punitionsList.length + ' incidents=' + incidentsList.length);
 
     if (elevesList.length === 0) {
       return { success: false, error: 'Aucun eleve dans la liste. Collez d\'abord la liste eleves (etape 1).' };
@@ -895,10 +920,10 @@ function v3_compileImport(data) {
       var cle = cleEleve_(e.nom, e.prenom);
       studentMap[cle] = {
         nom: e.nom, prenom: e.prenom, sexe: e.sexe || '', classe: classe,
-        lv2: e.lv2 || '', opt: e.opt || '',
+        lv2: e.lv2 || '', opt: e.opt || '', dispo: e.dispo || '',
         moyennes: {}, oraux: {},
         dj: 0, nj: 0,
-        nbPunitions: 0, nbRetenues: 0, nbIncidents: 0, nbObservations: 0, nbEncourage: 0
+        nbObservations: 0, nbPunitions: 0, nbIncidents: 0, nbEncourage: 0
       };
       if (!classeGroups[classe]) classeGroups[classe] = [];
       classeGroups[classe].push(cle);
@@ -951,57 +976,45 @@ function v3_compileImport(data) {
     }
     Logger.log('Punitions fusionnees: ' + punMatched + '/' + punitionsList.length);
 
-    // 5. FUSIONNER RETENUES
-    var retMatched = 0;
-    for (var rt = 0; rt < retenuesList.length; rt++) {
-      var retData = retenuesList[rt];
-      var cle5 = findMatchingStudent_(studentMap, retData.nom, retData.prenom);
-      if (cle5) {
-        studentMap[cle5].nbRetenues += (retData.nb || 0);
-        retMatched++;
-      }
-    }
-    Logger.log('Retenues fusionnees: ' + retMatched + '/' + retenuesList.length);
-
-    // 6. FUSIONNER INCIDENTS
+    // 5. FUSIONNER INCIDENTS
     var incMatched = 0;
     for (var ic = 0; ic < incidentsList.length; ic++) {
       var incData = incidentsList[ic];
-      var cle6 = findMatchingStudent_(studentMap, incData.nom, incData.prenom);
-      if (cle6) {
-        studentMap[cle6].nbIncidents += (incData.nb || 0);
+      var cleInc = findMatchingStudent_(studentMap, incData.nom, incData.prenom);
+      if (cleInc) {
+        studentMap[cleInc].nbIncidents += (incData.nb || 0);
         incMatched++;
       }
     }
     Logger.log('Incidents fusionnes: ' + incMatched + '/' + incidentsList.length);
 
-    // 7. FUSIONNER OBSERVATIONS (vie scolaire : oublis, defaut carnet, etc.)
+    // 6. FUSIONNER OBSERVATIONS (feuilles d'appel : oublis, defaut carnet, etc.)
     var obsMatched = 0;
     for (var o = 0; o < observationsList.length; o++) {
       var obsData = observationsList[o];
-      var cle7 = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
-      if (cle7) {
-        studentMap[cle7].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
-        studentMap[cle7].nbEncourage += (obsData.nbEncourage || 0);
+      var cleObs = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
+      if (cleObs) {
+        studentMap[cleObs].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
+        studentMap[cleObs].nbEncourage += (obsData.nbEncourage || 0);
         obsMatched++;
       }
     }
     Logger.log('Observations fusionnees: ' + obsMatched + '/' + observationsList.length);
 
-    // 8. CALCULER LES SCORES
+    // 7. CALCULER LES SCORES
     var scoresCount = 0;
     for (var cleS in studentMap) {
       var st = studentMap[cleS];
       st.scoreTRA = calcScoreTRA_import_(st.moyennes);
       st.scorePART = calcScorePART_import_(st.oraux);
       st.scoreABS = calcScoreABS_import_(st.dj, st.nj);
-      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbRetenues, st.nbIncidents, st.nbObservations);
+      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations);
       if (st.scoreTRA || st.scorePART || st.scoreABS || st.scoreCOM) scoresCount++;
     }
 
     Logger.log('Scores calcules: ' + scoresCount);
 
-    // 9. ECRIRE DANS LES ONGLETS SOURCES
+    // 8. ECRIRE DANS LES ONGLETS SOURCES
     var sourceHeaders = [
       'ID_ELEVE', 'NOM', 'PRENOM', 'NOM_PRENOM', 'SEXE', 'LV2', 'OPT',
       'COM', 'TRA', 'PART', 'ABS', 'DISPO', 'ASSO', 'DISSO', 'SOURCE'
@@ -1043,7 +1056,7 @@ function v3_compileImport(data) {
           st2.scoreTRA !== null ? String(st2.scoreTRA) : '',
           st2.scorePART !== null ? String(st2.scorePART) : '',
           st2.scoreABS !== null ? String(st2.scoreABS) : '',
-          '', '', '', classeName
+          st2.dispo || '', '', '', classeName
         ]);
       }
 
@@ -1058,16 +1071,19 @@ function v3_compileImport(data) {
       for (var col in widths) sheet.setColumnWidth(parseInt(col), widths[col]);
     }
 
-    // 10. LISTES DEROULANTES + FORMATAGE CONDITIONNEL
+    // 9. LISTES DEROULANTES + FORMATAGE CONDITIONNEL
     try { ajouterListesDeroulantes(); } catch (e2) { Logger.log('ajouterListesDeroulantes: ' + e2.message); }
 
-    // 11. NOM_PRENOM + IDs + CONSOLIDATION
+    // 10. NOM_PRENOM + IDs + CONSOLIDATION
+    // FLUSH OBLIGATOIRE : les ecritures GAS sont bufferisees, sans flush
+    // genererNomPrenomEtID() lirait des feuilles vides (donnees non persistees)
+    SpreadsheetApp.flush();
     try { genererNomPrenomEtID(); } catch (e3) { Logger.log('genererNomPrenomEtID: ' + e3.message); }
 
     var consolResult = '';
     try { consolResult = consoliderDonnees(); } catch (e4) { consolResult = 'Non disponible'; }
 
-    // 12. DISSO AUTO-SUGGESTION
+    // 11. DISSO AUTO-SUGGESTION
     var dissoSuggestion = suggestDissoGroups_(studentMap, classeGroups);
 
     Logger.log('=== COMPILATION TERMINEE ===');
@@ -1078,7 +1094,7 @@ function v3_compileImport(data) {
       sheetsCreated: sheetsCreated, sheetsUpdated: sheetsUpdated,
       scoresCalculated: scoresCount,
       notesMatched: notesMatched, absMatched: absMatched,
-      punMatched: punMatched, retMatched: retMatched, incMatched: incMatched, obsMatched: obsMatched,
+      obsMatched: obsMatched, punMatched: punMatched, incMatched: incMatched,
       consolidation: consolResult
     };
 
@@ -1169,9 +1185,9 @@ function calcScoreABS_import_(dj, nj) {
   return Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
 }
 
-function calcScoreCOM_import_(nbPunitions, nbRetenues, nbIncidents, nbObservations) {
-  // Ponderation : incidents x3, retenues x2, punitions x1, observations x0.5
-  var total = (nbPunitions || 0) + (nbRetenues || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil((nbObservations || 0) * 0.5);
+function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations) {
+  // Ponderation : incidents x3, punitions (incl. retenues) x2, observations x0.5
+  var total = (nbPunitions || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil((nbObservations || 0) * 0.5);
   return attribuerScoreParSeuil_(total, SCORES_CONFIG.SEUILS_COM);
 }
 
@@ -1183,12 +1199,12 @@ function suggestDissoGroups_(studentMap, classeGroups) {
   var ranked = [];
   for (var cle in studentMap) {
     var st = studentMap[cle];
-    var penibilite = (st.nbPunitions || 0) + (st.nbRetenues || 0) * 2 + (st.nbIncidents || 0) * 3 + (st.nbObservations || 0);
+    var penibilite = (st.nbPunitions || 0) * 2 + (st.nbIncidents || 0) * 3 + (st.nbObservations || 0);
     if (penibilite > 0) {
       ranked.push({
         nom: st.nom, prenom: st.prenom, classe: st.classe,
         penibilite: penibilite, score: penibilite,
-        details: { punitions: st.nbPunitions || 0, retenues: st.nbRetenues || 0, incidents: st.nbIncidents || 0, observations: st.nbObservations || 0 }
+        details: { observations: st.nbObservations || 0, punitions: st.nbPunitions || 0, incidents: st.nbIncidents || 0 }
       });
     }
   }
@@ -1238,6 +1254,121 @@ function v3_getImportStatus() {
 
     return { success: true, sourcesRemplies: sourcesRemplies, sourcesVides: sourcesVides, totalEleves: totalEleves, sources: sourcesDetail };
   } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+// =============================================================================
+// LOCK PATTERN — Detection import deja fait + Purge nucleaire
+// =============================================================================
+
+/**
+ * Verifie si un import a deja ete compile (onglets sources peuples).
+ * Utilise par le client pour afficher le panneau verrouille au lieu des textareas.
+ * @returns {Object} { locked, totalEleves, classes: [{name, count}], timestamp }
+ */
+function v3_getImportLockStatus() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var allSheets = ss.getSheets();
+    var sourceSheets = allSheets.filter(function(s) { return /.+°\d+$/.test(s.getName()); });
+
+    var totalEleves = 0;
+    var classes = [];
+
+    for (var i = 0; i < sourceSheets.length; i++) {
+      var sheet = sourceSheets[i];
+      var nbRows = Math.max(0, sheet.getLastRow() - 1);
+      if (nbRows > 0) {
+        classes.push({ name: sheet.getName(), count: nbRows });
+        totalEleves += nbRows;
+      }
+    }
+
+    // Recuperer le timestamp de la derniere compilation depuis _CONFIG PROGRESS
+    var timestamp = '';
+    try {
+      var configSheet = ss.getSheetByName('_CONFIG');
+      if (configSheet) {
+        var data = configSheet.getDataRange().getValues();
+        for (var r = 0; r < data.length; r++) {
+          if (data[r][0] === 'PROGRESS') {
+            var prog = JSON.parse(data[r][1] || '{}');
+            if (prog.phase === 'scores' || prog.phase === 'import') {
+              timestamp = prog.timestamp || '';
+            }
+            break;
+          }
+        }
+      }
+    } catch (e2) { /* ignore */ }
+
+    return {
+      success: true,
+      locked: totalEleves > 0,
+      totalEleves: totalEleves,
+      classes: classes,
+      timestamp: timestamp
+    };
+  } catch (e) {
+    return { success: false, locked: false, error: e.toString() };
+  }
+}
+
+/**
+ * Purge nucleaire : vide tous les onglets sources + CONSOLIDATION.
+ * Retablit l'etat "avant import" pour permettre un nouvel import propre.
+ * @returns {Object} { success, purged: [noms des onglets purges] }
+ */
+function v3_purgeImport() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var allSheets = ss.getSheets();
+    var sourceSheets = allSheets.filter(function(s) { return /.+°\d+$/.test(s.getName()); });
+    var purged = [];
+
+    // 1. Supprimer les onglets sources (classes)
+    for (var i = 0; i < sourceSheets.length; i++) {
+      var name = sourceSheets[i].getName();
+      ss.deleteSheet(sourceSheets[i]);
+      purged.push(name);
+    }
+
+    // 2. Vider CONSOLIDATION
+    var consolidation = ss.getSheetByName('CONSOLIDATION');
+    if (consolidation) {
+      consolidation.clear();
+      purged.push('CONSOLIDATION');
+    }
+
+    // 3. Retrograder la progression a "config" (avant import)
+    try {
+      var configSheet = ss.getSheetByName('_CONFIG');
+      if (configSheet) {
+        var data = configSheet.getDataRange().getValues();
+        for (var r = 0; r < data.length; r++) {
+          if (data[r][0] === 'PROGRESS') {
+            var progressData = {
+              phase: 'config',
+              timestamp: new Date().toISOString(),
+              metadata: { purgedAt: new Date().toISOString() }
+            };
+            configSheet.getRange(r + 1, 2).setValue(JSON.stringify(progressData));
+            break;
+          }
+        }
+      }
+    } catch (e2) { Logger.log('Erreur reset progress: ' + e2.message); }
+
+    Logger.log('[INFO] Purge import: ' + purged.length + ' onglets purges: ' + purged.join(', '));
+
+    return {
+      success: true,
+      purged: purged,
+      message: purged.length + ' onglets purges. Vous pouvez recommencer l\'import.'
+    };
+  } catch (e) {
+    Logger.log('[ERROR] v3_purgeImport: ' + e.toString());
     return { success: false, error: e.toString() };
   }
 }
