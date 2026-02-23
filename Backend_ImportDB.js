@@ -181,11 +181,22 @@ function v3_parseListeEleves(rows) {
     var colSexe = findImportCol_(headers, ['^S$', '^S\\.$', 'SEXE']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
     var colOptions = findImportCol_(headers, ['TOUTES.*OPT', 'OPTIONS']);
+    // Colonnes directes LV2 et DISPO (prioritaires sur parseOptions_ si presentes)
+    var colLangue = findImportCol_(headers, ['LANGUE', '^LV2$']);
+    var colDispo = findImportCol_(headers, ['DISPO', 'DISPOSITIF']);
 
     if (colNom === -1) return { success: false, error: 'Colonne NOM introuvable. Headers: ' + headers.join(', ') };
     if (colClasse === -1) return { success: false, error: 'Colonne CLASSE introuvable. Headers: ' + headers.join(', ') };
 
-    Logger.log('Colonnes: NOM=' + colNom + ' PRENOM=' + colPrenom + ' SEXE=' + colSexe + ' CLASSE=' + colClasse + ' OPT=' + colOptions);
+    Logger.log('Colonnes: NOM=' + colNom + ' PRENOM=' + colPrenom + ' SEXE=' + colSexe +
+      ' CLASSE=' + colClasse + ' OPT=' + colOptions + ' LANGUE=' + colLangue + ' DISPO=' + colDispo);
+
+    // Map de normalisation LV2 : nom complet Pronote -> code court Base Opti
+    var languesLV2Map = {
+      'ESPAGNOL': 'ESP', 'ALLEMAND': 'ALL', 'ITALIEN': 'ITA',
+      'CHINOIS': 'CHI', 'PORTUGAIS': 'PT', 'ARABE': 'ARA',
+      'RUSSE': 'RUS', 'JAPONAIS': 'JAP'
+    };
 
     var eleves = [];
     for (var i = headerRow + 1; i < rows.length; i++) {
@@ -198,9 +209,24 @@ function v3_parseListeEleves(rows) {
       var classe = normaliserClasse_(row[colClasse]);
       if (!classe) continue;
 
+      // Fallback : parseOptions_ sur la colonne "Toutes les options"
       var opts = { lv2: '', opt: '' };
       if (colOptions >= 0) {
         opts = parseOptions_(row[colOptions]);
+      }
+
+      // PRIORITE : extraction directe colonne LANGUE/LV2 (court-circuite parseOptions_)
+      if (colLangue >= 0) {
+        var lv2Direct = String(row[colLangue] || '').trim().toUpperCase();
+        if (lv2Direct) {
+          opts.lv2 = languesLV2Map[lv2Direct] || lv2Direct;
+        }
+      }
+
+      // Extraction directe colonne DISPO/DISPOSITIF
+      var dispoDirect = '';
+      if (colDispo >= 0) {
+        dispoDirect = String(row[colDispo] || '').trim().toUpperCase();
       }
 
       eleves.push({
@@ -209,7 +235,8 @@ function v3_parseListeEleves(rows) {
         sexe: sexe,
         classe: classe,
         lv2: opts.lv2,
-        opt: opts.opt
+        opt: opts.opt,
+        dispo: dispoDirect
       });
     }
 
@@ -893,7 +920,7 @@ function v3_compileImport(data) {
       var cle = cleEleve_(e.nom, e.prenom);
       studentMap[cle] = {
         nom: e.nom, prenom: e.prenom, sexe: e.sexe || '', classe: classe,
-        lv2: e.lv2 || '', opt: e.opt || '',
+        lv2: e.lv2 || '', opt: e.opt || '', dispo: e.dispo || '',
         moyennes: {}, oraux: {},
         dj: 0, nj: 0,
         nbObservations: 0, nbPunitions: 0, nbIncidents: 0, nbEncourage: 0
@@ -1029,7 +1056,7 @@ function v3_compileImport(data) {
           st2.scoreTRA !== null ? String(st2.scoreTRA) : '',
           st2.scorePART !== null ? String(st2.scorePART) : '',
           st2.scoreABS !== null ? String(st2.scoreABS) : '',
-          '', '', '', classeName
+          st2.dispo || '', '', '', classeName
         ]);
       }
 
