@@ -953,9 +953,9 @@ function v3_compileImport(data) {
     var incMatched = 0;
     for (var ic = 0; ic < incidentsList.length; ic++) {
       var incData = incidentsList[ic];
-      var cle5 = findMatchingStudent_(studentMap, incData.nom, incData.prenom);
-      if (cle5) {
-        studentMap[cle6].nbIncidents += (incData.nb || 0);
+      var cleInc = findMatchingStudent_(studentMap, incData.nom, incData.prenom);
+      if (cleInc) {
+        studentMap[cleInc].nbIncidents += (incData.nb || 0);
         incMatched++;
       }
     }
@@ -965,10 +965,10 @@ function v3_compileImport(data) {
     var obsMatched = 0;
     for (var o = 0; o < observationsList.length; o++) {
       var obsData = observationsList[o];
-      var cle6 = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
-      if (cle6) {
-        studentMap[cle6].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
-        studentMap[cle6].nbEncourage += (obsData.nbEncourage || 0);
+      var cleObs = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
+      if (cleObs) {
+        studentMap[cleObs].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
+        studentMap[cleObs].nbEncourage += (obsData.nbEncourage || 0);
         obsMatched++;
       }
     }
@@ -1048,6 +1048,9 @@ function v3_compileImport(data) {
     try { ajouterListesDeroulantes(); } catch (e2) { Logger.log('ajouterListesDeroulantes: ' + e2.message); }
 
     // 10. NOM_PRENOM + IDs + CONSOLIDATION
+    // FLUSH OBLIGATOIRE : les ecritures GAS sont bufferisees, sans flush
+    // genererNomPrenomEtID() lirait des feuilles vides (donnees non persistees)
+    SpreadsheetApp.flush();
     try { genererNomPrenomEtID(); } catch (e3) { Logger.log('genererNomPrenomEtID: ' + e3.message); }
 
     var consolResult = '';
