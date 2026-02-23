@@ -453,6 +453,31 @@
         <div id="phase-import" class="phase">
             <h1>IMPORT MULTI-PASTE PRONOTE</h1>
 
+            <!-- PANNEAU VERROUILLE : affiche si import deja compile -->
+            <div id="import-locked-panel" style="display:none;">
+                <div class="card" style="border:2px solid var(--success); text-align:center; padding:30px;">
+                    <div style="font-size:48px; color:var(--success); margin-bottom:15px;"><i class="fas fa-lock"></i></div>
+                    <h2 style="color:var(--success); margin-bottom:10px;">IMPORTATION VERROUILLEE</h2>
+                    <div id="import-lock-summary" style="margin-bottom:20px;"></div>
+                </div>
+                <div class="card" style="border:2px solid #ef4444; margin-top:15px; padding:20px;">
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px;">
+                        <i class="fas fa-exclamation-triangle" style="color:#ef4444; font-size:22px;"></i>
+                        <div>
+                            <div style="font-weight:700; color:#ef4444;">ANNULER L'IMPORT ET RECOMMENCER</div>
+                            <div style="font-size:12px; color:#94a3b8;">Cela videra tous les onglets classes et l'onglet CONSOLIDATION.</div>
+                        </div>
+                    </div>
+                    <button onclick="confirmPurgeImport()" id="btn-purge-import" class="btn" style="background:linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); width:100%;">
+                        <div class="spinner"></div>
+                        <span><i class="fas fa-trash-alt"></i> PURGER ET RECOMMENCER L'IMPORT</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- FORMULAIRE IMPORT : masque si verrouille -->
+            <div id="import-form-container">
+
             <!-- Barre de progression des 4 etapes -->
             <div style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
                 <span id="badge-eleves" class="import-badge" style="background:#334155; color:#94a3b8; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700;">1. Eleves</span>
@@ -598,6 +623,8 @@
                     <span><i class="fas fa-arrow-right"></i> CONTINUER VERS LES STATS</span>
                 </button>
             </div>
+
+            </div><!-- /import-form-container -->
         </div>
 
         <div id="phase-3" class="phase">
@@ -875,6 +902,7 @@
             const nav = document.getElementById('nav-' + n);
             if (nav) nav.classList.add('active');
 
+            if (n === 'import') checkImportLockStatus();
             if (n === 3) loadStats();
             if (n === 4) {
                 // S'assurer que les stats sont chargées avant d'afficher la structure
@@ -1007,7 +1035,106 @@
         }
 
         // ===================================================================
-        // 5a. IMPORT MULTI-PASTE PRONOTE
+        // 5a. IMPORT — LOCK PATTERN (detection + purge)
+        // ===================================================================
+
+        function checkImportLockStatus() {
+            runServerCall('v3_getImportLockStatus', [], function(res) {
+                if (res.success && res.locked) {
+                    showImportLockedPanel(res);
+                } else {
+                    showImportUnlockedForm();
+                }
+            }, function() {
+                // En cas d'erreur reseau, montrer le formulaire par defaut
+                showImportUnlockedForm();
+            });
+        }
+
+        function showImportLockedPanel(lockData) {
+            document.getElementById('import-locked-panel').style.display = 'block';
+            document.getElementById('import-form-container').style.display = 'none';
+
+            var ts = '';
+            if (lockData.timestamp) {
+                try {
+                    var d = new Date(lockData.timestamp);
+                    ts = d.toLocaleDateString('fr-FR') + ' a ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+                } catch(e) { ts = lockData.timestamp; }
+            }
+
+            var classesList = (lockData.classes || []).map(function(c) {
+                return '<span style="background:#1e293b; padding:4px 10px; border-radius:12px; margin:3px; display:inline-block; font-size:13px;">' +
+                    '<strong style="color:#e2e8f0;">' + escapeHtml(c.name) + '</strong>' +
+                    ' <span style="color:#94a3b8;">(' + c.count + ')</span></span>';
+            }).join('');
+
+            document.getElementById('import-lock-summary').innerHTML =
+                '<div style="font-size:36px; font-weight:900; color:white; margin-bottom:5px;">' + lockData.totalEleves + '</div>' +
+                '<div style="font-size:14px; color:#94a3b8; margin-bottom:15px;">eleves importes dans ' + (lockData.classes || []).length + ' classes' +
+                (ts ? ' le ' + ts : '') + '</div>' +
+                '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:4px;">' + classesList + '</div>';
+        }
+
+        function showImportUnlockedForm() {
+            document.getElementById('import-locked-panel').style.display = 'none';
+            document.getElementById('import-form-container').style.display = 'block';
+        }
+
+        function confirmPurgeImport() {
+            // Utiliser showModal puis remplacer les boutons par notre propre confirmation
+            showModal(
+                '<div style="font-size:16px; font-weight:700; color:#ef4444; margin-bottom:10px;">ATTENTION — ACTION IRREVERSIBLE</div>' +
+                '<div style="font-size:14px; color:#94a3b8;">' +
+                'Cela va supprimer <strong style="color:white;">tous les onglets classes</strong> (4&deg;1, 4&deg;2, etc.) ' +
+                'et vider <strong style="color:white;">CONSOLIDATION</strong>.<br>' +
+                'Vous devrez refaire tout l\'import depuis le debut.</div>',
+                'error'
+            );
+            // Remplacer le bouton OK par Annuler + Confirmer
+            document.getElementById('modal-buttons').innerHTML =
+                '<button class="modal-btn" onclick="closeModal()" style="background:#334155;">Annuler</button>' +
+                '<button class="modal-btn" onclick="closeModal(); executePurgeImport();" style="background:#ef4444;">OUI, TOUT PURGER</button>';
+        }
+
+        function executePurgeImport() {
+            setLoading('btn-purge-import', true);
+            showToast('Purge en cours...', 'info');
+
+            runServerCall('v3_purgeImport', [], function(res) {
+                setLoading('btn-purge-import', false);
+                if (!res.success) {
+                    showToast('Erreur purge : ' + res.error, 'error');
+                    return;
+                }
+                showToast(res.message, 'success');
+                // Deverrouiller : masquer le panneau, montrer le formulaire vierge
+                showImportUnlockedForm();
+                // Reset l'etat memoire
+                importState = {
+                    eleves: null, notes: [], absences: null,
+                    observations: null, punitions: null, incidents: null
+                };
+                // Reset tous les badges et previews
+                ['eleves','notes','absences','comportement'].forEach(function(step) {
+                    clearImportStep(step);
+                });
+                // Re-desactiver les etapes 2-4
+                ['notes','absences','comportement'].forEach(function(step) {
+                    var el = document.getElementById('import-step-' + step);
+                    if (el) { el.style.opacity = '0.5'; el.style.pointerEvents = 'none'; }
+                });
+                // Masquer la section compile et resultat
+                document.getElementById('import-compile-section').style.display = 'none';
+                document.getElementById('import-result').style.display = 'none';
+            }, function(err) {
+                setLoading('btn-purge-import', false);
+                showToast('Erreur serveur : ' + (err.message || err), 'error');
+            });
+        }
+
+        // ===================================================================
+        // 5b. IMPORT MULTI-PASTE PRONOTE
         // ===================================================================
         var importState = {
             eleves: null,       // { success, eleves: [...], count, classes }

@@ -1257,3 +1257,118 @@ function v3_getImportStatus() {
     return { success: false, error: e.toString() };
   }
 }
+
+// =============================================================================
+// LOCK PATTERN — Detection import deja fait + Purge nucleaire
+// =============================================================================
+
+/**
+ * Verifie si un import a deja ete compile (onglets sources peuples).
+ * Utilise par le client pour afficher le panneau verrouille au lieu des textareas.
+ * @returns {Object} { locked, totalEleves, classes: [{name, count}], timestamp }
+ */
+function v3_getImportLockStatus() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var allSheets = ss.getSheets();
+    var sourceSheets = allSheets.filter(function(s) { return /.+°\d+$/.test(s.getName()); });
+
+    var totalEleves = 0;
+    var classes = [];
+
+    for (var i = 0; i < sourceSheets.length; i++) {
+      var sheet = sourceSheets[i];
+      var nbRows = Math.max(0, sheet.getLastRow() - 1);
+      if (nbRows > 0) {
+        classes.push({ name: sheet.getName(), count: nbRows });
+        totalEleves += nbRows;
+      }
+    }
+
+    // Recuperer le timestamp de la derniere compilation depuis _CONFIG PROGRESS
+    var timestamp = '';
+    try {
+      var configSheet = ss.getSheetByName('_CONFIG');
+      if (configSheet) {
+        var data = configSheet.getDataRange().getValues();
+        for (var r = 0; r < data.length; r++) {
+          if (data[r][0] === 'PROGRESS') {
+            var prog = JSON.parse(data[r][1] || '{}');
+            if (prog.phase === 'scores' || prog.phase === 'import') {
+              timestamp = prog.timestamp || '';
+            }
+            break;
+          }
+        }
+      }
+    } catch (e2) { /* ignore */ }
+
+    return {
+      success: true,
+      locked: totalEleves > 0,
+      totalEleves: totalEleves,
+      classes: classes,
+      timestamp: timestamp
+    };
+  } catch (e) {
+    return { success: false, locked: false, error: e.toString() };
+  }
+}
+
+/**
+ * Purge nucleaire : vide tous les onglets sources + CONSOLIDATION.
+ * Retablit l'etat "avant import" pour permettre un nouvel import propre.
+ * @returns {Object} { success, purged: [noms des onglets purges] }
+ */
+function v3_purgeImport() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var allSheets = ss.getSheets();
+    var sourceSheets = allSheets.filter(function(s) { return /.+°\d+$/.test(s.getName()); });
+    var purged = [];
+
+    // 1. Supprimer les onglets sources (classes)
+    for (var i = 0; i < sourceSheets.length; i++) {
+      var name = sourceSheets[i].getName();
+      ss.deleteSheet(sourceSheets[i]);
+      purged.push(name);
+    }
+
+    // 2. Vider CONSOLIDATION
+    var consolidation = ss.getSheetByName('CONSOLIDATION');
+    if (consolidation) {
+      consolidation.clear();
+      purged.push('CONSOLIDATION');
+    }
+
+    // 3. Retrograder la progression a "config" (avant import)
+    try {
+      var configSheet = ss.getSheetByName('_CONFIG');
+      if (configSheet) {
+        var data = configSheet.getDataRange().getValues();
+        for (var r = 0; r < data.length; r++) {
+          if (data[r][0] === 'PROGRESS') {
+            var progressData = {
+              phase: 'config',
+              timestamp: new Date().toISOString(),
+              metadata: { purgedAt: new Date().toISOString() }
+            };
+            configSheet.getRange(r + 1, 2).setValue(JSON.stringify(progressData));
+            break;
+          }
+        }
+      }
+    } catch (e2) { Logger.log('Erreur reset progress: ' + e2.message); }
+
+    Logger.log('[INFO] Purge import: ' + purged.length + ' onglets purges: ' + purged.join(', '));
+
+    return {
+      success: true,
+      purged: purged,
+      message: purged.length + ' onglets purges. Vous pouvez recommencer l\'import.'
+    };
+  } catch (e) {
+    Logger.log('[ERROR] v3_purgeImport: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
