@@ -1,4 +1,13 @@
 /**
+ * Retourne la liste des onglets sources (feuilles nommees X°Y : 4°1, 5°2, etc.)
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet[]}
+ */
+function getSourceSheets() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheets().filter(function(s) { return /.+°\d+$/.test(s.getName()); });
+}
+
+/**
  * Vérifie l'intégrité des données consolidées
  * - Vérifie que chaque élève a un ID unique
  * - Vérifie que les champs obligatoires sont remplis

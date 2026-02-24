@@ -437,6 +437,16 @@ function v3_parseNotesMoyennes(rows) {
       }
 
       if (!nom) continue;
+
+      // FILTRER les lignes parasites : en-tetes repetes et lignes de resume
+      var nomUpper = nom.toUpperCase();
+      if (nomUpper === 'NOM' || nomUpper === 'ELEVE' || nomUpper === 'ÉLÈVE' || nomUpper === 'ÉLÈVES'
+          || nomUpper.indexOf('MOYENNE') >= 0 || nomUpper.indexOf('CLASSE') >= 0
+          || nomUpper.indexOf('GROUPE') >= 0 || nomUpper.indexOf('GENERAL') >= 0
+          || nomUpper.indexOf('GÉNÉRAL') >= 0) {
+        continue;
+      }
+
       if (classe) classeDetected = normaliserClasse_(classe);
 
       var moyennes = {};
@@ -1077,8 +1087,10 @@ function v3_compileImport(data) {
     }
     Logger.log('Observations fusionnees: ' + obsMatched + '/' + observationsList.length);
 
-    // 7. CALCULER LES SCORES
+    // 7. CALCULER LES SCORES + DIAGNOSTIC
     var scoresCount = 0;
+    var diagTRA = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0, samples: [] };
+    var diagPART = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0 };
     for (var cleS in studentMap) {
       var st = studentMap[cleS];
       st.scoreTRA = calcScoreTRA_import_(st.moyennes);
@@ -1086,9 +1098,27 @@ function v3_compileImport(data) {
       st.scoreABS = calcScoreABS_import_(st.dj, st.nj);
       st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations);
       if (st.scoreTRA || st.scorePART || st.scoreABS || st.scoreCOM) scoresCount++;
+
+      // Diagnostic TRA
+      diagTRA.total++;
+      if (st.scoreTRA === null) { diagTRA.null++; }
+      else { diagTRA['s' + st.scoreTRA]++; }
+      // Garder 5 exemples detailles pour le debug
+      if (diagTRA.samples.length < 5 && Object.keys(st.moyennes).length > 0) {
+        diagTRA.samples.push(st.nom + ' ' + st.prenom + ': moy=' + JSON.stringify(st.moyennes) + ' -> TRA=' + st.scoreTRA);
+      }
+      // Diagnostic PART
+      diagPART.total++;
+      if (st.scorePART === null) { diagPART.null++; }
+      else { diagPART['s' + st.scorePART]++; }
     }
 
     Logger.log('Scores calcules: ' + scoresCount);
+    Logger.log('[DIAG] TRA repartition: null=' + diagTRA.null + ' score1=' + diagTRA.s1 +
+      ' score2=' + diagTRA.s2 + ' score3=' + diagTRA.s3 + ' score4=' + diagTRA.s4);
+    Logger.log('[DIAG] TRA exemples: ' + diagTRA.samples.join(' | '));
+    Logger.log('[DIAG] PART repartition: null=' + diagPART.null + ' score1=' + diagPART.s1 +
+      ' score2=' + diagPART.s2 + ' score3=' + diagPART.s3 + ' score4=' + diagPART.s4);
 
     // 8. ECRIRE DANS LES ONGLETS SOURCES
     var sourceHeaders = [
