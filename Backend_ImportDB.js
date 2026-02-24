@@ -72,10 +72,15 @@ function cleEleve_(nom, prenom) {
  */
 function parseSexe_(val) {
   if (!val) return '';
-  var s = String(val).trim();
-  if (s === '\u2640' || s === 'F' || s === 'f') return 'F';
-  if (s === '\u2642' || s === 'M' || s === 'm') return 'M';
-  return s.toUpperCase();
+  var s = String(val).trim().toUpperCase();
+  if (s === '\u2640' || s === 'F' || s.indexOf('FEM') === 0 || s.indexOf('FÉM') === 0) return 'F';
+  if (s === '\u2642' || s === 'M' || s.indexOf('MAS') === 0) return 'M';
+  // Fallback: premiere lettre si F ou M, sinon vide (evite de passer une valeur invalide)
+  var first = s.charAt(0);
+  if (first === 'F') return 'F';
+  if (first === 'M') return 'M';
+  Logger.log('[WARN] parseSexe_: valeur non reconnue "' + String(val).trim() + '"');
+  return '';
 }
 
 /**
