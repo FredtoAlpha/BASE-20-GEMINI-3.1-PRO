@@ -84,6 +84,26 @@ function parseSexe_(val) {
 }
 
 /**
+ * Parse la colonne "Projet d'accompagnement" / DISPO Pronote.
+ * Extrait le dispositif le plus fort si plusieurs presents.
+ * Priorite : GEVASCO > PPS > PAP > PPRE > ULIS > SEGPA > UPE2A
+ * Ex: "PAP, GEVASCO" -> "GEVASCO"
+ *     "PAP" -> "PAP"
+ *     "Notification MDPH, Convention ergothérapeute, GEVASCO" -> "GEVASCO"
+ */
+function parseDispo_(val) {
+  if (!val) return '';
+  var s = String(val).trim().toUpperCase();
+  if (!s) return '';
+  // Priorite decroissante (le premier trouve gagne)
+  var priorite = ['GEVASCO', 'PPS', 'PAP', 'PPRE', 'ULIS', 'SEGPA', 'UPE2A'];
+  for (var i = 0; i < priorite.length; i++) {
+    if (s.indexOf(priorite[i]) >= 0) return priorite[i];
+  }
+  return '';
+}
+
+/**
  * Normalise le nom de classe Pronote en format X°Y
  * "4E 1" -> "4°1", "4e1" -> "4°1", "4EME1" -> "4°1", "4eme 1" -> "4°1"
  */
@@ -113,7 +133,15 @@ function parseOptions_(optionsStr) {
     'RUSSE': 'RUS', 'JAPONAIS': 'JAP'
   };
 
+  // Ordre = priorite : LATIN > GREC > CHAV > CHINOIS > LCALA > LLCA > EURO
   var optionsConnues = ['LATIN', 'GREC', 'CHAV', 'CHINOIS', 'LCALA', 'LLCA', 'EURO'];
+
+  // Mapping des libelles Pronote vers le code option interne
+  var optionsAliases = {
+    'CHANT': 'CHAV',       // "CHANT CHORAL COLLECT" -> CHAV
+    'CHORAL': 'CHAV',      // "CHORALE" -> CHAV
+    'LCA': 'LATIN'         // "LCA LATIN" -> LATIN (deja couvert par LATIN mais securite)
+  };
 
   for (var i = 0; i < parts.length; i++) {
     var p = parts[i];
@@ -137,11 +165,26 @@ function parseOptions_(optionsStr) {
     // Ignorer LV1
     if (p.indexOf('LV1') >= 0) continue;
 
-    // Detecter option
+    // Si opt deja trouve, ne pas ecraser (premiere option = plus haute priorite)
+    if (result.opt) continue;
+
+    // Detecter option par nom exact d'abord
+    var matched = false;
     for (var j = 0; j < optionsConnues.length; j++) {
       if (p.indexOf(optionsConnues[j]) >= 0) {
         result.opt = optionsConnues[j];
+        matched = true;
         break;
+      }
+    }
+
+    // Puis par aliases Pronote (ex: "CHANT CHORAL COLLECT" -> CHAV)
+    if (!matched) {
+      for (var alias in optionsAliases) {
+        if (p.indexOf(alias) >= 0) {
+          result.opt = optionsAliases[alias];
+          break;
+        }
       }
     }
   }
@@ -188,7 +231,7 @@ function v3_parseListeEleves(rows) {
     var colOptions = findImportCol_(headers, ['TOUTES.*OPT', 'OPTIONS']);
     // Colonnes directes LV2 et DISPO (prioritaires sur parseOptions_ si presentes)
     var colLangue = findImportCol_(headers, ['LANGUE', '^LV2$']);
-    var colDispo = findImportCol_(headers, ['DISPO', 'DISPOSITIF']);
+    var colDispo = findImportCol_(headers, ['DISPO', 'DISPOSITIF', 'PROJET.*ACC', 'ACCOMPAGNEMENT']);
 
     if (colNom === -1) return { success: false, error: 'Colonne NOM introuvable. Headers: ' + headers.join(', ') };
     if (colClasse === -1) return { success: false, error: 'Colonne CLASSE introuvable. Headers: ' + headers.join(', ') };
@@ -228,10 +271,10 @@ function v3_parseListeEleves(rows) {
         }
       }
 
-      // Extraction directe colonne DISPO/DISPOSITIF
+      // Extraction DISPO avec priorite (GEVASCO > PPS > PAP > PPRE > ...)
       var dispoDirect = '';
       if (colDispo >= 0) {
-        dispoDirect = String(row[colDispo] || '').trim().toUpperCase();
+        dispoDirect = parseDispo_(row[colDispo]);
       }
 
       eleves.push({
@@ -462,7 +505,7 @@ function v3_parseAbsences(rows) {
     var colPrenom = findImportCol_(headers, ['PR[E\u00c9]NOM', 'PRENOM']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
     var colDJ = findImportCol_(headers, ['^DJ$', 'DEMI.?JOURN', 'NB.*ABS', 'TOTAL']);
-    var colJustif = findImportCol_(headers, ['JUSTIFI', 'JUST\\.?']);
+    var colJustif = findImportCol_(headers, ['JUSTIFI', 'JUST\\.?', 'STATUT']);
     var colSante = findImportCol_(headers, ['SANT[E\u00c9]', 'SANTE']);
     var colNJ = findImportCol_(headers, ['NON.?JUST', '^NJ$', 'INJUST']);
 
@@ -505,7 +548,10 @@ function v3_parseAbsences(rows) {
         var djVal = colDJ >= 0 ? (parseNote_(row2[colDJ]) || 1) : 1;
         perStudent[cle].dj += djVal;
         var justifVal = colJustif >= 0 ? String(row2[colJustif] || '').trim().toUpperCase() : '';
-        var isJustifie = justifVal === 'OUI' || justifVal === 'O' || justifVal === 'X' || justifVal === '1';
+        // Gere: "OUI", "Justifiée", "Régularisée" comme justifie ; "NON", "Non justifiée" comme non justifie
+        var isJustifie = justifVal === 'OUI' || justifVal === 'O' || justifVal === 'X' || justifVal === '1'
+          || (justifVal.indexOf('JUSTIFI') >= 0 && justifVal.indexOf('NON') === -1)
+          || justifVal.indexOf('REGULARI') >= 0 || justifVal.indexOf('RÉGULARI') >= 0;
         if (!isJustifie) perStudent[cle].nj += djVal;
         if (classe2) perStudent[cle].classe = classe2;
       }
@@ -552,7 +598,7 @@ function v3_parsePunitions(rows) {
     var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
     Logger.log('Punitions - Headers: ' + headers.join(' | '));
 
-    var colNom = findImportCol_(headers, ['^NOM$', 'NOM']);
+    var colNom = findImportCol_(headers, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
     var colNb = findImportCol_(headers, ['^NB', 'NOMBRE', 'QT', 'QUANT', 'TOTAL', 'PUNITION']);
 
@@ -627,7 +673,8 @@ function v3_parseObservations(rows) {
     var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
     Logger.log('Observations - Headers: ' + headers.join(' | '));
 
-    var colNom = findImportCol_(headers, ['^NOM$', 'NOM']);
+    // "Élèves" dans Pronote, pas "Nom" : on ajoute le pattern ELEVE
+    var colNom = findImportCol_(headers, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
     var colPrenom = findImportCol_(headers, ['PR[E\u00c9]NOM', 'PRENOM']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
     var colObs = findImportCol_(headers, ['OBSERVATION']);
@@ -635,24 +682,42 @@ function v3_parseObservations(rows) {
     var colLecon = findImportCol_(headers, ['LE[C\u00c7]ON.*NON', 'LECON']);
     var colOubli = findImportCol_(headers, ['OUBLI', 'MAT[E\u00c9]RIEL']);
     var colTravail = findImportCol_(headers, ['TRAVAIL.*NON', 'TRAVAIL']);
-    var colEncourage = findImportCol_(headers, ['ENCOURAGEMENT', 'ENCOUR']);
+    var colEncourage = findImportCol_(headers, ['ENCOURAGEMENT', 'ENCOUR', 'VALORIS']);
+
+    Logger.log('Observations - Colonnes: NOM=' + colNom + ' CLASSE=' + colClasse +
+      ' OBS=' + colObs + ' CARNET=' + colDefCarnet + ' LECON=' + colLecon +
+      ' OUBLI=' + colOubli + ' TRAVAIL=' + colTravail + ' ENCOUR=' + colEncourage);
 
     var observations = [];
     var currentClasse = '';
+
+    // Regex elargi pour detecter les lignes-resume de classe (tous les triangles/fleches Unicode)
+    var classSummaryRe = /^[\u25A0-\u25FF\u2190-\u21FF\u2794\u27A1]/;
+    // Regex pour detecter un nom de classe dans la premiere colonne (ex: "4E 1, 25 élèves")
+    var classeInCellRe = /\d+\s*[eèéEÈÉ]\s*\d+/i;
 
     for (var i = headerRow + 1; i < rows.length; i++) {
       var row = rows[i];
       var firstCell = String(row[0] || '').trim();
 
-      // Ligne resume de classe (ex: triangle 4E 1)
-      if (firstCell.match(/^[\u25B2\u25BC\u25BA\u25CF\u25A0\u25A1]/)) {
-        currentClasse = firstCell.replace(/^[\u25B2\u25BC\u25BA\u25CF\u25A0\u25A1]\s*/, '').trim();
+      // Ligne resume de classe : detectee par symbole ou par format "4E 1, NN élèves"
+      if (classSummaryRe.test(firstCell)) {
+        currentClasse = firstCell.replace(/^[\u25A0-\u25FF\u2190-\u21FF\u2794\u27A1]\s*/, '').trim();
+        // Extraire juste le nom de classe (avant la virgule/espace avec nb eleves)
+        currentClasse = currentClasse.replace(/[,;].*/, '').trim();
+        continue;
+      }
+      if (classeInCellRe.test(firstCell) && (!colNom || colNom !== 0)) {
+        // Premiere colonne contient un pattern de classe comme "4E 1, 25 élèves" -> ligne resume
+        currentClasse = firstCell.replace(/[,;].*/, '').trim();
         continue;
       }
 
       var nom = colNom >= 0 ? String(row[colNom] || '').trim() : '';
       if (!nom) continue;
-      if (nom.match(/^[\u25B2\u25BC\u25BA\u25CF\u25A0\u25A1]/) || nom.length < 2) continue;
+      if (classSummaryRe.test(nom) || nom.length < 2) continue;
+      // Filtrer les lignes "NN élèves" qui ne sont pas des noms
+      if (/^\d+\s+[e\u00e9]l[e\u00e8]ve/i.test(nom)) continue;
 
       var prenom = colPrenom >= 0 ? String(row[colPrenom] || '').trim() : '';
       var classe = normaliserClasse_(colClasse >= 0 ? String(row[colClasse] || '').trim() : currentClasse);
@@ -813,7 +878,7 @@ function v3_parseIncidents(rows) {
     var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
     Logger.log('Incidents - Headers: ' + headers.join(' | '));
 
-    var colNom = findImportCol_(headers, ['^NOM$', 'NOM']);
+    var colNom = findImportCol_(headers, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
     var colPrenom = findImportCol_(headers, ['PR[EÉ]NOM', 'PRENOM']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
     var colNb = findImportCol_(headers, ['^NB', 'NOMBRE', 'TOTAL', 'INCIDENT']);
