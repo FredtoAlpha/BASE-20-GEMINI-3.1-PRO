@@ -337,7 +337,7 @@ function v3_parseNotesMoyennes(rows) {
     var rawHeaders = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
     Logger.log('Notes - Headers bruts: ' + rawHeaders.join(' | '));
 
-    var colNom = findImportCol_(rawHeaders, ['^NOM$', 'NOM']);
+    var colNom = findImportCol_(rawHeaders, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
     var colPrenom = findImportCol_(rawHeaders, ['PR[E\u00c9]NOM', 'PRENOM']);
     var colClasse = findImportCol_(rawHeaders, ['CLASSE']);
 
@@ -501,7 +501,7 @@ function v3_parseAbsences(rows) {
     var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
     Logger.log('Absences - Headers: ' + headers.join(' | '));
 
-    var colNom = findImportCol_(headers, ['^NOM$', 'NOM']);
+    var colNom = findImportCol_(headers, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
     var colPrenom = findImportCol_(headers, ['PR[E\u00c9]NOM', 'PRENOM']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
     var colDJ = findImportCol_(headers, ['^DJ$', 'DEMI.?JOURN', 'NB.*ABS', 'TOTAL']);
@@ -1005,6 +1005,7 @@ function v3_compileImport(data) {
     // 2. FUSIONNER LES NOTES (notesResults = [ {success, notes: [{nom,prenom,moyennes,oraux}], classe} ])
     var notesMatched = 0;
     var notesTotal = 0;
+    var notesUnmatched = [];
     for (var nr = 0; nr < notesResults.length; nr++) {
       var noteResult = notesResults[nr];
       var noteList = (noteResult && noteResult.notes) ? noteResult.notes : (Array.isArray(noteResult) ? noteResult : []);
@@ -1016,10 +1017,15 @@ function v3_compileImport(data) {
           studentMap[cle2].moyennes = noteData.moyennes || {};
           studentMap[cle2].oraux = noteData.oraux || {};
           notesMatched++;
+        } else {
+          notesUnmatched.push(noteData.nom + ' ' + (noteData.prenom || ''));
         }
       }
     }
     Logger.log('Notes fusionnees: ' + notesMatched + '/' + notesTotal);
+    if (notesUnmatched.length > 0) {
+      Logger.log('[WARN] Notes non matchees (' + notesUnmatched.length + '): ' + notesUnmatched.slice(0, 10).join(', '));
+    }
 
     // 3. FUSIONNER LES ABSENCES
     var absMatched = 0;
@@ -1183,22 +1189,27 @@ function v3_compileImport(data) {
 // =============================================================================
 
 function findMatchingStudent_(studentMap, nom, prenom) {
+  // 1. Match exact par cle NOM|PRENOM
   var cle = cleEleve_(nom, prenom);
   if (studentMap[cle]) return cle;
 
   var normNom = normaliserNom_(nom);
   var normPrenom = normaliserNom_(prenom);
 
+  // 2. Match normalise (accents, casse)
   for (var key in studentMap) {
     var st = studentMap[key];
     if (normaliserNom_(st.nom) === normNom && normaliserNom_(st.prenom) === normPrenom) return key;
   }
 
-  if (!prenom && nom) {
-    var parts = nom.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      var testNom = normaliserNom_(parts[0]);
-      var testPrenom = normaliserNom_(parts.slice(1).join(' '));
+  // 3. Fullname = "NOM PRENOM" dans une seule cellule : tester tous les splits possibles
+  //    Ex: "THERY BUDIN Lola" -> essayer "THERY|BUDIN LOLA", "THERY BUDIN|LOLA"
+  var fullName = (nom + (prenom ? ' ' + prenom : '')).trim();
+  var fullParts = fullName.split(/\s+/);
+  if (fullParts.length >= 2) {
+    for (var sp = 1; sp < fullParts.length; sp++) {
+      var testNom = normaliserNom_(fullParts.slice(0, sp).join(' '));
+      var testPrenom = normaliserNom_(fullParts.slice(sp).join(' '));
       for (var key2 in studentMap) {
         var st2 = studentMap[key2];
         if (normaliserNom_(st2.nom) === testNom && normaliserNom_(st2.prenom) === testPrenom) return key2;
@@ -1206,11 +1217,20 @@ function findMatchingStudent_(studentMap, nom, prenom) {
     }
   }
 
+  // 4. Match par nom seul si unique dans la base
   var nomMatches = [];
   for (var key3 in studentMap) {
     if (normaliserNom_(studentMap[key3].nom) === normNom) nomMatches.push(key3);
   }
   if (nomMatches.length === 1) return nomMatches[0];
+
+  // 5. Match partiel : le nom fourni CONTIENT le nom de la base ou vice-versa
+  var fullNorm = normaliserNom_(fullName);
+  for (var key4 in studentMap) {
+    var st4 = studentMap[key4];
+    var refFull = normaliserNom_(st4.nom) + ' ' + normaliserNom_(st4.prenom);
+    if (fullNorm === refFull) return key4;
+  }
 
   return null;
 }
