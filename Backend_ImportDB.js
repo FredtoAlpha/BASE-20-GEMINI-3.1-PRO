@@ -337,6 +337,26 @@ function v3_parseNotesMoyennes(rows) {
     var rawHeaders = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
     Logger.log('Notes - Headers bruts: ' + rawHeaders.join(' | '));
 
+    // DETECTER LA SOUS-LIGNE "Abs" : Pronote exporte [Note | Abs] pour chaque matiere
+    // La ligne juste apres le header contient "Abs", "1", "2", etc.
+    var absColsSet = {};  // colonnes qui contiennent des absences (a exclure)
+    var dataStartRow = headerRow + 1;
+    if (headerRow + 1 < rows.length) {
+      var subRow = rows[headerRow + 1];
+      var absCount = 0;
+      for (var sc = 0; sc < subRow.length; sc++) {
+        var sv = String(subRow[sc] || '').trim().toUpperCase();
+        if (sv === 'ABS' || sv === 'ABSENCES' || sv === 'NB ABS') {
+          absColsSet[sc] = true;
+          absCount++;
+        }
+      }
+      if (absCount > 0) {
+        dataStartRow = headerRow + 2;  // Sauter la sous-ligne "Abs"
+        Logger.log('Notes - Sous-ligne Abs detectee: ' + absCount + ' colonnes Abs filtrees, donnees a partir ligne ' + dataStartRow);
+      }
+    }
+
     var colNom = findImportCol_(rawHeaders, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
     var colPrenom = findImportCol_(rawHeaders, ['PR[E\u00c9]NOM', 'PRENOM']);
     var colClasse = findImportCol_(rawHeaders, ['CLASSE']);
@@ -377,26 +397,37 @@ function v3_parseNotesMoyennes(rows) {
 
       if (matchedCols.length === 0) continue;
 
-      // Position-based: 3 cols = ecrit(0), oral(1), moyenne(2)
-      // 2 cols = sous-matiere(0), moyenne(1)
-      // 1 col = moyenne
+      // FILTRER les colonnes "Abs" (absences par matiere, pas des notes !)
+      var gradeCols = matchedCols.filter(function(col) { return !absColsSet[col]; });
+      if (gradeCols.length === 0) gradeCols = matchedCols;  // fallback si pas de sous-ligne Abs
+
+      // Apres filtrage des Abs :
+      //   1 col = c'est la moyenne
+      //   2+ cols = dernier = moyenne (ou oral pour langues), avant-dernier = ecrit/note1
       var colMoy, colOral;
 
-      if (matchedCols.length >= 3) {
-        colMoy = matchedCols[2];
-        colOral = matchedCols[1];
-      } else if (matchedCols.length === 2) {
-        colMoy = matchedCols[1];
-        colOral = null;
+      if (gradeCols.length >= 2) {
+        colMoy = gradeCols[gradeCols.length - 1];  // Derniere col note = moyenne
+        if (mat.hasOral) {
+          colOral = gradeCols[0];  // Premiere col note = ecrit (oral = la derniere)
+          // Pour PART: on veut l'oral, pas l'ecrit. Swap si hasOral
+          colOral = gradeCols[gradeCols.length - 1];
+          colMoy = gradeCols[0];
+          // Note: si 3 grade cols (ecrit, oral, moyenne), on veut col[2]=moy, col[1]=oral
+          if (gradeCols.length >= 3) {
+            colMoy = gradeCols[gradeCols.length - 1];  // derniere = moyenne
+            colOral = gradeCols[gradeCols.length - 2]; // avant-derniere = oral
+          }
+        }
       } else {
-        colMoy = matchedCols[0];
+        colMoy = gradeCols[0];
         colOral = null;
       }
 
       gradeMap[mat.id] = { col: colMoy, coeff: mat.coeff };
-      detectedSubjects.push(mat.id + '(col' + colMoy + ')');
+      detectedSubjects.push(mat.id + '(col' + colMoy + ',grade_cols=' + gradeCols.join('+') + ')');
 
-      if (mat.hasOral && colOral !== null) {
+      if (mat.hasOral && colOral !== null && colOral !== colMoy) {
         oralMap[mat.id] = colOral;
       }
     }
@@ -404,11 +435,11 @@ function v3_parseNotesMoyennes(rows) {
     Logger.log('Matieres detectees: ' + detectedSubjects.join(', '));
     Logger.log('Oraux detectes: ' + JSON.stringify(oralMap));
 
-    // PARSER LES LIGNES ELEVES
+    // PARSER LES LIGNES ELEVES (demarre apres la sous-ligne Abs si detectee)
     var notes = [];
     var classeDetected = '';
 
-    for (var i = headerRow + 1; i < rows.length; i++) {
+    for (var i = dataStartRow; i < rows.length; i++) {
       var row = rows[i];
       if (!row || row.length < 3) continue;
 
