@@ -101,8 +101,8 @@ function formatFinSheet(sheet, rowData, headers) {
         }
         // Priorité 3 : Tête de classe ou Niv1 (logique existante)
         else if (row.length > Math.max(comColIndex, traColIndex)) {
-          const COM = Number(row[comColIndex - 1]) || 2.5;
-          const TRA = Number(row[traColIndex - 1]) || 2.5;
+          const COM = Number(row[comColIndex - 1]) || 2;
+          const TRA = Number(row[traColIndex - 1]) || 2;
 
           // Tête de classe (Bleu clair)
           if (COM >= 4 || TRA >= 4 || (COM + TRA) / 2 >= 3.5) {
