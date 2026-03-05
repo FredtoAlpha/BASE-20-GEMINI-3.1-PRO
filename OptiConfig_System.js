@@ -192,7 +192,9 @@ function getOptimizationContext_V2() {
     com: 0.4,
     tra: 0.1,
     part: 0.1,
-    abs: 0.1
+    abs: 0.1,
+    effectif: 2.0,
+    profiles: 2.0
   };
   const parityTolerance = Number(kvGet_('parity.tolerance', 'GLOBAL', 2));
   const maxSwaps = Number(kvGet_('swaps.max', 'GLOBAL', 50));
@@ -571,7 +573,9 @@ function getOptiConfigForUI() {
         com: 0.4,
         tra: 0.1,
         part: 0.1,
-        abs: 0.1
+        abs: 0.1,
+        effectif: 2.0,
+        profiles: 2.0
       },
       parityTolerance: ctx.parityTolerance || 2,
       maxSwaps: ctx.maxSwaps || 50,
@@ -617,7 +621,9 @@ function saveOptiConfigFromUI(config) {
         com: 0.4,
         tra: 0.1,
         part: 0.1,
-        abs: 0.1
+        abs: 0.1,
+        effectif: 2.0,
+        profiles: 2.0
       },
       parityTolerance: config.parityTolerance || 2,
       maxSwaps: config.maxSwaps || 50

@@ -59,7 +59,7 @@ function calculateStudentProfile(row, idx) {
       count++;
     }
   });
-  return count > 0 ? sum / count : 2.5;
+  return count > 0 ? sum / count : 2;
 }
 
 /**
@@ -188,10 +188,10 @@ ClassState.prototype._addStudent = function(idx, data, hIdx) {
   var sexe = String(row[hIdx.SEXE] || 'M').toUpperCase().trim().charAt(0);
   if (sexe === 'F') this.nbF++; else this.nbM++;
 
-  var com = Number(row[hIdx.COM] || 2.5);
-  var tra = Number(row[hIdx.TRA] || 2.5);
-  var part = hIdx.PART >= 0 ? Number(row[hIdx.PART] || 2.5) : 2.5;
-  var abs = hIdx.ABS >= 0 ? Number(row[hIdx.ABS] || 2.5) : 2.5;
+  var com = Number(row[hIdx.COM] || 2);
+  var tra = Number(row[hIdx.TRA] || 2);
+  var part = hIdx.PART >= 0 ? Number(row[hIdx.PART] || 2) : 2;
+  var abs = hIdx.ABS >= 0 ? Number(row[hIdx.ABS] || 2) : 2;
 
   this.sumCOM += com;
   this.sumTRA += tra;
@@ -218,10 +218,10 @@ ClassState.prototype._removeStudent = function(idx, data, hIdx) {
   var sexe = String(row[hIdx.SEXE] || 'M').toUpperCase().trim().charAt(0);
   if (sexe === 'F') this.nbF--; else this.nbM--;
 
-  var com = Number(row[hIdx.COM] || 2.5);
-  var tra = Number(row[hIdx.TRA] || 2.5);
-  var part = hIdx.PART >= 0 ? Number(row[hIdx.PART] || 2.5) : 2.5;
-  var abs = hIdx.ABS >= 0 ? Number(row[hIdx.ABS] || 2.5) : 2.5;
+  var com = Number(row[hIdx.COM] || 2);
+  var tra = Number(row[hIdx.TRA] || 2);
+  var part = hIdx.PART >= 0 ? Number(row[hIdx.PART] || 2) : 2;
+  var abs = hIdx.ABS >= 0 ? Number(row[hIdx.ABS] || 2) : 2;
 
   this.sumCOM -= com;
   this.sumTRA -= tra;
@@ -267,7 +267,7 @@ ClassState.prototype.computeError = function(globalStats, targetDistribution, we
 
   // Harmonie COM/TRA/PART/ABS (distribution des scores)
   var hists = { COM: this.histCOM, TRA: this.histTRA, PART: this.histPART, ABS: this.histABS };
-  var weightMap = { COM: weights.com || 1.0, TRA: weights.tra || 0.5, PART: weights.part || 0.3, ABS: weights.abs || 0.2 };
+  var weightMap = { COM: weights.com || 0.4, TRA: weights.tra || 0.1, PART: weights.part || 0.1, ABS: weights.abs || 0.1 };
 
   for (var crit in hists) {
     var hist = hists[crit];

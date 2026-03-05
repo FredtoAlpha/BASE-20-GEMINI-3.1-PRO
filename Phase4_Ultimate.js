@@ -428,13 +428,13 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, 
 
   // --- 3. CRITÈRE DISTRIBUTION ACADÉMIQUE (Jules Codex) ---
   // HARMONY FIX : Inclure PART et ABS dans le scoring (pas seulement COM/TRA)
-  const avgCOM = students.reduce((acc, s) => acc + (s.COM || 2.5), 0) / total;
-  const avgTRA = students.reduce((acc, s) => acc + (s.TRA || 2.5), 0) / total;
-  const avgPART = students.reduce((acc, s) => acc + (s.PART || 2.5), 0) / total;
+  const avgCOM = students.reduce((acc, s) => acc + (s.COM || 2), 0) / total;
+  const avgTRA = students.reduce((acc, s) => acc + (s.TRA || 2), 0) / total;
+  const avgPART = students.reduce((acc, s) => acc + (s.PART || 2), 0) / total;
 
   score += Math.abs(avgCOM - globalStats.avgCOM) * 100 * config.weights.distrib;
   score += Math.abs(avgTRA - globalStats.avgTRA) * 100 * config.weights.distrib;
-  score += Math.abs(avgPART - (globalStats.avgPART || 2.5)) * 50 * config.weights.distrib;
+  score += Math.abs(avgPART - (globalStats.avgPART || 2)) * 50 * config.weights.distrib;
 
   return score;
 }
@@ -458,11 +458,11 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
     const students = indices.map(i => allData[i]);
     const avgCOM = students.reduce((s, st) => s + st.COM, 0) / total;
     const avgTRA = students.reduce((s, st) => s + st.TRA, 0) / total;
-    const avgPART = students.reduce((s, st) => s + (st.PART || 2.5), 0) / total;
+    const avgPART = students.reduce((s, st) => s + (st.PART || 2), 0) / total;
 
     return indices.slice().sort(function(a, b) {
-      var distA = Math.abs(allData[a].COM - avgCOM) + Math.abs(allData[a].TRA - avgTRA) + Math.abs((allData[a].PART || 2.5) - avgPART) * 0.5;
-      var distB = Math.abs(allData[b].COM - avgCOM) + Math.abs(allData[b].TRA - avgTRA) + Math.abs((allData[b].PART || 2.5) - avgPART) * 0.5;
+      var distA = Math.abs(allData[a].COM - avgCOM) + Math.abs(allData[a].TRA - avgTRA) + Math.abs((allData[a].PART || 2) - avgPART) * 0.5;
+      var distB = Math.abs(allData[b].COM - avgCOM) + Math.abs(allData[b].TRA - avgTRA) + Math.abs((allData[b].PART || 2) - avgPART) * 0.5;
       return distB - distA; // Plus perturbant en premier
     }).filter(i => !isFixed(allData[i]));
   }
@@ -599,9 +599,9 @@ function loadAndClassifyData_Ultimate(ctx) {
         originalSheet: sheet.getName(),
         index: i,
         sexe: String(row[idx.SEXE] || 'M').toUpperCase().trim().charAt(0),
-        COM: Number(row[idx.COM]) || 2.5,
-        TRA: Number(row[idx.TRA]) || 2.5,
-        PART: Number(row[idx.PART]) || 2.5,
+        COM: Number(row[idx.COM]) || 2,
+        TRA: Number(row[idx.TRA]) || 2,
+        PART: Number(row[idx.PART]) || 2,
         mobilite: String(row[idx.MOB] || row[idx.FIXE] || '').toUpperCase()
       };
 
@@ -635,7 +635,7 @@ function calculateGlobalStats_Ultimate(allData) {
   const nbFilles = allData.filter(s => s.sexe === 'F').length;
   const sumCOM = allData.reduce((sum, s) => sum + s.COM, 0);
   const sumTRA = allData.reduce((sum, s) => sum + s.TRA, 0);
-  const sumPART = allData.reduce((sum, s) => sum + (s.PART || 2.5), 0);
+  const sumPART = allData.reduce((sum, s) => sum + (s.PART || 2), 0);
 
   return {
     ratioF: nbFilles / total,
@@ -681,7 +681,7 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
   const worstRatioF = worstStudents.filter(s => s.sexe === 'F').length / worstTotal;
   const worstAvgCOM = worstStudents.reduce((s, st) => s + st.COM, 0) / worstTotal;
   // U2: Ajouter PART à la complémentarité
-  const worstAvgPART = worstStudents.reduce((s, st) => s + (st.PART || 2.5), 0) / worstTotal;
+  const worstAvgPART = worstStudents.reduce((s, st) => s + (st.PART || 2), 0) / worstTotal;
 
   let bestPartner = null;
   let bestComplementarity = -Infinity;
@@ -696,7 +696,7 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
     const clsNbNiv1 = clsStudents.filter(s => s.isNiv1).length;
     const clsRatioF = clsStudents.filter(s => s.sexe === 'F').length / clsTotal;
     const clsAvgCOM = clsStudents.reduce((s, st) => s + st.COM, 0) / clsTotal;
-    const clsAvgPART = clsStudents.reduce((s, st) => s + (st.PART || 2.5), 0) / clsTotal;
+    const clsAvgPART = clsStudents.reduce((s, st) => s + (st.PART || 2), 0) / clsTotal;
 
     let comp = 0;
 
@@ -721,8 +721,8 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
     }
 
     // U2: PART complémentaire
-    if ((worstAvgPART > (globalStats.avgPART || 2.5) && clsAvgPART < (globalStats.avgPART || 2.5)) ||
-        (worstAvgPART < (globalStats.avgPART || 2.5) && clsAvgPART > (globalStats.avgPART || 2.5))) {
+    if ((worstAvgPART > (globalStats.avgPART || 2) && clsAvgPART < (globalStats.avgPART || 2)) ||
+        (worstAvgPART < (globalStats.avgPART || 2) && clsAvgPART > (globalStats.avgPART || 2))) {
       comp += Math.abs(worstAvgPART - clsAvgPART) * 1.5;
     }
 

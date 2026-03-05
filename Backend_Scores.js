@@ -49,15 +49,15 @@ var SCORES_CONFIG = {
   ],
   SEUILS_TRA: [
     { score: 4, min: 15, max: 20 },
-    { score: 3, min: 12, max: 14.99 },
-    { score: 2, min: 8, max: 11.99 },
-    { score: 1, min: 0, max: 7.99 }
+    { score: 3, min: 12, max: 14.999 },
+    { score: 2, min: 8, max: 11.999 },
+    { score: 1, min: 0, max: 7.999 }
   ],
   SEUILS_PART: [
     { score: 4, min: 15, max: 20 },
-    { score: 3, min: 12, max: 14.99 },
-    { score: 2, min: 8, max: 11.99 },
-    { score: 1, min: 0, max: 7.99 }
+    { score: 3, min: 12, max: 14.999 },
+    { score: 2, min: 8, max: 11.999 },
+    { score: 1, min: 0, max: 7.999 }
   ],
 
   // ── Matières pour le score TRA ──
@@ -865,19 +865,19 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
         var rowNum = i + 1;
         var wrote = [];
         if (idxCOM >= 0 && match.scoreCOM !== undefined && match.scoreCOM !== null) {
-          sheet.getRange(rowNum, idxCOM + 1).setValue(String(match.scoreCOM));
+          sheet.getRange(rowNum, idxCOM + 1).setValue(Number(match.scoreCOM));
           wrote.push('COM=' + match.scoreCOM);
         }
         if (idxTRA >= 0 && match.scoreTRA !== undefined && match.scoreTRA !== null) {
-          sheet.getRange(rowNum, idxTRA + 1).setValue(String(match.scoreTRA));
+          sheet.getRange(rowNum, idxTRA + 1).setValue(Number(match.scoreTRA));
           wrote.push('TRA=' + match.scoreTRA);
         }
         if (idxPART >= 0 && match.scorePART !== undefined && match.scorePART !== null) {
-          sheet.getRange(rowNum, idxPART + 1).setValue(String(match.scorePART));
+          sheet.getRange(rowNum, idxPART + 1).setValue(Number(match.scorePART));
           wrote.push('PART=' + match.scorePART);
         }
         if (idxABS >= 0 && match.scoreABS !== undefined && match.scoreABS !== null) {
-          sheet.getRange(rowNum, idxABS + 1).setValue(String(match.scoreABS));
+          sheet.getRange(rowNum, idxABS + 1).setValue(Number(match.scoreABS));
           wrote.push('ABS=' + match.scoreABS);
         }
         if (sheetUpdated < 3) {
@@ -915,9 +915,9 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
  * 1 → 1, 2 → 2.5, 3 → 3.5, 4 → 5
  */
 function mapScore_(score14) {
-  if (score14 === null || score14 === undefined) return 2.5;
+  if (score14 === null || score14 === undefined) return 2;
   var map = { 1: 1, 2: 2.5, 3: 3.5, 4: 5 };
-  return map[score14] !== undefined ? map[score14] : 2.5;
+  return map[score14] !== undefined ? map[score14] : 2;
 }
 
 /**
@@ -927,21 +927,27 @@ function mapScore_(score14) {
 function parseNotePronote_(val) {
   if (val === null || val === undefined || val === '') return null;
   var s = String(val).trim();
-  if (s === '' || s === 'Abs' || s === 'Disp' || s === 'NE' || s === 'NN' || s === '—') return null;
-  s = s.replace(',', '.');
+  if (s === '' || s === 'Abs' || s === 'Disp' || s === 'NE' || s === 'NN' || s === '—' || s === '-') return null;
+  // Remplacer toutes les virgules (format français) par des points
+  s = s.replace(/,/g, '.');
   var n = parseFloat(s);
   return isNaN(n) ? null : n;
 }
 
 /**
  * Attribue un score basé sur une valeur et des seuils min/max.
+ * Fallback: retourne le score du dernier seuil si aucun ne matche (évite les trous).
  */
 function attribuerScoreParSeuil_(valeur, seuils) {
+  if (valeur === null || valeur === undefined || isNaN(valeur)) return null;
   for (var i = 0; i < seuils.length; i++) {
     if (valeur >= seuils[i].min && valeur <= seuils[i].max) {
       return seuils[i].score;
     }
   }
+  // Fallback intelligent : si la valeur est hors range, retourner l'extrême le plus proche
+  if (valeur < seuils[seuils.length - 1].min) return seuils[seuils.length - 1].score;
+  if (valeur > seuils[0].max) return seuils[0].score;
   return 1;
 }
 
