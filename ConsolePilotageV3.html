@@ -380,6 +380,7 @@
         <nav>
             <div class="nav-item active" onclick="goTo(1)" id="nav-1"><i class="fas fa-hammer"></i> INIT</div>
             <div class="nav-item" onclick="goTo('import')" id="nav-import"><i class="fas fa-file-import"></i> IMPORT</div>
+            <div class="nav-item" onclick="goTo('scoring')" id="nav-scoring"><i class="fas fa-star-half-alt"></i> SCORING</div>
             <div class="nav-item" onclick="goTo(3)" id="nav-3"><i class="fas fa-chart-bar"></i> STATS</div>
             <div class="nav-item" onclick="goTo(4)" id="nav-4"><i class="fas fa-chess-board"></i> STRUCTURE</div>
             <div class="nav-item" onclick="goTo(5)" id="nav-5"><i class="fas fa-cogs"></i> MOTEUR</div>
@@ -627,6 +628,259 @@
             </div><!-- /import-form-container -->
         </div>
 
+        <!-- =============== PHASE SCORING — Configuration Expert =============== -->
+        <div id="phase-scoring" class="phase">
+            <h1>SCORING EXPERT</h1>
+
+            <!-- Section 1 : Mode de scoring -->
+            <div class="card" style="margin-bottom: 20px;">
+                <h2>Mode de Scoring</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">Choisissez comment les scores 1-4 sont attribués aux élèves.</p>
+                <div style="display: flex; gap: 20px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 15px 20px; border-radius: 8px; border: 2px solid #334155; flex: 1;" id="mode-seuils-label">
+                        <input type="radio" name="scoring-mode" value="seuils" checked onchange="onScoringModeChange()">
+                        <div>
+                            <div style="font-weight: 700; color: #e2e8f0;">Seuils Fixes</div>
+                            <div style="font-size: 12px; color: #94a3b8;">Notes de coupure fixes (ex: 15/20 = score 4)</div>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 15px 20px; border-radius: 8px; border: 2px solid #334155; flex: 1;" id="mode-percentile-label">
+                        <input type="radio" name="scoring-mode" value="percentile" onchange="onScoringModeChange()">
+                        <div>
+                            <div style="font-weight: 700; color: #e2e8f0;">Percentile</div>
+                            <div style="font-size: 12px; color: #94a3b8;">Rang dans la cohorte (top 25% = score 4)</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Section 2 : Seuils fixes (visible si mode=seuils) -->
+            <div id="scoring-seuils-section" class="card" style="margin-bottom: 20px;">
+                <h2>Seuils par Critère</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">Définissez les notes de coupure pour chaque score (1=faible, 4=excellent).</p>
+
+                <!-- TRA -->
+                <div style="margin-bottom: 20px;">
+                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 8px;">TRA (Travail)</div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#ef4444; font-weight:700;">Score 1</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">0 — <input type="number" id="seuil-tra-1" value="7.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#f59e0b; font-weight:700;">Score 2</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">8 — <input type="number" id="seuil-tra-2" value="11.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#3b82f6; font-weight:700;">Score 3</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">12 — <input type="number" id="seuil-tra-3" value="14.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#22c55e; font-weight:700;">Score 4</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">15 — 20</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PART -->
+                <div style="margin-bottom: 20px;">
+                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 8px;">PART (Participation)</div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#ef4444; font-weight:700;">Score 1</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">0 — <input type="number" id="seuil-part-1" value="7.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#f59e0b; font-weight:700;">Score 2</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">8 — <input type="number" id="seuil-part-2" value="11.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#3b82f6; font-weight:700;">Score 3</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">12 — <input type="number" id="seuil-part-3" value="14.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#22c55e; font-weight:700;">Score 4</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">15 — 20</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COM -->
+                <div style="margin-bottom: 20px;">
+                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 8px;">COM (Comportement — nb incidents)</div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#22c55e; font-weight:700;">Score 4</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">0 incidents</div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#3b82f6; font-weight:700;">Score 3</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">1 — <input type="number" id="seuil-com-3" value="5" step="1" style="width:50px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#f59e0b; font-weight:700;">Score 2</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">6 — <input type="number" id="seuil-com-2" value="20" step="1" style="width:50px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#ef4444; font-weight:700;">Score 1</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">21+</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABS -->
+                <div>
+                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 8px;">ABS (Absences)</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 6px;">Demi-journées (poids: <input type="number" id="seuil-abs-poids-dj" value="0.6" step="0.1" min="0" max="1" style="width:45px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;">)</div>
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#22c55e;">S4</span><br>0-5</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#3b82f6;">S3</span><br>6-13</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#f59e0b;">S2</span><br>14-25</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#ef4444;">S1</span><br>26+</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 6px;">Non-justifiées (poids: <input type="number" id="seuil-abs-poids-nj" value="0.4" step="0.1" min="0" max="1" style="width:45px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;">)</div>
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#22c55e;">S4</span><br>0</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#3b82f6;">S3</span><br>1-2</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#f59e0b;">S2</span><br>3-5</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#ef4444;">S1</span><br>6+</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3 : Distribution Percentile (visible si mode=percentile) -->
+            <div id="scoring-percentile-section" class="card" style="margin-bottom: 20px; display: none;">
+                <h2>Distribution Percentile</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">Répartition de la cohorte par score. Les pourcentages doivent totaliser 100%.</p>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                    <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
+                        <div style="font-size:12px; color:#ef4444; font-weight:700; margin-bottom:8px;">Score 1 (faible)</div>
+                        <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
+                            <input type="number" id="pct-score-1" value="10" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
+                            <span style="color:#94a3b8;">%</span>
+                        </div>
+                    </div>
+                    <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
+                        <div style="font-size:12px; color:#f59e0b; font-weight:700; margin-bottom:8px;">Score 2</div>
+                        <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
+                            <input type="number" id="pct-score-2" value="25" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
+                            <span style="color:#94a3b8;">%</span>
+                        </div>
+                    </div>
+                    <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
+                        <div style="font-size:12px; color:#3b82f6; font-weight:700; margin-bottom:8px;">Score 3</div>
+                        <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
+                            <input type="number" id="pct-score-3" value="40" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
+                            <span style="color:#94a3b8;">%</span>
+                        </div>
+                    </div>
+                    <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
+                        <div style="font-size:12px; color:#22c55e; font-weight:700; margin-bottom:8px;">Score 4 (excellent)</div>
+                        <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
+                            <input type="number" id="pct-score-4" value="25" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
+                            <span style="color:#94a3b8;">%</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="pct-total-bar" style="text-align: center; font-size: 13px; color: #22c55e; font-weight: 700;">Total : 100%</div>
+            </div>
+
+            <!-- Section 4 : Poids des critères -->
+            <div class="card" style="margin-bottom: 20px;">
+                <h2>Poids des Critères</h2>
+                <p style="color: #94a3b8; margin-bottom: 15px;">Pondération dans le score composite (somme = 1.0).</p>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                    <div style="text-align:center;">
+                        <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">COM</div>
+                        <input type="number" id="poids-com" value="0.25" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">TRA</div>
+                        <input type="number" id="poids-tra" value="0.40" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">PART</div>
+                        <input type="number" id="poids-part" value="0.10" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">ABS</div>
+                        <input type="number" id="poids-abs" value="0.25" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 5 : Matières (niveau détecté) -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Matières & Coefficients</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="font-size: 12px; color: #94a3b8;">Niveau :</label>
+                        <select id="scoring-niveau" onchange="loadScoringMatieres()" style="background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:4px 8px;">
+                            <option value="6e">6e</option>
+                            <option value="5e" selected>5e</option>
+                            <option value="4e">4e</option>
+                            <option value="3e">3e</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="border: 1px solid #334155; border-radius: 8px; overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse;" id="scoring-matieres-table">
+                        <thead>
+                            <tr style="background: #0f172a;">
+                                <th style="padding: 8px 12px; text-align: left; font-size: 12px; color: #94a3b8;">Matière</th>
+                                <th style="padding: 8px 12px; text-align: center; font-size: 12px; color: #94a3b8;">Coefficient</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scoring-matieres-body">
+                            <tr><td colspan="2" style="padding: 20px; text-align: center; color: #64748b;">Chargement...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section 6 : Actions -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="saveScoringConfigUI()" id="btn-save-scoring" class="btn btn-success" style="width: auto; padding: 10px 20px;">
+                            <div class="spinner"></div>
+                            <span><i class="fas fa-save"></i> SAUVEGARDER CONFIG</span>
+                        </button>
+                        <button onclick="previewScoring()" id="btn-preview-scoring" class="btn btn-secondary" style="width: auto; padding: 10px 20px;">
+                            <div class="spinner"></div>
+                            <span><i class="fas fa-eye"></i> PREVIEW</span>
+                        </button>
+                    </div>
+                    <button onclick="applyScoring()" id="btn-apply-scoring" class="btn btn-primary" style="width: auto; padding: 10px 20px;">
+                        <div class="spinner"></div>
+                        <span><i class="fas fa-calculator"></i> CALCULER & INJECTER LES SCORES</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Section 7 : Preview / Histogramme -->
+            <div id="scoring-preview-container" class="card" style="display: none;">
+                <h2>Apercu des Scores</h2>
+                <div id="scoring-histogram" style="margin-bottom: 20px;"></div>
+                <div id="scoring-preview-table-wrap" style="max-height: 300px; overflow-y: auto; border: 1px solid #334155; border-radius: 8px;">
+                    <table style="width: 100%; border-collapse: collapse;" id="scoring-preview-table">
+                        <thead id="scoring-preview-head"></thead>
+                        <tbody id="scoring-preview-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <button onclick="goTo(3)" class="btn btn-success" style="margin-top: 20px;">
+                <span><i class="fas fa-arrow-right"></i> CONTINUER VERS LES STATS</span>
+            </button>
+        </div>
+
         <div id="phase-3" class="phase">
             <h1>📊 ANALYSE DES EFFECTIFS</h1>
             <div class="card">
@@ -755,6 +1009,15 @@
         <div style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
             <div style="font-size: 12px; font-weight: 700; color: var(--warning); margin-bottom: 10px;">⚡ PROFILS DOUBLES</div>
             <div id="quota-combos"></div>
+        </div>
+
+        <h2 style="font-size: 14px; color: #64748b; margin: 30px 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">SCORING</h2>
+
+        <div style="background: #0f172a; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px;">MODE ACTIF</div>
+            <div id="scoring-status-mode" style="font-size: 14px; color: #e2e8f0; font-weight: 600;">Seuils fixes</div>
+            <div id="scoring-status-counts" style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Aucun score calculé</div>
+            <div id="scoring-status-dist" style="margin-top: 10px;"></div>
         </div>
 
     </aside>
@@ -903,6 +1166,7 @@
             if (nav) nav.classList.add('active');
 
             if (n === 'import') checkImportLockStatus();
+            if (n === 'scoring') loadScoringConfig();
             if (n === 3) loadStats();
             if (n === 4) {
                 // S'assurer que les stats sont chargées avant d'afficher la structure
@@ -1819,6 +2083,296 @@
             setTimeout(() => {
                 google.script.host.close();
             }, 1500);
+        }
+
+        // ===================================================================
+        // 9. SCORING EXPERT
+        // ===================================================================
+        var scoringConfigCache = null;
+
+        function onScoringModeChange() {
+            var mode = document.querySelector('input[name="scoring-mode"]:checked').value;
+            document.getElementById('scoring-seuils-section').style.display = (mode === 'seuils') ? 'block' : 'none';
+            document.getElementById('scoring-percentile-section').style.display = (mode === 'percentile') ? 'block' : 'none';
+            var modeLabel = mode === 'percentile' ? 'Percentile' : 'Seuils fixes';
+            var el = document.getElementById('scoring-status-mode');
+            if (el) el.textContent = modeLabel;
+            // Update radio label highlight
+            document.getElementById('mode-seuils-label').style.borderColor = (mode === 'seuils') ? 'var(--primary)' : '#334155';
+            document.getElementById('mode-percentile-label').style.borderColor = (mode === 'percentile') ? 'var(--primary)' : '#334155';
+        }
+
+        function updatePctTotal() {
+            var s1 = parseFloat(document.getElementById('pct-score-1').value) || 0;
+            var s2 = parseFloat(document.getElementById('pct-score-2').value) || 0;
+            var s3 = parseFloat(document.getElementById('pct-score-3').value) || 0;
+            var s4 = parseFloat(document.getElementById('pct-score-4').value) || 0;
+            var total = s1 + s2 + s3 + s4;
+            var el = document.getElementById('pct-total-bar');
+            if (el) {
+                el.textContent = 'Total : ' + total + '%';
+                el.style.color = (Math.abs(total - 100) < 1) ? '#22c55e' : '#ef4444';
+            }
+        }
+
+        function loadScoringConfig() {
+            runServerCall('v3_getScoringConfig', [], function(res) {
+                if (!res) return;
+                scoringConfigCache = res;
+
+                // Mode
+                var modeRadio = document.querySelector('input[name="scoring-mode"][value="' + (res.mode || 'seuils') + '"]');
+                if (modeRadio) modeRadio.checked = true;
+                onScoringModeChange();
+
+                // Poids critères
+                if (res.poidsCriteres) {
+                    if (res.poidsCriteres.COM !== undefined) document.getElementById('poids-com').value = res.poidsCriteres.COM;
+                    if (res.poidsCriteres.TRA !== undefined) document.getElementById('poids-tra').value = res.poidsCriteres.TRA;
+                    if (res.poidsCriteres.PART !== undefined) document.getElementById('poids-part').value = res.poidsCriteres.PART;
+                    if (res.poidsCriteres.ABS !== undefined) document.getElementById('poids-abs').value = res.poidsCriteres.ABS;
+                }
+
+                // Percentile distribution
+                if (res.percentile && res.percentile.distribution) {
+                    var d = res.percentile.distribution;
+                    document.getElementById('pct-score-1').value = Math.round((d[1] || 0.10) * 100);
+                    document.getElementById('pct-score-2').value = Math.round((d[2] || 0.25) * 100);
+                    document.getElementById('pct-score-3').value = Math.round((d[3] || 0.40) * 100);
+                    document.getElementById('pct-score-4').value = Math.round((d[4] || 0.25) * 100);
+                    updatePctTotal();
+                }
+
+                // Seuils TRA
+                if (res.seuils && res.seuils.TRA) {
+                    res.seuils.TRA.forEach(function(s) {
+                        if (s.score === 1) document.getElementById('seuil-tra-1').value = s.max;
+                        if (s.score === 2) document.getElementById('seuil-tra-2').value = s.max;
+                        if (s.score === 3) document.getElementById('seuil-tra-3').value = s.max;
+                    });
+                }
+                if (res.seuils && res.seuils.PART) {
+                    res.seuils.PART.forEach(function(s) {
+                        if (s.score === 1) document.getElementById('seuil-part-1').value = s.max;
+                        if (s.score === 2) document.getElementById('seuil-part-2').value = s.max;
+                        if (s.score === 3) document.getElementById('seuil-part-3').value = s.max;
+                    });
+                }
+                if (res.seuils && res.seuils.COM) {
+                    res.seuils.COM.forEach(function(s) {
+                        if (s.score === 3) document.getElementById('seuil-com-3').value = s.max;
+                        if (s.score === 2) document.getElementById('seuil-com-2').value = s.max;
+                    });
+                }
+                if (res.seuils && res.seuils.ABS) {
+                    if (res.seuils.ABS.poidsDJ !== undefined) document.getElementById('seuil-abs-poids-dj').value = res.seuils.ABS.poidsDJ;
+                    if (res.seuils.ABS.poidsNJ !== undefined) document.getElementById('seuil-abs-poids-nj').value = res.seuils.ABS.poidsNJ;
+                }
+
+                // Load matières
+                loadScoringMatieres();
+
+                // Update right panel status
+                updateScoringStatus(res);
+            }, function(err) {
+                console.error('loadScoringConfig error:', err);
+            });
+        }
+
+        function loadScoringMatieres() {
+            var niveau = document.getElementById('scoring-niveau').value;
+            runServerCall('v3_getScoringMatieres', [niveau], function(res) {
+                var tbody = document.getElementById('scoring-matieres-body');
+                if (!tbody || !res || !res.matieres) return;
+                var html = '';
+                res.matieres.forEach(function(m) {
+                    html += '<tr style="border-top: 1px solid #1e293b;">';
+                    html += '<td style="padding: 8px 12px; color: #e2e8f0; font-size: 13px;">' + escapeHtml(m.nom) + (m.multi ? ' <span style="color:#64748b;font-size:10px;">(multi)</span>' : '') + '</td>';
+                    html += '<td style="padding: 8px 12px; text-align: center; color: #f59e0b; font-weight: 700; font-size: 14px;">' + m.coeff + '</td>';
+                    html += '</tr>';
+                });
+                tbody.innerHTML = html;
+            }, function(err) {
+                console.error('loadScoringMatieres error:', err);
+            });
+        }
+
+        function buildScoringConfigFromUI() {
+            var mode = document.querySelector('input[name="scoring-mode"]:checked').value;
+            var config = {
+                mode: mode,
+                poidsCriteres: {
+                    COM: parseFloat(document.getElementById('poids-com').value) || 0.25,
+                    TRA: parseFloat(document.getElementById('poids-tra').value) || 0.40,
+                    PART: parseFloat(document.getElementById('poids-part').value) || 0.10,
+                    ABS: parseFloat(document.getElementById('poids-abs').value) || 0.25
+                },
+                percentile: {
+                    distribution: {
+                        1: (parseFloat(document.getElementById('pct-score-1').value) || 10) / 100,
+                        2: (parseFloat(document.getElementById('pct-score-2').value) || 25) / 100,
+                        3: (parseFloat(document.getElementById('pct-score-3').value) || 40) / 100,
+                        4: (parseFloat(document.getElementById('pct-score-4').value) || 25) / 100
+                    }
+                },
+                seuils: {
+                    TRA: [
+                        { score: 4, min: parseFloat(document.getElementById('seuil-tra-3').value) + 0.001, max: 20 },
+                        { score: 3, min: parseFloat(document.getElementById('seuil-tra-2').value) + 0.001, max: parseFloat(document.getElementById('seuil-tra-3').value) },
+                        { score: 2, min: parseFloat(document.getElementById('seuil-tra-1').value) + 0.001, max: parseFloat(document.getElementById('seuil-tra-2').value) },
+                        { score: 1, min: 0, max: parseFloat(document.getElementById('seuil-tra-1').value) }
+                    ],
+                    PART: [
+                        { score: 4, min: parseFloat(document.getElementById('seuil-part-3').value) + 0.001, max: 20 },
+                        { score: 3, min: parseFloat(document.getElementById('seuil-part-2').value) + 0.001, max: parseFloat(document.getElementById('seuil-part-3').value) },
+                        { score: 2, min: parseFloat(document.getElementById('seuil-part-1').value) + 0.001, max: parseFloat(document.getElementById('seuil-part-2').value) },
+                        { score: 1, min: 0, max: parseFloat(document.getElementById('seuil-part-1').value) }
+                    ],
+                    COM: [
+                        { score: 4, min: 0, max: 0 },
+                        { score: 3, min: 1, max: parseInt(document.getElementById('seuil-com-3').value) || 5 },
+                        { score: 2, min: (parseInt(document.getElementById('seuil-com-3').value) || 5) + 1, max: parseInt(document.getElementById('seuil-com-2').value) || 20 },
+                        { score: 1, min: (parseInt(document.getElementById('seuil-com-2').value) || 20) + 1, max: 999 }
+                    ]
+                }
+            };
+            // Keep ABS from cache (complex sub-structure, not fully editable in UI)
+            if (scoringConfigCache && scoringConfigCache.seuils && scoringConfigCache.seuils.ABS) {
+                config.seuils.ABS = JSON.parse(JSON.stringify(scoringConfigCache.seuils.ABS));
+                config.seuils.ABS.poidsDJ = parseFloat(document.getElementById('seuil-abs-poids-dj').value) || 0.6;
+                config.seuils.ABS.poidsNJ = parseFloat(document.getElementById('seuil-abs-poids-nj').value) || 0.4;
+            }
+            return config;
+        }
+
+        function saveScoringConfigUI() {
+            var config = buildScoringConfigFromUI();
+            setLoading('btn-save-scoring', true);
+            runServerCall('v3_saveScoringConfig', [config], function(res) {
+                setLoading('btn-save-scoring', false);
+                if (res && res.success) {
+                    showToast('Configuration scoring sauvegardée', 'success');
+                } else {
+                    showModal((res && res.error) || 'Erreur inconnue', 'error');
+                }
+            }, function(err) {
+                setLoading('btn-save-scoring', false);
+                showModal(err.message, 'error');
+            });
+        }
+
+        function previewScoring() {
+            setLoading('btn-preview-scoring', true);
+            runServerCall('v3_computeScoresPreview', [], function(res) {
+                setLoading('btn-preview-scoring', false);
+                if (!res || !res.success) {
+                    showModal((res && res.error) || 'Erreur preview', 'error');
+                    return;
+                }
+                renderScoringPreview(res);
+                document.getElementById('scoring-preview-container').style.display = 'block';
+                updateScoringStatusFromPreview(res);
+            }, function(err) {
+                setLoading('btn-preview-scoring', false);
+                showModal(err.message, 'error');
+            });
+        }
+
+        function applyScoring() {
+            setLoading('btn-apply-scoring', true);
+            runServerCall('v3_applyScores', [], function(res) {
+                setLoading('btn-apply-scoring', false);
+                if (res && res.success) {
+                    showToast('Scores calculés et injectés !', 'success');
+                    if (res.preview) {
+                        renderScoringPreview(res.preview);
+                        document.getElementById('scoring-preview-container').style.display = 'block';
+                        updateScoringStatusFromPreview(res.preview);
+                    }
+                } else {
+                    showModal((res && res.error) || 'Erreur', 'error');
+                }
+            }, function(err) {
+                setLoading('btn-apply-scoring', false);
+                showModal(err.message, 'error');
+            });
+        }
+
+        function renderScoringPreview(data) {
+            // Histogram
+            var histEl = document.getElementById('scoring-histogram');
+            if (histEl && data.distribution) {
+                var total = (data.distribution[1] || 0) + (data.distribution[2] || 0) + (data.distribution[3] || 0) + (data.distribution[4] || 0);
+                var colors = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e'];
+                var labels = ['Score 1', 'Score 2', 'Score 3', 'Score 4'];
+                var html = '<div style="display: flex; gap: 10px; align-items: flex-end; height: 120px;">';
+                for (var s = 1; s <= 4; s++) {
+                    var count = data.distribution[s] || 0;
+                    var pct = total > 0 ? Math.round(count / total * 100) : 0;
+                    var h = total > 0 ? Math.max(5, Math.round(count / total * 100)) : 5;
+                    html += '<div style="flex:1; text-align:center;">';
+                    html += '<div style="font-size:11px; color:#e2e8f0; font-weight:700; margin-bottom:4px;">' + count + ' (' + pct + '%)</div>';
+                    html += '<div style="height:' + h + 'px; background:' + colors[s-1] + '; border-radius:4px 4px 0 0;"></div>';
+                    html += '<div style="font-size:10px; color:#94a3b8; margin-top:4px;">' + labels[s-1] + '</div>';
+                    html += '</div>';
+                }
+                html += '</div>';
+                histEl.innerHTML = html;
+            }
+
+            // Table
+            var headEl = document.getElementById('scoring-preview-head');
+            var bodyEl = document.getElementById('scoring-preview-body');
+            if (headEl && bodyEl && data.sample) {
+                headEl.innerHTML = '<tr style="background:#0f172a;"><th style="padding:6px 10px;font-size:11px;color:#94a3b8;">Nom</th><th style="padding:6px 10px;font-size:11px;color:#94a3b8;">Classe</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">COM</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">TRA</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">PART</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">ABS</th></tr>';
+                var html = '';
+                data.sample.forEach(function(row) {
+                    var scoreColor = function(v) {
+                        if (v === 4) return '#22c55e';
+                        if (v === 3) return '#3b82f6';
+                        if (v === 2) return '#f59e0b';
+                        return '#ef4444';
+                    };
+                    html += '<tr style="border-top:1px solid #1e293b;">';
+                    html += '<td style="padding:5px 10px;font-size:12px;color:#e2e8f0;">' + escapeHtml(row.nom || '') + '</td>';
+                    html += '<td style="padding:5px 10px;font-size:12px;color:#94a3b8;">' + escapeHtml(row.classe || '') + '</td>';
+                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.COM) + ';">' + (row.COM || '-') + '</td>';
+                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.TRA) + ';">' + (row.TRA || '-') + '</td>';
+                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.PART) + ';">' + (row.PART || '-') + '</td>';
+                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.ABS) + ';">' + (row.ABS || '-') + '</td>';
+                    html += '</tr>';
+                });
+                bodyEl.innerHTML = html;
+            }
+        }
+
+        function updateScoringStatus(cfg) {
+            var modeEl = document.getElementById('scoring-status-mode');
+            if (modeEl) modeEl.textContent = (cfg.mode === 'percentile') ? 'Percentile' : 'Seuils fixes';
+        }
+
+        function updateScoringStatusFromPreview(data) {
+            var countsEl = document.getElementById('scoring-status-counts');
+            if (countsEl && data.total !== undefined) {
+                countsEl.textContent = data.total + ' élèves scorés';
+            }
+            var distEl = document.getElementById('scoring-status-dist');
+            if (distEl && data.distribution) {
+                var colors = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e'];
+                var total = (data.distribution[1]||0) + (data.distribution[2]||0) + (data.distribution[3]||0) + (data.distribution[4]||0);
+                var html = '<div style="display:flex; height:6px; border-radius:3px; overflow:hidden; margin-top:6px;">';
+                for (var s = 1; s <= 4; s++) {
+                    var pct = total > 0 ? ((data.distribution[s]||0) / total * 100) : 25;
+                    html += '<div style="width:' + pct + '%; background:' + colors[s-1] + ';"></div>';
+                }
+                html += '</div>';
+                html += '<div style="display:flex; justify-content:space-between; margin-top:4px; font-size:10px; color:#94a3b8;">';
+                for (var s = 1; s <= 4; s++) {
+                    html += '<span>S' + s + ': ' + (data.distribution[s]||0) + '</span>';
+                }
+                html += '</div>';
+                distEl.innerHTML = html;
+            }
         }
 
     </script>
