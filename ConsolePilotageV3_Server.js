@@ -1376,3 +1376,159 @@ function v3_getPlacedStudentsCounts() {
     return { success: false, error: e.message };
   }
 }
+
+// ===================================================================
+// SCORING EXPERT — Endpoints
+// ===================================================================
+
+/**
+ * Retourne la configuration scoring actuelle (defaults + overrides KV).
+ * @returns {Object} Config scoring complète
+ */
+function v3_getScoringConfig() {
+  try {
+    var config = getScoringConfig();
+    return config;
+  } catch (e) {
+    Logger.log('v3_getScoringConfig error: ' + e.message);
+    return { mode: 'seuils', error: e.message };
+  }
+}
+
+/**
+ * Sauvegarde la configuration scoring.
+ * @param {Object} config - { mode, seuils, percentile, poidsCriteres }
+ * @returns {Object} { success: true }
+ */
+function v3_saveScoringConfig(config) {
+  try {
+    if (!config) return { success: false, error: 'Config manquante' };
+    saveScoringConfig(config);
+    return { success: true };
+  } catch (e) {
+    Logger.log('v3_saveScoringConfig error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Retourne les matières et coefficients pour un niveau donné.
+ * @param {string} niveau - '6e', '5e', '4e', '3e'
+ * @returns {Object} { matieres: [...], oral: {...} }
+ */
+function v3_getScoringMatieres(niveau) {
+  try {
+    var matieres = getMatieresForLevel(niveau || '5e');
+    var oral = getOralPatternsForLevel(niveau || '5e');
+    return { matieres: matieres, oral: oral };
+  } catch (e) {
+    Logger.log('v3_getScoringMatieres error: ' + e.message);
+    return { matieres: [], oral: {}, error: e.message };
+  }
+}
+
+/**
+ * Calcule un aperçu des scores sans les injecter.
+ * Retourne la distribution et un échantillon.
+ * @returns {Object} { success, distribution, sample, total }
+ */
+function v3_computeScoresPreview() {
+  try {
+    var ss = SpreadsheetApp.getActive();
+
+    // Calculer les 4 scores (sans injecter)
+    var resABS = calculerScoreABS_(ss);
+    var resCOM = calculerScoreCOM_(ss);
+    var resTRA = calculerScoreTRA_(ss);
+    var resPART = calculerScorePART_(ss);
+
+    // Fusionner par nom+classe
+    var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART);
+
+    // Distribution
+    var dist = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    var total = 0;
+    for (var i = 0; i < merged.length; i++) {
+      // Compter sur le score TRA comme indicateur principal
+      var s = merged[i].scoreTRA;
+      if (s >= 1 && s <= 4) {
+        dist[s]++;
+        total++;
+      }
+    }
+
+    // Échantillon (premiers 30 élèves)
+    var sample = [];
+    var limit = Math.min(30, merged.length);
+    for (var i = 0; i < limit; i++) {
+      sample.push({
+        nom: merged[i].nom || '',
+        classe: merged[i].classe || '',
+        COM: merged[i].scoreCOM,
+        TRA: merged[i].scoreTRA,
+        PART: merged[i].scorePART,
+        ABS: merged[i].scoreABS
+      });
+    }
+
+    return {
+      success: true,
+      distribution: dist,
+      total: total,
+      sample: sample
+    };
+  } catch (e) {
+    Logger.log('v3_computeScoresPreview error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Calcule les scores ET les injecte dans les onglets sources.
+ * @returns {Object} { success, preview }
+ */
+function v3_applyScores() {
+  try {
+    var ss = SpreadsheetApp.getActive();
+
+    // Calculer
+    var resABS = calculerScoreABS_(ss);
+    var resCOM = calculerScoreCOM_(ss);
+    var resTRA = calculerScoreTRA_(ss);
+    var resPART = calculerScorePART_(ss);
+
+    // Fusionner
+    var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART);
+
+    // Injecter dans les onglets sources
+    injecterScoresDansOngletsSources_(ss, merged);
+
+    // Construire preview pour retour
+    var dist = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    var total = 0;
+    for (var i = 0; i < merged.length; i++) {
+      var s = merged[i].scoreTRA;
+      if (s >= 1 && s <= 4) { dist[s]++; total++; }
+    }
+    var sample = [];
+    var limit = Math.min(30, merged.length);
+    for (var i = 0; i < limit; i++) {
+      sample.push({
+        nom: merged[i].nom || '',
+        classe: merged[i].classe || '',
+        COM: merged[i].scoreCOM,
+        TRA: merged[i].scoreTRA,
+        PART: merged[i].scorePART,
+        ABS: merged[i].scoreABS
+      });
+    }
+
+    return {
+      success: true,
+      preview: { distribution: dist, total: total, sample: sample }
+    };
+  } catch (e) {
+    Logger.log('v3_applyScores error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

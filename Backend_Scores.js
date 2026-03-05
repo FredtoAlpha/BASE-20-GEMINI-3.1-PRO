@@ -5,105 +5,14 @@
  * Calcule 4 scores (ABS, COM, TRA, PART) à partir des exports Pronote
  * et les injecte dans les colonnes des onglets sources élèves.
  *
- * DÉTECTION DYNAMIQUE DES COLONNES :
- * Les en-têtes Pronote varient selon l'établissement (AGL1 MOY, FRANC,
- * HI-GE, ESP2 MOY, etc.). Ce module détecte les colonnes par pattern
- * matching sur la ligne d'en-tête au lieu d'utiliser des indices fixes.
+ * ARCHITECTURE :
+ * - Config dynamique → Scoring_Config.js (seuils, mode, patterns)
+ * - Matières par niveau → Scoring_Matieres.js (6e/5e/4e/3e)
+ * - Mode percentile → Scoring_Percentile.js (rang dans la cohorte)
  *
- * ARCHITECTURE DES ONGLETS PRONOTE :
- * - DATA_ABS       → Export Pronote des absences
- * - DATA_INCIDENTS → Export Pronote des incidents/sanctions
- * - DATA_PUNITIONS → Export Pronote des punitions
- * - DATA_NOTES     → Export Pronote des notes/moyennes
- *
- * @version 2.0.0 — Détection dynamique des colonnes
+ * @version 3.0.0 — Config dynamique + percentile + matières par niveau
  * ===================================================================
  */
-
-// =============================================================================
-// CONFIGURATION DU MODULE SCORES
-// =============================================================================
-
-var SCORES_CONFIG = {
-  SEUILS_ABS: {
-    DJ: [
-      { score: 4, min: 0, max: 5 },
-      { score: 3, min: 6, max: 13 },
-      { score: 2, min: 14, max: 25 },
-      { score: 1, min: 26, max: 999 }
-    ],
-    NJ: [
-      { score: 4, min: 0, max: 0 },
-      { score: 3, min: 1, max: 2 },
-      { score: 2, min: 3, max: 5 },
-      { score: 1, min: 6, max: 999 }
-    ],
-    poidsDJ: 0.6,
-    poidsNJ: 0.4
-  },
-  SEUILS_COM: [
-    { score: 4, min: 0, max: 0 },
-    { score: 3, min: 1, max: 5 },
-    { score: 2, min: 6, max: 20 },
-    { score: 1, min: 21, max: 999 }
-  ],
-  SEUILS_TRA: [
-    { score: 4, min: 15, max: 20 },
-    { score: 3, min: 12, max: 14.999 },
-    { score: 2, min: 8, max: 11.999 },
-    { score: 1, min: 0, max: 7.999 }
-  ],
-  SEUILS_PART: [
-    { score: 4, min: 15, max: 20 },
-    { score: 3, min: 12, max: 14.999 },
-    { score: 2, min: 8, max: 11.999 },
-    { score: 1, min: 0, max: 7.999 }
-  ],
-
-  // ── Matières pour le score TRA ──
-  // patterns = regex appliqués sur les en-têtes Pronote pour trouver la colonne
-  // preferMoy = true → si "MOY" et "ECRIT" existent, prendre MOY
-  MATIERES_TRA: [
-    { nom: 'Français',      patterns: ['FRANC', 'FRAN[CÇ]'], coeff: 4.5 },
-    { nom: 'Maths',         patterns: ['MATH'], coeff: 3.5 },
-    { nom: 'Histoire-Géo',  patterns: ['HI.?GE', 'HIST.*G[EÉ]O', 'HG'], coeff: 3.0 },
-    { nom: 'Anglais',       patterns: ['ANG.*MOY', 'AGL.*MOY', 'ANGLAIS', 'ANG(?!.*(?:ORAL|ECRI))'], coeff: 3.0 },
-    { nom: 'LV2',           patterns: ['ESP.*MOY', 'ALL.*MOY', 'ITA.*MOY', 'ESP[^O]*$', 'ALL[^O]*$', 'ITA[^O]*$'], coeff: 2.5 },
-    { nom: 'EPS',           patterns: ['^EPS'], coeff: 2.0 },
-    { nom: 'Phys.-Chimie',  patterns: ['PH.?CH', 'PHYS', 'SC.?PH'], coeff: 1.5, multi: true },
-    { nom: 'SVT',           patterns: ['^SVT'], coeff: 1.5, multi: true },
-    { nom: 'Technologie',   patterns: ['TECHN'], coeff: 1.5, multi: true },
-    { nom: 'Arts Pla.',     patterns: ['A.?PLA', 'ARTS'], coeff: 1.0 },
-    { nom: 'Musique',       patterns: ['EDMUS', 'MUS'], coeff: 1.0 },
-    { nom: 'Latin',         patterns: ['LAT', 'LCALA'], coeff: 1.0 }
-  ],
-
-  // ── Patterns pour les colonnes ORAL (score PART) ──
-  PATTERNS_ORAL_ANG: ['ANG.*ORAL', 'AGL.*ORAL', 'ORAL.*ANG'],
-  PATTERNS_ORAL_LV2: ['ESP.*ORAL', 'ALL.*ORAL', 'ITA.*ORAL', 'ORAL.*LV2'],
-
-  // ── Patterns pour DATA_ABS ──
-  PATTERNS_ABS: {
-    nom:       ['NOM'],
-    classe:    ['CLASSE'],
-    dj:        ['DJ', 'DEMI.?JOURN', 'DJ.*BULL'],
-    justifiee: ['JUSTIFI']
-  },
-
-  // ── Patterns pour DATA_INCIDENTS ──
-  PATTERNS_INC: {
-    nom:     ['NOM'],
-    classe:  ['CLASSE'],
-    gravite: ['GRAVIT', 'GRAV']
-  },
-
-  // ── Patterns pour DATA_PUNITIONS ──
-  PATTERNS_PUN: {
-    nom:    ['NOM'],
-    classe: ['CLASSE'],
-    nb:     ['^NB', 'NOMBRE', 'QT', 'QUANT']
-  }
-};
 
 // =============================================================================
 // DÉTECTION DYNAMIQUE DES COLONNES
@@ -441,7 +350,8 @@ function calculerScoreABS_(ss) {
   var h = det.headers;
   if (h.length === 0) return [];
 
-  var pats = SCORES_CONFIG.PATTERNS_ABS;
+  var scoringCfg = getScoringConfig();
+  var pats = scoringCfg.patterns.ABS;
   var colNom     = findCol_(h, pats.nom);
   var colClasse  = findCol_(h, pats.classe);
   var colDJ      = findCol_(h, pats.dj);
@@ -452,7 +362,7 @@ function calculerScoreABS_(ss) {
     return [];
   }
 
-  var seuils = SCORES_CONFIG.SEUILS_ABS;
+  var seuils = scoringCfg.seuils.ABS;
   var eleves = {};
 
   for (var i = det.dataStartRow; i < data.length; i++) {
@@ -497,7 +407,8 @@ function calculerScoreCOM_(ss) {
 
   if ((!wsInc || wsInc.getLastRow() < 2) && (!wsPun || wsPun.getLastRow() < 2)) return [];
 
-  var seuils = SCORES_CONFIG.SEUILS_COM;
+  var scoringCfg = getScoringConfig();
+  var seuils = scoringCfg.seuils.COM;
 
   // ── Punitions ──
   var punitions = {};
@@ -505,7 +416,7 @@ function calculerScoreCOM_(ss) {
     var dataPun = wsPun.getDataRange().getValues();
     var detPun = detectHeaders_(dataPun);
     var hPun = detPun.headers;
-    var pPun = SCORES_CONFIG.PATTERNS_PUN;
+    var pPun = scoringCfg.patterns.PUN;
     var colPNom    = findCol_(hPun, pPun.nom);
     var colPClasse = findCol_(hPun, pPun.classe);
     var colPNb     = findCol_(hPun, pPun.nb);
@@ -529,7 +440,7 @@ function calculerScoreCOM_(ss) {
     var dataInc = wsInc.getDataRange().getValues();
     var detInc = detectHeaders_(dataInc);
     var hInc = detInc.headers;
-    var pInc = SCORES_CONFIG.PATTERNS_INC;
+    var pInc = scoringCfg.patterns.INC;
     var colINom    = findCol_(hInc, pInc.nom);
     var colIClasse = findCol_(hInc, pInc.classe);
     var colIGrav   = findCol_(hInc, pInc.gravite);
@@ -600,8 +511,13 @@ function calculerScoreTRA_(ss) {
     return [];
   }
 
-  // Résoudre dynamiquement les colonnes de chaque matière
-  var matieresConf = SCORES_CONFIG.MATIERES_TRA;
+  // Détecter le niveau depuis les onglets sources ou la config
+  var niveau = detectNiveauAuto();
+  var scoringCfg = getScoringConfig(niveau);
+  Logger.log('DATA_NOTES: niveau détecté = ' + niveau);
+
+  // Résoudre dynamiquement les colonnes de chaque matière (par niveau)
+  var matieresConf = getMatieresForLevel(niveau);
   var matieresResolues = [];
   var matieresManquantes = [];
 
@@ -622,7 +538,7 @@ function calculerScoreTRA_(ss) {
   }
 
   if (matieresManquantes.length > 0) {
-    Logger.log('DATA_NOTES: matières non trouvées: ' + matieresManquantes.join(', ') +
+    Logger.log('DATA_NOTES: matières non trouvées pour ' + niveau + ': ' + matieresManquantes.join(', ') +
                ' | En-têtes: ' + h.join(' | '));
   }
 
@@ -631,7 +547,8 @@ function calculerScoreTRA_(ss) {
     return [];
   }
 
-  var seuils = SCORES_CONFIG.SEUILS_TRA;
+  var seuils = scoringCfg.seuils.TRA;
+  var mode = scoringCfg.mode || 'seuils';
   var resultats = [];
 
   for (var i = det.dataStartRow; i < data.length; i++) {
@@ -659,9 +576,20 @@ function calculerScoreTRA_(ss) {
     }
 
     var moyPond = totalCoeff > 0 ? Math.round(totalPts / totalCoeff * 100) / 100 : null;
-    var scoreTRA = moyPond !== null ? attribuerScoreParSeuil_(moyPond, seuils) : null;
 
-    resultats.push({ nom: nom, classe: classe, moyPond: moyPond, scoreTRA: scoreTRA });
+    // En mode seuils, calculer directement ; en mode percentile, on fera un 2e pass
+    var scoreTRA = null;
+    if (mode === 'seuils') {
+      scoreTRA = moyPond !== null ? attribuerScoreParSeuil_(moyPond, seuils) : null;
+    }
+
+    resultats.push({ nom: nom, classe: classe, moyPond: moyPond, valeurBrute: moyPond, scoreTRA: scoreTRA });
+  }
+
+  // Mode percentile : 2e pass pour assigner les scores par rang
+  if (mode === 'percentile') {
+    var distribution = scoringCfg.percentile ? scoringCfg.percentile.distribution : null;
+    resultats = applyPercentileToResults(resultats, 'scoreTRA', distribution);
   }
 
   return resultats;
@@ -684,16 +612,22 @@ function calculerScorePART_(ss) {
   var colClasse = findCol_(h, ['CLASSE']);
   if (colNom === -1) return [];
 
-  // Trouver les colonnes ORAL
-  var colOralAng = findCol_(h, SCORES_CONFIG.PATTERNS_ORAL_ANG);
-  var colsOralLV2 = findAllCols_(h, SCORES_CONFIG.PATTERNS_ORAL_LV2);
+  // Détecter le niveau et charger config dynamique
+  var niveau = detectNiveauAuto();
+  var scoringCfg = getScoringConfig(niveau);
+  var oralPatterns = getOralPatternsForLevel(niveau);
+  var mode = scoringCfg.mode || 'seuils';
+
+  // Trouver les colonnes ORAL (patterns par niveau)
+  var colOralAng = findCol_(h, oralPatterns.ang);
+  var colsOralLV2 = oralPatterns.lv2.length > 0 ? findAllCols_(h, oralPatterns.lv2) : [];
 
   if (colOralAng === -1 && colsOralLV2.length === 0) {
-    Logger.log('DATA_NOTES: aucune colonne ORAL trouvée — abandon calcul PART');
+    Logger.log('DATA_NOTES: aucune colonne ORAL trouvée pour ' + niveau + ' — abandon calcul PART');
     return [];
   }
 
-  var seuils = SCORES_CONFIG.SEUILS_PART;
+  var seuils = scoringCfg.seuils.PART;
   var resultats = [];
 
   for (var i = det.dataStartRow; i < data.length; i++) {
@@ -714,9 +648,19 @@ function calculerScorePART_(ss) {
     var moyOral = notes.length > 0
       ? Math.round(notes.reduce(function(a, b) { return a + b; }, 0) / notes.length * 100) / 100
       : null;
-    var scorePART = moyOral !== null ? attribuerScoreParSeuil_(moyOral, seuils) : null;
 
-    resultats.push({ nom: nom, classe: classe, moyOral: moyOral, scorePART: scorePART });
+    var scorePART = null;
+    if (mode === 'seuils') {
+      scorePART = moyOral !== null ? attribuerScoreParSeuil_(moyOral, seuils) : null;
+    }
+
+    resultats.push({ nom: nom, classe: classe, moyOral: moyOral, valeurBrute: moyOral, scorePART: scorePART });
+  }
+
+  // Mode percentile
+  if (mode === 'percentile') {
+    var distribution = scoringCfg.percentile ? scoringCfg.percentile.distribution : null;
+    resultats = applyPercentileToResults(resultats, 'scorePART', distribution);
   }
 
   return resultats;
