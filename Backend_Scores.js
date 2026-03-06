@@ -676,26 +676,31 @@ function calculerScorePART_(ss) {
 function fusionnerScores_(absResults, comResults, traResults, partResults) {
   var fusion = {};
 
+  // Clé composite nom|classe pour éviter les collisions d'homonymes
   absResults.forEach(function(r) {
-    if (!fusion[r.nom]) fusion[r.nom] = { classe: r.classe };
-    fusion[r.nom].scoreABS = r.scoreABS;
-    fusion[r.nom].dj = r.dj;
+    var key = r.nom + '|' + (r.classe || '');
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    fusion[key].scoreABS = r.scoreABS;
+    fusion[key].dj = r.dj;
   });
 
   comResults.forEach(function(r) {
-    if (!fusion[r.nom]) fusion[r.nom] = { classe: r.classe };
-    fusion[r.nom].scoreCOM = r.scoreCOM;
+    var key = r.nom + '|' + (r.classe || '');
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    fusion[key].scoreCOM = r.scoreCOM;
   });
 
   traResults.forEach(function(r) {
-    if (!fusion[r.nom]) fusion[r.nom] = { classe: r.classe };
-    fusion[r.nom].scoreTRA = r.scoreTRA;
-    fusion[r.nom].moyPond = r.moyPond;
+    var key = r.nom + '|' + (r.classe || '');
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    fusion[key].scoreTRA = r.scoreTRA;
+    fusion[key].moyPond = r.moyPond;
   });
 
   partResults.forEach(function(r) {
-    if (!fusion[r.nom]) fusion[r.nom] = { classe: r.classe };
-    fusion[r.nom].scorePART = r.scorePART;
+    var key = r.nom + '|' + (r.classe || '');
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    fusion[key].scorePART = r.scorePART;
   });
 
   return fusion;
@@ -763,43 +768,51 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
       var nom = idxNom >= 0 ? String(row[idxNom]).trim() : '';
       var prenom = idxPrenom >= 0 ? String(row[idxPrenom]).trim() : '';
 
-      // Essayer plusieurs stratégies de matching
+      // Essayer plusieurs stratégies de matching (clé composite nom|classe)
       var match = null;
       var matchKey = '';
+      var sheetName = sheet.getName();
 
-      // 1) Match exact NOM_PRENOM
-      if (nomPrenom && fusion[nomPrenom]) {
-        match = fusion[nomPrenom];
-        matchKey = 'NOM_PRENOM exact';
+      // Helper : essayer clé composite puis clé simple
+      var tryLookup = function(candidate) {
+        if (!candidate) return null;
+        // D'abord clé composite nom|classe
+        if (fusion[candidate + '|' + sheetName]) return fusion[candidate + '|' + sheetName];
+        // Puis clé simple (rétro-compatibilité)
+        if (fusion[candidate]) return fusion[candidate];
+        return null;
+      };
+
+      // 1) Match NOM_PRENOM
+      if (nomPrenom) {
+        match = tryLookup(nomPrenom);
+        if (match) matchKey = 'NOM_PRENOM';
       }
-      // 2) Match exact NOM seul
-      if (!match && nom && fusion[nom]) {
-        match = fusion[nom];
-        matchKey = 'NOM exact';
+      // 2) Match NOM seul
+      if (!match && nom) {
+        match = tryLookup(nom);
+        if (match) matchKey = 'NOM';
       }
       // 3) Match "NOM PRENOM" concaténé
       if (!match) {
         var fullName = (nom + ' ' + prenom).trim();
-        if (fullName && fusion[fullName]) {
-          match = fusion[fullName];
-          matchKey = 'NOM+PRENOM';
-        }
+        match = tryLookup(fullName);
+        if (match) matchKey = 'NOM+PRENOM';
       }
       // 4) Match "PRENOM NOM" (format inverse)
       if (!match) {
         var reverseName = (prenom + ' ' + nom).trim();
-        if (reverseName && fusion[reverseName]) {
-          match = fusion[reverseName];
-          matchKey = 'PRENOM+NOM inverse';
-        }
+        match = tryLookup(reverseName);
+        if (match) matchKey = 'PRENOM+NOM inverse';
       }
       // 5) Recherche insensible à la casse dans les clés de fusion
       if (!match && nomPrenom) {
         var npUpper = nomPrenom.toUpperCase();
         for (var key in fusion) {
-          if (key.toUpperCase() === npUpper) {
+          var keyName = key.split('|')[0];
+          if (keyName.toUpperCase() === npUpper) {
             match = fusion[key];
-            matchKey = 'NOM_PRENOM case-insensitive';
+            matchKey = 'case-insensitive';
             break;
           }
         }

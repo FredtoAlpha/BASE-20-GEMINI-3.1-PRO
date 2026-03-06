@@ -258,7 +258,13 @@ function saveScoringConfig(config, niveau) {
   }
 
   if (config.percentile && config.percentile.distribution) {
-    scoringKvSet_('scoring.percentile.distribution', config.percentile.distribution, 'GLOBAL');
+    var d = config.percentile.distribution;
+    var sum = (d[1] || 0) + (d[2] || 0) + (d[3] || 0) + (d[4] || 0);
+    if (sum > 0 && Math.abs(sum - 1.0) > 0.05) {
+      Logger.log('⚠️ saveScoringConfig: normalisation distribution percentile (somme=' + sum.toFixed(3) + ')');
+      d = { 1: (d[1] || 0) / sum, 2: (d[2] || 0) / sum, 3: (d[3] || 0) / sum, 4: (d[4] || 0) / sum };
+    }
+    scoringKvSet_('scoring.percentile.distribution', d, 'GLOBAL');
   }
 
   if (config.poidsCriteres) {
