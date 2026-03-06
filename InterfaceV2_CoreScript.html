@@ -4095,14 +4095,14 @@
       window.showComparison = function () {
         if (!STATE.originalData) {
           toast('Aucune donnée de comparaison disponible', 'warning');
-          return; a
+          return;
         }
 
         // Créer une modal de comparaison
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.innerHTML = `
-        < div class="modal-content" style = "max-width: 1200px;" >
+        <div class="modal-content" style="max-width: 1200px;">
         <div class="modal-header">
           <h2 class="text-xl font-bold">Comparaison avant/après répartition</h2>
           <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
@@ -4121,7 +4121,7 @@
             </div>
           </div>
         </div>
-      </div >
+      </div>
         `;
 
         document.body.appendChild(modal);
@@ -4268,14 +4268,14 @@
 
         // HTML COMPLET avec tous les graphiques existants + nouveaux
         statsContent.innerHTML = `
-        < div class="mb-2" >
+        <div class="mb-2">
           <div class="flex gap-2 mb-2">
             <button onclick="switchChart('COM')" class="px-3 py-1 text-xs rounded font-semibold bg-green-500 text-white" id="btnCOM">COM</button>
             <button onclick="switchChart('TRA')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnTRA">TRA</button>
             <button onclick="switchChart('PART')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnPART">PART</button>
             <button onclick="switchChart('ABS')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnABS">ABS</button>
           </div>
-      </div >
+      </div>
       
       <div class="chart-container" style="padding: 10px; margin-bottom: 10px;">
         <h3 class="chart-title text-sm">Distribution - <span id="scoreType">Comportement</span></h3>
@@ -4984,7 +4984,7 @@
               window.saveProgressManager.updateProgress(progress, 'step3');
 
               // Mise à jour du titre avec le nom de la classe en cours
-              if (header) header.innerHTML = `< i class="fas fa-save mr-2" ></i > ${ escapeHtml(title) } - ${ escapeHtml(classe) } (${ i + 1 }/${totalClasses})`;
+              if (header) header.innerHTML = `<i class="fas fa-save mr-2"></i> ${escapeHtml(title)} - ${escapeHtml(classe)} (${i + 1}/${totalClasses})`;
 
               try {
                 // ✅ Sauvegarder UNE classe à la fois

@@ -970,10 +970,10 @@
             ${violations.map(v => `
               <div class="p-3 border-l-4 ${v.type === 'DISSO' ? 'border-red-500 bg-red-50' : 'border-blue-500 bg-blue-50'}">
                 <div class="font-semibold ${v.type === 'DISSO' ? 'text-red-800' : 'text-blue-800'}">
-                  ${v.type === 'DISSO' ? 'Dissociation' : 'Association'} ${v.code}
+                  ${v.type === 'DISSO' ? 'Dissociation' : 'Association'} ${escapeHtml(v.code)}
                 </div>
                 <div class="text-sm ${v.type === 'DISSO' ? 'text-red-700' : 'text-blue-700'}">
-                  ${v.message}
+                  ${escapeHtml(v.message)}
                 </div>
               </div>
             `).join('')}
@@ -1230,8 +1230,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(lv2Set).sort().map(lv2 => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="lv2" data-filter-value="${lv2}">
-                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${lv2}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="lv2" data-filter-value="${escapeHtml(lv2)}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${escapeHtml(lv2)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1245,8 +1245,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(optSet).sort().map(opt => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="opt" data-filter-value="${opt}">
-                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${opt}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="opt" data-filter-value="${escapeHtml(opt)}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${escapeHtml(opt)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1368,7 +1368,7 @@
         const value = checkbox.dataset.filterValue;
         return `
         <span class="px-2 py-1 bg-blue-500 text-white text-xs rounded">
-          ${type}: ${value}
+          ${escapeHtml(type)}: ${escapeHtml(value)}
         </span>
       `;
       }).join('');
