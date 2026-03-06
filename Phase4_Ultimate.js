@@ -7,8 +7,11 @@
  * Combine la puissance statistique de "Jules Codex" avec les
  * critères pédagogiques "Humains" (Têtes de classe, Niv1).
  *
- * PONDÉRATION ASYMÉTRIQUE DES EXTRÊMES :
- * Appliquée aux deux pipelines (LEGACY et OPTI).
+ * PONDÉRATION ASYMÉTRIQUE DES EXTRÊMES.
+ *
+ * PIPELINE : LEGACY uniquement (Console V3 → Admin).
+ * Le pipeline OPTI (Interface V2 → Prof) utilise
+ * Phase4_balanceScoresSwaps_BASEOPTI_V3 (Phases_BASEOPTI_V3_COMPLETE.js).
  *
  * AUTEUR : Gemini (Expert Apps Script)
  * DATE : 19/11/2025
@@ -88,6 +91,7 @@ var ULTIMATE_CONFIG = ULTIMATE_CONFIG_DEFAULTS;
  * @returns {Object} Résultat d'optimisation
  */
 function Phase4_Ultimate_Run(ctx) {
+  logLine('INFO', '🔧 [engine=LEGACY] Phase4_Ultimate_Run (Console V3 / Admin)');
   const ss = ctx.ss || SpreadsheetApp.getActiveSpreadsheet();
   const config = getUltimateConfig_(ctx);
   const mrConfig = MULTI_RESTART_CONFIG;
