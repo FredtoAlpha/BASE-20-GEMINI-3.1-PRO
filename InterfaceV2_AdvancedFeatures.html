@@ -778,7 +778,7 @@
                 <div class="max-h-32 overflow-y-auto">
                   ${group.slice(0, 10).map(s => `
                     <div class="text-xs p-1 bg-gray-50 rounded mb-1">
-                      ${s.nom} ${s.prenom || ''} (${s.sexe})
+                      ${escapeHtml(s.nom)} ${escapeHtml(s.prenom || '')} (${escapeHtml(s.sexe)})
                     </div>
                   `).join('')}
                   ${group.length > 10 ? `<div class="text-xs text-gray-500">... et ${group.length - 10} autres</div>` : ''}
@@ -1100,7 +1100,7 @@
             ${currentFixe.length > 0 ? `
               <div class="max-h-32 overflow-y-auto">
                 ${currentFixe.map(e => `
-                  <div class="text-sm p-1 bg-white rounded mb-1">${e}</div>
+                  <div class="text-sm p-1 bg-white rounded mb-1">${escapeHtml(e)}</div>
                 `).join('')}
               </div>
             ` : '<p class="text-sm text-gray-500">Aucun élève fixé</p>'}
@@ -1116,8 +1116,8 @@
               <div class="space-y-2">
                 ${Object.entries(currentDisso).map(([code, eleves]) => `
                   <div class="p-2 bg-white rounded border border-red-300">
-                    <div class="font-bold text-red-700">D${code} (${eleves.length} élèves)</div>
-                    <div class="text-xs text-gray-700">${eleves.join(', ')}</div>
+                    <div class="font-bold text-red-700">D${escapeHtml(code)} (${eleves.length} élèves)</div>
+                    <div class="text-xs text-gray-700">${eleves.map(e => escapeHtml(e)).join(', ')}</div>
                   </div>
                 `).join('')}
               </div>
@@ -1134,8 +1134,8 @@
               <div class="space-y-2">
                 ${Object.entries(currentAsso).map(([code, eleves]) => `
                   <div class="p-2 bg-white rounded border border-green-300">
-                    <div class="font-bold text-green-700">A${code} (${eleves.length} élèves)</div>
-                    <div class="text-xs text-gray-700">${eleves.join(', ')}</div>
+                    <div class="font-bold text-green-700">A${escapeHtml(code)} (${eleves.length} élèves)</div>
+                    <div class="text-xs text-gray-700">${eleves.map(e => escapeHtml(e)).join(', ')}</div>
                   </div>
                 `).join('')}
               </div>
