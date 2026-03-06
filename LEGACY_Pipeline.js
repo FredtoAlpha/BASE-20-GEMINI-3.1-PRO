@@ -26,7 +26,7 @@
 // ===================================================================
 
 const LEGACY_PIPELINE_CONFIG = {
-  maxRuntime: 600,        // 10 minutes max
+  maxRuntime: 360,        // 6 minutes max (limite GAS)
   enableLogging: true,
   testSheetSuffix: 'TEST',
   finSheetSuffix: 'FIN',
