@@ -1305,10 +1305,10 @@ function v3_getPlacedStudentsCounts() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheets = ss.getSheets();
     
-    // Filtrer les onglets TEST
+    // Filtrer les onglets TEST (même pattern que v3_finalizeSheets)
     const testSheets = sheets.filter(s => {
       const name = s.getName();
-      return name.indexOf('°TEST') > -1 || /TEST\d+$/.test(name);
+      return /TEST$/i.test(name) && !/_/.test(name);
     });
     
     if (testSheets.length === 0) {
