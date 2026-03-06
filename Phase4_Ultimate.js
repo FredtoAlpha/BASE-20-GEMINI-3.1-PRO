@@ -112,7 +112,7 @@ function Phase4_Ultimate_Run(ctx) {
 
   // 2. STATISTIQUES GLOBALES (invariantes entre restarts)
   const globalStats = calculateGlobalStats_Ultimate(allData);
-  logLine('INFO', `🎯 Cibles : Ratio F=${(globalStats.ratioF*100).toFixed(1)}%, Moyenne COM=${globalStats.avgCOM.toFixed(2)}, PART=${globalStats.avgPART.toFixed(2)}`);
+  logLine('INFO', `🎯 Cibles : Ratio F=${(globalStats.ratioF*100).toFixed(1)}%, Moyenne COM=${globalStats.avgCOM.toFixed(2)}, PART=${globalStats.avgPART.toFixed(2)}, ABS=${globalStats.avgABS.toFixed(2)}`);
 
   // ===== MULTI-RESTART LOOP =====
   let bestByClass = null;
@@ -427,14 +427,16 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, 
   score += Math.abs(ratioF - globalStats.ratioF) * 1000 * config.weights.parity;
 
   // --- 3. CRITÈRE DISTRIBUTION ACADÉMIQUE (Jules Codex) ---
-  // HARMONY FIX : Inclure PART et ABS dans le scoring (pas seulement COM/TRA)
+  // ✅ FIX #2 : Inclure ABS dans le scoring (était absent malgré le commentaire)
   const avgCOM = students.reduce((acc, s) => acc + (s.COM || 2), 0) / total;
   const avgTRA = students.reduce((acc, s) => acc + (s.TRA || 2), 0) / total;
   const avgPART = students.reduce((acc, s) => acc + (s.PART || 2), 0) / total;
+  const avgABS = students.reduce((acc, s) => acc + (s.ABS || 2), 0) / total;
 
   score += Math.abs(avgCOM - globalStats.avgCOM) * 100 * config.weights.distrib;
   score += Math.abs(avgTRA - globalStats.avgTRA) * 100 * config.weights.distrib;
   score += Math.abs(avgPART - (globalStats.avgPART || 2)) * 50 * config.weights.distrib;
+  score += Math.abs(avgABS - (globalStats.avgABS || 2)) * 50 * config.weights.distrib;
 
   return score;
 }
@@ -460,9 +462,11 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
     const avgTRA = students.reduce((s, st) => s + st.TRA, 0) / total;
     const avgPART = students.reduce((s, st) => s + (st.PART || 2), 0) / total;
 
+    var avgABS = students.reduce((s, st) => s + (st.ABS || 2), 0) / total;
+
     return indices.slice().sort(function(a, b) {
-      var distA = Math.abs(allData[a].COM - avgCOM) + Math.abs(allData[a].TRA - avgTRA) + Math.abs((allData[a].PART || 2) - avgPART) * 0.5;
-      var distB = Math.abs(allData[b].COM - avgCOM) + Math.abs(allData[b].TRA - avgTRA) + Math.abs((allData[b].PART || 2) - avgPART) * 0.5;
+      var distA = Math.abs(allData[a].COM - avgCOM) + Math.abs(allData[a].TRA - avgTRA) + Math.abs((allData[a].PART || 2) - avgPART) * 0.5 + Math.abs((allData[a].ABS || 2) - avgABS) * 0.5;
+      var distB = Math.abs(allData[b].COM - avgCOM) + Math.abs(allData[b].TRA - avgTRA) + Math.abs((allData[b].PART || 2) - avgPART) * 0.5 + Math.abs((allData[b].ABS || 2) - avgABS) * 0.5;
       return distB - distA; // Plus perturbant en premier
     }).filter(i => !isFixed(allData[i]));
   }
@@ -586,6 +590,7 @@ function loadAndClassifyData_Ultimate(ctx) {
       COM: headers.indexOf('COM'),
       TRA: headers.indexOf('TRA'),
       PART: headers.indexOf('PART'),
+      ABS: headers.indexOf('ABSENCE') !== -1 ? headers.indexOf('ABSENCE') : headers.indexOf('ABS'),
       MOB: headers.indexOf('MOBILITE'),
       FIXE: headers.indexOf('FIXE')
     };
@@ -602,6 +607,7 @@ function loadAndClassifyData_Ultimate(ctx) {
         COM: Number(row[idx.COM]) || 2,
         TRA: Number(row[idx.TRA]) || 2,
         PART: Number(row[idx.PART]) || 2,
+        ABS: idx.ABS >= 0 ? (Number(row[idx.ABS]) || 2) : 2,
         mobilite: String(row[idx.MOB] || row[idx.FIXE] || '').toUpperCase()
       };
 
@@ -630,18 +636,21 @@ function loadAndClassifyData_Ultimate(ctx) {
  */
 function calculateGlobalStats_Ultimate(allData) {
   let total = allData.length;
-  if (total === 0) return { ratioF: 0.5, avgCOM: 2.5, avgTRA: 2.5, avgPART: 2.5 };
+  if (total === 0) return { ratioF: 0.5, avgCOM: 2.5, avgTRA: 2.5, avgPART: 2.5, avgABS: 2.5 };
 
   const nbFilles = allData.filter(s => s.sexe === 'F').length;
   const sumCOM = allData.reduce((sum, s) => sum + s.COM, 0);
   const sumTRA = allData.reduce((sum, s) => sum + s.TRA, 0);
   const sumPART = allData.reduce((sum, s) => sum + (s.PART || 2), 0);
+  // ✅ FIX #2 : Calculer avgABS (manquait)
+  const sumABS = allData.reduce((sum, s) => sum + (s.ABS || 2), 0);
 
   return {
     ratioF: nbFilles / total,
     avgCOM: sumCOM / total,
     avgTRA: sumTRA / total,
-    avgPART: sumPART / total
+    avgPART: sumPART / total,
+    avgABS: sumABS / total
   };
 }
 
@@ -820,15 +829,15 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
     }
   }
   
-  // ✅ NOUVEAU : Vérifier compatibilité TOTALE (ne pas "gaspiller" une place spécialisée)
-  // Si classe propose des OPT (LATIN, CHAV) ET élève n'en a pas, vérifier si c'est optimal
-  const classHasOptions = quotas1['LATIN'] > 0 || quotas1['CHAV'] > 0;
-  const studentHasNoOption = !opt_s2 || (opt_s2 !== 'LATIN' && opt_s2 !== 'CHAV');
-  
+  // ✅ FIX #4 : Utiliser HARMONY_OPT_LIST au lieu de hardcode LATIN/CHAV
+  // Vérifie si la classe propose des options spécialisées et si l'élève n'en a pas
+  var classHasOptions = false;
+  for (var oi = 0; oi < HARMONY_OPT_LIST.length; oi++) {
+    if (quotas1[HARMONY_OPT_LIST[oi]] > 0) { classHasOptions = true; break; }
+  }
+  var studentHasNoOption = !opt_s2 || !isKnownOPT(opt_s2);
+
   if (classHasOptions && studentHasNoOption && lv2_s2 && lv2_s2 !== 'ESP') {
-    // Classe spécialisée (ex: ITA+LATIN) + élève simple (ITA seul)
-    // → Ne pas placer un profil simple dans une classe spécialisée
-    // (sauf si c'est un swap de parité critique)
     return false;
   }
   
@@ -849,12 +858,14 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
     }
   }
   
-  // ✅ NOUVEAU : Vérifier compatibilité TOTALE (symétrique pour s1 → cls2)
-  const class2HasOptions = quotas2['LATIN'] > 0 || quotas2['CHAV'] > 0;
-  const student1HasNoOption = !opt_s1 || (opt_s1 !== 'LATIN' && opt_s1 !== 'CHAV');
-  
+  // ✅ FIX #4 : Symétrique — utiliser HARMONY_OPT_LIST
+  var class2HasOptions = false;
+  for (var oi2 = 0; oi2 < HARMONY_OPT_LIST.length; oi2++) {
+    if (quotas2[HARMONY_OPT_LIST[oi2]] > 0) { class2HasOptions = true; break; }
+  }
+  var student1HasNoOption = !opt_s1 || !isKnownOPT(opt_s1);
+
   if (class2HasOptions && student1HasNoOption && lv2_s1 && lv2_s1 !== 'ESP') {
-    // Classe spécialisée + élève simple → Ne pas gaspiller la place
     return false;
   }
   

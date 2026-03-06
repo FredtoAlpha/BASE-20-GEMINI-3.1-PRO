@@ -132,6 +132,14 @@ function legacy_runFullPipeline_PRIME() {
     let prevSwaps = 0;
 
     for (let cpLoop = 0; cpLoop <= crossPhaseLoops; cpLoop++) {
+      // ✅ FIX #5 : Garde-fou maxRuntime — arrêter avant le timeout GAS (6 min)
+      const elapsedSec = (new Date() - startTime) / 1000;
+      const maxRuntimeSec = LEGACY_PIPELINE_CONFIG.maxRuntime || 600;
+      if (elapsedSec > maxRuntimeSec * 0.85) { // 85% du budget → arrêt préventif
+        logLine('WARN', `⏱️ Garde-fou runtime : ${elapsedSec.toFixed(0)}s écoulées (limite: ${maxRuntimeSec}s). Arrêt cross-phase.`);
+        break;
+      }
+
       if (cpLoop > 0) {
         logLine('INFO', '\n🔄 CROSS-PHASE boucle ' + cpLoop + '/' + crossPhaseLoops + ' : relance Phase 3 + Phase 4');
 

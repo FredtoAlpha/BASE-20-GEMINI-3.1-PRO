@@ -331,12 +331,17 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
 
       const quotas = (ctx && ctx.quotas && ctx.quotas[cls]) || {};
 
-      let canPlace = false;
+      // ✅ FIX #1 : Vérifier LV2 ET OPT cumulativement (pas else if)
+      // Un élève peut avoir LV2=ITA + OPT=LATIN simultanément
+      let canPlace = true;
       if (eleveLV2 && isKnownLV2(eleveLV2)) {
-        canPlace = (quotas[eleveLV2] !== undefined && quotas[eleveLV2] > 0);
-      } else if (eleveOPT) {
-        canPlace = (quotas[eleveOPT] !== undefined && quotas[eleveOPT] > 0);
+        if (!(quotas[eleveLV2] !== undefined && quotas[eleveLV2] > 0)) canPlace = false;
       }
+      if (eleveOPT && isKnownOPT(eleveOPT)) {
+        if (!(quotas[eleveOPT] !== undefined && quotas[eleveOPT] > 0)) canPlace = false;
+      }
+      // Si ni LV2 ni OPT, l'élève est "simple" → canPlace reste true
+      if (!eleveLV2 && !eleveOPT) canPlace = true;
 
       if (canPlace) {
         logLine('INFO', '        ✅ Classe ' + cls + ' compatible (propose ' + (eleveLV2 || eleveOPT) + ') [' + currentCount + '/' + targetEffectif + ']');

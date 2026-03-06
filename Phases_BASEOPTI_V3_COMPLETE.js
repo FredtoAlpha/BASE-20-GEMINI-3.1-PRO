@@ -503,12 +503,15 @@ function findClassWithoutCodeD_V3(data, headers, codeD, indicesWithD, eleveIdx, 
       if (classesWithD.has(cls)) continue;
 
       const quotas = (ctx && ctx.quotas && ctx.quotas[cls]) || {};
-      let canPlace = false;
+      // ✅ FIX #1 : Vérifier LV2 ET OPT cumulativement (pas else if)
+      let canPlace = true;
       if (eleveLV2 && isKnownLV2(eleveLV2)) {
-        canPlace = (quotas[eleveLV2] !== undefined && quotas[eleveLV2] > 0);
-      } else if (eleveOPT) {
-        canPlace = (quotas[eleveOPT] !== undefined && quotas[eleveOPT] > 0);
+        if (!(quotas[eleveLV2] !== undefined && quotas[eleveLV2] > 0)) canPlace = false;
       }
+      if (eleveOPT && isKnownOPT(eleveOPT)) {
+        if (!(quotas[eleveOPT] !== undefined && quotas[eleveOPT] > 0)) canPlace = false;
+      }
+      if (!eleveLV2 && !eleveOPT) canPlace = true;
 
       if (canPlace) {
         // Calculer le profil moyen de la classe cible
@@ -1237,7 +1240,12 @@ function runPhase4CoreLoop_V3_(data, headers, hIdx, byClass, weights, maxSwaps, 
       for (let k = 0; k < byClass[cls].length; k++) {
         const si = byClass[cls][k];
         if (isStudentFixed(si)) continue;
-        const errorWithout = classStates[cls].simulateSwap(si, si, data, hIdx, globalStats, targetDistribution, weights);
+        // ✅ FIX #3 : Simuler le retrait réel de l'élève (pas simulateSwap(si,si) qui est un no-op)
+        // On retire l'élève, calcule l'erreur de la classe réduite, puis on le remet
+        classStates[cls]._removeStudent(si, data, hIdx);
+        const errorWithout = classStates[cls].computeError(globalStats, targetDistribution, weights);
+        classStates[cls]._addStudent(si, data, hIdx);
+        classStates[cls].size++; // _addStudent ne l'incrémente pas, _removeStudent l'avait décrémenté
         const disruption = Math.abs(classError - errorWithout);
         candidates.push({ idx: si, cls: cls, disruption: disruption });
       }
