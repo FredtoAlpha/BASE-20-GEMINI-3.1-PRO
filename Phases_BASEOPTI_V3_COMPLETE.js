@@ -81,7 +81,18 @@ function Phase1I_dispatchOptionsLV2_BASEOPTI_V3(ctx) {
         if (assigned) continue; // Déjà placé
 
         const lv2 = String(row[idxLV2] || '').trim().toUpperCase();
-        const opt = String(row[idxOPT] || '').trim().toUpperCase();
+        var opt = String(row[idxOPT] || '').trim().toUpperCase();
+
+        // Détection anomalie saisie : OPT contient une LV2 (ex: OPT=ITA)
+        if (isOPTAnomalyLV2(opt)) {
+          logLine('WARN', '⚠️ Anomalie saisie ligne ' + i + ': OPT=' + opt + ' est une LV2, ignoré comme OPT');
+          opt = '';
+        }
+
+        // Vérification compatibilité LV2+OPT (ex: ITA+CHAV interdit)
+        if (!isLV2OPTCompatible(lv2, opt)) {
+          logLine('WARN', '⚠️ Combinaison interdite ligne ' + i + ': LV2=' + lv2 + ' + OPT=' + opt);
+        }
 
         let match = false;
         if (isKnownLV2(optName)) {
@@ -456,7 +467,13 @@ function findClassWithoutCodeD_V3(data, headers, codeD, indicesWithD, eleveIdx, 
 
   // Récupérer LV2/OPT de l'élève
   const eleveLV2 = eleveIdx ? String(data[eleveIdx][idxLV2] || '').trim().toUpperCase() : '';
-  const eleveOPT = eleveIdx ? String(data[eleveIdx][idxOPT] || '').trim().toUpperCase() : '';
+  var eleveOPT = eleveIdx ? String(data[eleveIdx][idxOPT] || '').trim().toUpperCase() : '';
+
+  // Détection anomalie saisie : OPT contient une LV2 (ex: OPT=ITA)
+  if (isOPTAnomalyLV2(eleveOPT)) {
+    logLine('WARN', '⚠️ DISSO V3: OPT=' + eleveOPT + ' est une LV2 (anomalie saisie), ignoré');
+    eleveOPT = '';
+  }
 
   // ✅ BUG FIX: Scanner l'état ACTUEL de data pour trouver les classes avec ce code DISSO
   // (au lieu de se baser sur indicesWithD qui reflète l'état INITIAL avant les déplacements)
@@ -503,12 +520,15 @@ function findClassWithoutCodeD_V3(data, headers, codeD, indicesWithD, eleveIdx, 
       if (classesWithD.has(cls)) continue;
 
       const quotas = (ctx && ctx.quotas && ctx.quotas[cls]) || {};
-      let canPlace = false;
+      // ✅ FIX #1 : Vérifier LV2 ET OPT cumulativement (pas else if)
+      let canPlace = true;
       if (eleveLV2 && isKnownLV2(eleveLV2)) {
-        canPlace = (quotas[eleveLV2] !== undefined && quotas[eleveLV2] > 0);
-      } else if (eleveOPT) {
-        canPlace = (quotas[eleveOPT] !== undefined && quotas[eleveOPT] > 0);
+        if (!(quotas[eleveLV2] !== undefined && quotas[eleveLV2] > 0)) canPlace = false;
       }
+      if (eleveOPT && isKnownOPT(eleveOPT)) {
+        if (!(quotas[eleveOPT] !== undefined && quotas[eleveOPT] > 0)) canPlace = false;
+      }
+      if (!eleveLV2 && !eleveOPT) canPlace = true;
 
       if (canPlace) {
         // Calculer le profil moyen de la classe cible
@@ -1237,7 +1257,12 @@ function runPhase4CoreLoop_V3_(data, headers, hIdx, byClass, weights, maxSwaps, 
       for (let k = 0; k < byClass[cls].length; k++) {
         const si = byClass[cls][k];
         if (isStudentFixed(si)) continue;
-        const errorWithout = classStates[cls].simulateSwap(si, si, data, hIdx, globalStats, targetDistribution, weights);
+        // ✅ FIX #3 : Simuler le retrait réel de l'élève (pas simulateSwap(si,si) qui est un no-op)
+        // On retire l'élève, calcule l'erreur de la classe réduite, puis on le remet
+        classStates[cls]._removeStudent(si, data, hIdx);
+        const errorWithout = classStates[cls].computeError(globalStats, targetDistribution, weights);
+        classStates[cls]._addStudent(si, data, hIdx);
+        classStates[cls].size++; // _addStudent ne l'incrémente pas, _removeStudent l'avait décrémenté
         const disruption = Math.abs(classError - errorWithout);
         candidates.push({ idx: si, cls: cls, disruption: disruption });
       }

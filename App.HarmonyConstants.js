@@ -43,6 +43,46 @@ function isKnownOPT(val) {
   return HARMONY_OPT_LIST.indexOf(val) >= 0;
 }
 
+// ===================================================================
+// RÈGLES DE COMPATIBILITÉ LV2 / OPT
+// ===================================================================
+// Contexte métier :
+//   - ITA est une LV2, JAMAIS une OPT
+//   - Un élève peut avoir ITA + LATIN ou ITA + GREC
+//   - Un élève NE PEUT PAS avoir ITA + CHAV (incompatibilité horaire)
+//   - Si OPT=ITA apparaît dans les données, c'est une anomalie de saisie
+// ===================================================================
+
+/** Combinaisons LV2+OPT interdites : [lv2, opt] */
+const HARMONY_LV2_OPT_FORBIDDEN = [
+  ['ITA', 'CHAV']
+];
+
+/**
+ * Vérifie si une combinaison LV2+OPT est autorisée
+ * @param {string} lv2 - LV2 de l'élève (ex: 'ITA')
+ * @param {string} opt - OPT de l'élève (ex: 'LATIN')
+ * @returns {boolean} true si la combinaison est autorisée ou si l'un est vide
+ */
+function isLV2OPTCompatible(lv2, opt) {
+  if (!lv2 || !opt) return true;
+  for (var i = 0; i < HARMONY_LV2_OPT_FORBIDDEN.length; i++) {
+    if (HARMONY_LV2_OPT_FORBIDDEN[i][0] === lv2 && HARMONY_LV2_OPT_FORBIDDEN[i][1] === opt) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Détecte si OPT contient une valeur qui est en réalité une LV2 (anomalie de saisie)
+ * @param {string} opt - Valeur du champ OPT
+ * @returns {boolean} true si anomalie détectée (OPT est en fait une LV2)
+ */
+function isOPTAnomalyLV2(opt) {
+  return opt && isKnownLV2(opt) && !isKnownOPT(opt);
+}
+
 /**
  * Calcule le profil académique moyen d'un élève (COM+TRA+PART+ABS)/4
  * @param {Object} row - Ligne de données

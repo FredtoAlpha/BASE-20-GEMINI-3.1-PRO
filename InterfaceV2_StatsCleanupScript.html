@@ -193,57 +193,8 @@ window.initCharts = function() {
   }
 };
 
-// 10. Nettoyer les fonctions de swap pour éviter les doubles mises à jour
-const originalPerformSwapClean = window.performSwap;
-window.performSwap = function(id1, id2) {
-  // Appeler la fonction originale sans les mises à jour supplémentaires
-  const card1 = document.querySelector(`.student-card[data-id="${id1}"]`);
-  const card2 = document.querySelector(`.student-card[data-id="${id2}"]`);
-  
-  if (!card1 || !card2) {
-    console.error('Cartes non trouvées pour le swap');
-    return;
-  }
-  
-  const zone1 = card1.closest('.droppable-zone');
-  const zone2 = card2.closest('.droppable-zone');
-  
-  if (!zone1 || !zone2) {
-    console.error('Zones non trouvées pour le swap');
-    return;
-  }
-  
-  // Animation de swap
-  card1.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-  card2.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-  
-  // Échanger les cartes
-  zone2.appendChild(card1);
-  zone1.appendChild(card2);
-  
-  // Ajouter à l'historique
-  STATE.history.push({
-    type: 'swap',
-    id1,
-    id2,
-    classe1: zone1.dataset.classe,
-    classe2: zone2.dataset.classe
-  });
-  STATE.future = [];
-  updateUndoRedoButtons();
-  
-  // UNE SEULE mise à jour des stats
-  updateAllColumnStats();
-  
-  // Sauvegarde
-  if (STATE.currentMode === 'CACHE') {
-    setTimeout(() => saveImmediateCache(), 100);
-  }
-  
-  const eleve1 = STATE.students[id1];
-  const eleve2 = STATE.students[id2];
-  toast(`Swap réussi entre ${eleve1.nom} et ${eleve2.nom}`, 'success');
-};
+// 10. Swap : déléguer à la fonction canonique définie dans CoreScript
+// (supprime la duplication fragile qui perdait historyTimeline, markUserAction, etc.)
 
 console.log('✅ Nettoyage terminé - Le panneau stats devrait maintenant rester stable');
 

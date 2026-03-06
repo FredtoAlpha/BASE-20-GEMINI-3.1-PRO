@@ -159,14 +159,15 @@ LEGACY_Pipeline.js, LEGACY_Mobility_Calculator.js,
 LEGACY_Phase1_OptionsLV2.js, LEGACY_Menu.js,
 LEGACY_Interface_Server.js, LEGACY_Logging.js,
 LEGACY_Context.js, LEGACY_Phase3_Parite.js,
-LEGACY_Phase4_JulesCodex.js, LEGACY_Phase4_Optimisation.js,
 LEGACY_Consolidation_Sac.js
 ```
-**Impact** : Les fonctions LEGACY sont encore appelees par
+~~`LEGACY_Phase4_JulesCodex.js`~~ et ~~`LEGACY_Phase4_Optimisation.js`~~ ont ete **supprimes** (2026-03-06, 0 call sites, ~1500 lignes mortes).
+`LEGACY_Menu.js` a ete nettoye : callbacks orphelins retires, JULES CODEX supprime, marque @deprecated.
+`LEGACY_Context.js` a ete nettoye : flags `useJulesCodex`/`useIntegratedPhase3` retires.
+
+**Impact** : Les fonctions LEGACY restantes sont encore appelees par
 `ConsolePilotageV3_Server.js` (`legacy_runFullPipeline()`).
-Tant que le pipeline V14I ne couvre pas 100% des cas d'usage, les fichiers
-LEGACY restent necessaires. Cependant, ils alourdissent le chargement et
-creent de la confusion.
+L'entree officielle est Console V3 (`Code.js > onOpen > ouvrirConsolePilotageV3`).
 **Recommandation** : Documenter explicitement quels fichiers LEGACY sont
 encore necessaires et planifier leur suppression apres validation complete du
 pipeline V14I.

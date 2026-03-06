@@ -221,6 +221,14 @@ function getAvailableNiveaux() {
 function normalizeNiveau_(niveau) {
   if (!niveau) return '5e';
   var s = String(niveau).trim().toLowerCase();
+
+  // Gérer CM2, CM1 explicitement
+  if (s === 'cm2') return 'cm2';
+  if (s === 'cm1') return 'cm1';
+  // Gérer 2nde, 1ère (lycée)
+  if (/^2n/.test(s)) return '2nde';
+  if (/^1[eè]/.test(s) || s === '1ère' || s === '1ere') return '1ere';
+
   var m = s.match(/(\d)/);
   if (m) {
     var num = m[1];
@@ -228,5 +236,6 @@ function normalizeNiveau_(niveau) {
       return num + 'e';
     }
   }
+  Logger.log('⚠️ normalizeNiveau_: niveau non reconnu "' + niveau + '", fallback sur 5e');
   return '5e';
 }

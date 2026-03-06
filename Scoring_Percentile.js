@@ -60,10 +60,10 @@ function computePercentileScores(entries, distribution) {
 
   var N = withValue.length;
 
-  // Calculer les seuils de coupure cumulés
-  var cumul1 = distribution[1] || 0.10;
-  var cumul2 = cumul1 + (distribution[2] || 0.25);
-  var cumul3 = cumul2 + (distribution[3] || 0.40);
+  // Calculer les seuils de coupure cumulés (0 est une valeur valide, ne pas remplacer par défaut)
+  var cumul1 = distribution[1] !== undefined ? distribution[1] : 0.10;
+  var cumul2 = cumul1 + (distribution[2] !== undefined ? distribution[2] : 0.25);
+  var cumul3 = cumul2 + (distribution[3] !== undefined ? distribution[3] : 0.40);
   // Le reste va au score 4
 
   // Indices de coupure
@@ -116,9 +116,9 @@ function computePercentileSeuils(valeurs, distribution) {
     return { cutoffs: [0, 0, 0], counts: [0, 0, 0, 0], total: 0 };
   }
 
-  var cumul1 = distribution[1] || 0.10;
-  var cumul2 = cumul1 + (distribution[2] || 0.25);
-  var cumul3 = cumul2 + (distribution[3] || 0.40);
+  var cumul1 = distribution[1] !== undefined ? distribution[1] : 0.10;
+  var cumul2 = cumul1 + (distribution[2] !== undefined ? distribution[2] : 0.25);
+  var cumul3 = cumul2 + (distribution[3] !== undefined ? distribution[3] : 0.40);
 
   var idx1 = Math.max(0, Math.floor(N * cumul1) - 1);
   var idx2 = Math.max(0, Math.floor(N * cumul2) - 1);

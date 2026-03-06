@@ -305,6 +305,72 @@
         .modal-btn-secondary { background: #334155; color: white; }
         @keyframes modalSlideIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+        /* TRACE DETAIL PANEL */
+        .trace-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); z-index: 10002;
+            display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px); animation: fadeIn 0.2s;
+        }
+        .trace-overlay.show { display: flex; }
+        .trace-panel {
+            background: #1e293b; border-radius: 16px; padding: 30px;
+            max-width: 700px; width: 95%; max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); border: 1px solid #334155;
+            animation: modalSlideIn 0.3s;
+        }
+        .trace-panel h3 { color: #e2e8f0; font-size: 18px; margin-bottom: 15px; }
+        .trace-panel .trace-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+            padding-bottom: 15px; border-bottom: 1px solid #334155;
+        }
+        .trace-panel .trace-close {
+            background: #334155; border: none; color: #e2e8f0; width: 32px; height: 32px;
+            border-radius: 8px; cursor: pointer; font-size: 16px; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .trace-panel .trace-close:hover { background: #475569; }
+        .trace-section { margin-bottom: 18px; }
+        .trace-section-title {
+            font-size: 12px; font-weight: 700; color: var(--primary); text-transform: uppercase;
+            margin-bottom: 8px; letter-spacing: 0.5px;
+        }
+        .trace-table { width: 100%; border-collapse: collapse; }
+        .trace-table th {
+            text-align: left; padding: 6px 10px; font-size: 11px; color: #94a3b8;
+            font-weight: 700; border-bottom: 1px solid #334155; background: #0f172a;
+        }
+        .trace-table td {
+            padding: 5px 10px; font-size: 12px; color: #e2e8f0;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+        }
+        .trace-table td.note-null { color: #64748b; font-style: italic; }
+        .trace-formula {
+            background: #0f172a; border-radius: 8px; padding: 12px 16px;
+            font-family: monospace; font-size: 13px; color: #a5b4fc;
+            border: 1px solid #334155;
+        }
+        .trace-confidence {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700;
+        }
+        .trace-confidence.high { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .trace-confidence.medium { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+        .trace-confidence.low { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .score-clickable {
+            cursor: pointer; text-decoration: underline; text-decoration-style: dotted;
+            text-underline-offset: 3px;
+        }
+        .score-clickable:hover { text-decoration-style: solid; }
+        .trace-score-badge {
+            display: inline-block; width: 28px; height: 28px; line-height: 28px;
+            text-align: center; border-radius: 6px; font-weight: 900; font-size: 14px;
+        }
+        .trace-score-badge.s1 { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .trace-score-badge.s2 { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .trace-score-badge.s3 { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .trace-score-badge.s4 { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+
         /* MINIMIZE BAR */
         .minimize-bar {
             position: fixed; top: 0; left: 0; right: 0; height: 36px; z-index: 9998;
@@ -355,6 +421,17 @@
             <h2 id="modal-title" class="modal-title"></h2>
             <p id="modal-message" class="modal-message"></p>
             <div id="modal-buttons" class="modal-buttons"></div>
+        </div>
+    </div>
+
+    <!-- TRACE DETAIL OVERLAY -->
+    <div id="trace-overlay" class="trace-overlay" onclick="closeTracePanel()">
+        <div class="trace-panel" onclick="event.stopPropagation()">
+            <div class="trace-header">
+                <h3 id="trace-title">Détail du score</h3>
+                <button class="trace-close" onclick="closeTracePanel()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="trace-content"></div>
         </div>
     </div>
 
@@ -868,7 +945,8 @@
             <div id="scoring-preview-container" class="card" style="display: none;">
                 <h2>Apercu des Scores</h2>
                 <div id="scoring-histogram" style="margin-bottom: 20px;"></div>
-                <div id="scoring-preview-table-wrap" style="max-height: 300px; overflow-y: auto; border: 1px solid #334155; border-radius: 8px;">
+                <p style="color: #64748b; font-size: 12px; margin-bottom: 10px;"><i class="fas fa-info-circle"></i> Cliquez sur un score pour voir le détail du calcul</p>
+                <div id="scoring-preview-table-wrap" style="max-height: 450px; overflow-y: auto; border: 1px solid #334155; border-radius: 8px;">
                     <table style="width: 100%; border-collapse: collapse;" id="scoring-preview-table">
                         <thead id="scoring-preview-head"></thead>
                         <tbody id="scoring-preview-body"></tbody>
@@ -1142,7 +1220,7 @@
         async function getSessionStatus() {
             try {
                 const data = await callSessionEndpoint(sessionRoutes.status);
-                return { hasBackup: data && (data.hasBackup || data.success) };
+                return { hasBackup: data && data.hasBackup === true };
             } catch (e) { return { hasBackup: false }; }
         }
 
@@ -1177,6 +1255,12 @@
             }
         }
 
+        function escapeHtml(str) {
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(String(str)));
+            return d.innerHTML;
+        }
+
         function showModal(msg, type = 'info') {
             const overlay = document.getElementById('modal-overlay');
             const icon = document.getElementById('modal-icon');
@@ -1188,7 +1272,7 @@
             icon.innerHTML = `<i class="fas fa-${icons[type] || 'info-circle'}"></i>`;
             icon.className = `modal-icon ${type}`;
             title.innerText = type === 'error' ? 'Erreur' : 'Information';
-            txt.innerHTML = msg;
+            txt.innerHTML = escapeHtml(msg);
             btns.innerHTML = `<button class="modal-btn modal-btn-primary" onclick="closeModal()">OK</button>`;
             overlay.classList.add('show');
         }
@@ -1202,7 +1286,7 @@
         function showToast(msg, type = 'info') {
             const t = document.getElementById('toast');
             t.className = `toast ${type} show`;
-            t.innerHTML = msg;
+            t.innerHTML = escapeHtml(msg);
             setTimeout(() => t.classList.remove('show'), 3000);
         }
 
@@ -1707,20 +1791,21 @@
                 var resultEl = document.getElementById('import-result');
                 resultEl.style.display = 'block';
 
+                var safeClassesList = (s.classesList || []).map(function(c) { return escapeHtml(c); }).join(', ');
                 document.getElementById('import-result-content').innerHTML =
                     '<div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 15px;">' +
                     '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
-                        '<div style="font-size:28px;font-weight:900;color:var(--success);">' + (s.totalStudents || 0) + '</div>' +
+                        '<div style="font-size:28px;font-weight:900;color:var(--success);">' + parseInt(s.totalStudents || 0, 10) + '</div>' +
                         '<div style="font-size:11px;color:#94a3b8;font-weight:700;">ELEVES IMPORTES</div></div>' +
                     '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
-                        '<div style="font-size:28px;font-weight:900;color:var(--primary);">' + (s.classesProcessed || 0) + '</div>' +
+                        '<div style="font-size:28px;font-weight:900;color:var(--primary);">' + parseInt(s.classesProcessed || 0, 10) + '</div>' +
                         '<div style="font-size:11px;color:#94a3b8;font-weight:700;">CLASSES</div></div>' +
                     '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
-                        '<div style="font-size:28px;font-weight:900;color:#eab308;">' + (s.scoresCalculated || 0) + '</div>' +
+                        '<div style="font-size:28px;font-weight:900;color:#eab308;">' + parseInt(s.scoresCalculated || 0, 10) + '</div>' +
                         '<div style="font-size:11px;color:#94a3b8;font-weight:700;">SCORES CALCULES</div></div>' +
                     '</div>' +
                     '<div style="font-size:13px;color:#94a3b8;">' +
-                    'Classes : <strong style="color:white;">' + (s.classesList || []).join(', ') + '</strong>' +
+                    'Classes : <strong style="color:white;">' + safeClassesList + '</strong>' +
                     '</div>';
 
                 // Afficher suggestions DISSO si presentes
@@ -2298,7 +2383,13 @@
             });
         }
 
+        // Stockage global des données de preview pour le clic sur les scores
+        var _scoringPreviewData = [];
+
         function renderScoringPreview(data) {
+            // Stocker les données complètes (avec traces)
+            _scoringPreviewData = data.sample || [];
+
             // Histogram
             var histEl = document.getElementById('scoring-histogram');
             if (histEl && data.distribution) {
@@ -2320,31 +2411,146 @@
                 histEl.innerHTML = html;
             }
 
-            // Table
+            // Table — scores cliquables
             var headEl = document.getElementById('scoring-preview-head');
             var bodyEl = document.getElementById('scoring-preview-body');
             if (headEl && bodyEl && data.sample) {
                 headEl.innerHTML = '<tr style="background:#0f172a;"><th style="padding:6px 10px;font-size:11px;color:#94a3b8;">Nom</th><th style="padding:6px 10px;font-size:11px;color:#94a3b8;">Classe</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">COM</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">TRA</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">PART</th><th style="padding:6px 10px;text-align:center;font-size:11px;color:#94a3b8;">ABS</th></tr>';
                 var html = '';
-                data.sample.forEach(function(row) {
+                data.sample.forEach(function(row, idx) {
                     var scoreColor = function(v) {
                         if (v === 4) return '#22c55e';
                         if (v === 3) return '#3b82f6';
                         if (v === 2) return '#f59e0b';
                         return '#ef4444';
                     };
+                    var makeCell = function(val, critere) {
+                        if (!val && val !== 0) return '<td style="padding:5px 10px;text-align:center;color:#64748b;">-</td>';
+                        return '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(val) + ';"><span class="score-clickable" onclick="showTraceDetail(' + idx + ',\'' + critere + '\')" title="Cliquer pour voir le détail">' + val + '</span></td>';
+                    };
                     html += '<tr style="border-top:1px solid #1e293b;">';
                     html += '<td style="padding:5px 10px;font-size:12px;color:#e2e8f0;">' + escapeHtml(row.nom || '') + '</td>';
                     html += '<td style="padding:5px 10px;font-size:12px;color:#94a3b8;">' + escapeHtml(row.classe || '') + '</td>';
-                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.COM) + ';">' + (row.COM || '-') + '</td>';
-                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.TRA) + ';">' + (row.TRA || '-') + '</td>';
-                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.PART) + ';">' + (row.PART || '-') + '</td>';
-                    html += '<td style="padding:5px 10px;text-align:center;font-weight:700;color:' + scoreColor(row.ABS) + ';">' + (row.ABS || '-') + '</td>';
+                    html += makeCell(row.COM, 'COM');
+                    html += makeCell(row.TRA, 'TRA');
+                    html += makeCell(row.PART, 'PART');
+                    html += makeCell(row.ABS, 'ABS');
                     html += '</tr>';
                 });
                 bodyEl.innerHTML = html;
             }
         }
+
+        // ===== TRACE DETAIL PANEL =====
+
+        function showTraceDetail(eleveIdx, critere) {
+            var eleve = _scoringPreviewData[eleveIdx];
+            if (!eleve || !eleve.traces) return;
+            var trace = eleve.traces[critere];
+            if (!trace) {
+                showToast('Pas de trace disponible pour ' + critere, 'info');
+                return;
+            }
+
+            var score = eleve[critere];
+            var scoreBadgeClass = 's' + (score || 1);
+
+            document.getElementById('trace-title').innerHTML =
+                escapeHtml(eleve.nom) + ' <span style="color:#94a3b8;">(' + escapeHtml(eleve.classe || '?') + ')</span> — ' +
+                critere + ' <span class="trace-score-badge ' + scoreBadgeClass + '">' + (score || '?') + '</span>';
+
+            var html = '';
+
+            // === TRA trace ===
+            if (critere === 'TRA' && trace.notes) {
+                html += '<div class="trace-section"><div class="trace-section-title">Notes par matière (' + (trace.niveau || '?') + ' — mode ' + (trace.mode || 'seuils') + ')</div>';
+                html += '<table class="trace-table"><thead><tr><th>Matière</th><th style="text-align:center;">Note</th><th style="text-align:center;">Coeff</th><th style="text-align:center;">Points</th></tr></thead><tbody>';
+                trace.notes.forEach(function(n) {
+                    var noteStr = n.note !== null ? n.note.toFixed(1) : '<span style="color:#64748b;">—</span>';
+                    var ptsStr = n.note !== null ? (n.note * n.coeff).toFixed(1) : '—';
+                    var cls = n.note === null ? ' class="note-null"' : '';
+                    html += '<tr><td' + cls + '>' + escapeHtml(n.matiere) + '</td>';
+                    html += '<td style="text-align:center;"' + cls + '>' + noteStr + '</td>';
+                    html += '<td style="text-align:center;">' + n.coeff + '</td>';
+                    html += '<td style="text-align:center;"' + cls + '>' + ptsStr + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+
+                if (trace.matieresManquantes && trace.matieresManquantes.length > 0) {
+                    html += '<div class="trace-section"><div class="trace-section-title">Matières non trouvées dans l\'export</div>';
+                    html += '<div style="color:#f59e0b; font-size:12px;">' + trace.matieresManquantes.join(', ') + '</div></div>';
+                }
+
+                if (trace.confidence !== undefined) {
+                    var confClass = trace.confidence >= 0.8 ? 'high' : (trace.confidence >= 0.5 ? 'medium' : 'low');
+                    html += '<div class="trace-section"><div class="trace-section-title">Confiance</div>';
+                    html += '<span class="trace-confidence ' + confClass + '"><i class="fas fa-' + (confClass === 'high' ? 'check-circle' : confClass === 'medium' ? 'exclamation-circle' : 'times-circle') + '"></i> ';
+                    html += Math.round(trace.confidence * 100) + '% (' + trace.matieresAvecNote + '/' + trace.matieresDetectees + ' matières renseignées)</span></div>';
+                }
+            }
+
+            // === COM trace ===
+            if (critere === 'COM' && trace.details) {
+                html += '<div class="trace-section"><div class="trace-section-title">Détail comportement</div>';
+                html += '<table class="trace-table"><thead><tr><th>Source</th><th style="text-align:center;">Valeur</th><th>Détail</th></tr></thead><tbody>';
+                trace.details.forEach(function(d) {
+                    html += '<tr><td>' + escapeHtml(d.label) + '</td>';
+                    html += '<td style="text-align:center; font-weight:700;">' + d.valeur + '</td>';
+                    html += '<td style="color:#94a3b8;">' + (d.ponderation || '') + '</td></tr>';
+                });
+                html += '</tbody></table>';
+                html += '<div style="margin-top:8px; font-size:12px; color:#94a3b8;">Total points : <strong style="color:#e2e8f0;">' + trace.totalPoints + '</strong></div></div>';
+            }
+
+            // === ABS trace ===
+            if (critere === 'ABS' && trace.details) {
+                html += '<div class="trace-section"><div class="trace-section-title">Détail absences</div>';
+                html += '<table class="trace-table"><thead><tr><th>Type</th><th style="text-align:center;">Valeur</th><th style="text-align:center;">Score</th><th style="text-align:center;">Poids</th></tr></thead><tbody>';
+                trace.details.forEach(function(d) {
+                    html += '<tr><td>' + escapeHtml(d.label) + '</td>';
+                    html += '<td style="text-align:center; font-weight:700;">' + d.valeur + '</td>';
+                    html += '<td style="text-align:center;"><span class="trace-score-badge s' + d.score + '">' + d.score + '</span></td>';
+                    html += '<td style="text-align:center;">' + (d.poids * 100) + '%</td></tr>';
+                });
+                html += '</tbody></table></div>';
+            }
+
+            // === PART trace ===
+            if (critere === 'PART' && trace.notes) {
+                html += '<div class="trace-section"><div class="trace-section-title">Notes orales (mode ' + (trace.mode || 'seuils') + ')</div>';
+                html += '<table class="trace-table"><thead><tr><th>Matière</th><th style="text-align:center;">Note</th></tr></thead><tbody>';
+                trace.notes.forEach(function(n) {
+                    var noteStr = n.note !== null ? n.note.toFixed(1) : '<span style="color:#64748b;">—</span>';
+                    html += '<tr><td>' + escapeHtml(n.matiere) + '</td>';
+                    html += '<td style="text-align:center;">' + noteStr + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+            }
+
+            // Formule (toujours affichée)
+            if (trace.formule) {
+                html += '<div class="trace-section"><div class="trace-section-title">Formule</div>';
+                html += '<div class="trace-formula">' + escapeHtml(trace.formule) + '</div></div>';
+            }
+
+            document.getElementById('trace-content').innerHTML = html;
+            document.getElementById('trace-overlay').classList.add('show');
+        }
+
+        function closeTracePanel() {
+            document.getElementById('trace-overlay').classList.remove('show');
+        }
+
+        // Fermer le panneau trace avec Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                var traceOverlay = document.getElementById('trace-overlay');
+                if (traceOverlay && traceOverlay.classList.contains('show')) {
+                    closeTracePanel();
+                    e.stopPropagation();
+                }
+            }
+        });
 
         function updateScoringStatus(cfg) {
             var modeEl = document.getElementById('scoring-status-mode');

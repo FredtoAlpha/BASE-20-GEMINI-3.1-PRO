@@ -644,11 +644,11 @@
             ${results.swaps.map((swap, i) => `
               <div class="text-sm p-2 bg-gray-50 rounded mb-2">
                 <strong>#${i + 1}</strong>:
-                ${swap.student1?.nom || swap.studentSource?.nom || 'Élève 1'}
-                (${swap.class1 || swap.sourceClass || '?'})
+                ${escapeHtml(swap.student1?.nom || swap.studentSource?.nom || 'Élève 1')}
+                (${escapeHtml(swap.class1 || swap.sourceClass || '?')})
                 ↔
-                ${swap.student2?.nom || swap.studentTarget?.nom || 'Élève 2'}
-                (${swap.class2 || swap.targetClass || '?'})
+                ${escapeHtml(swap.student2?.nom || swap.studentTarget?.nom || 'Élève 2')}
+                (${escapeHtml(swap.class2 || swap.targetClass || '?')})
               </div>
             `).join('')}
           </div>
@@ -744,18 +744,29 @@
         return;
       }
 
-      // TODO: Implémenter l'application réelle des swaps dans l'interface
-      // Pour l'instant, juste recharger les données
-      toast(`Application de ${swaps.length} échanges...`, 'info');
+      let applied = 0;
+      let skipped = 0;
 
-      setTimeout(() => {
-        toast('Échanges appliqués ! Rechargez les données pour voir les changements.', 'success');
-        document.querySelector('.modal')?.remove();
-      }, 1000);
+      swaps.forEach(swap => {
+        const id1 = swap.student1?.id || swap.studentSource?.id;
+        const id2 = swap.student2?.id || swap.studentTarget?.id;
+        if (id1 && id2 && typeof performSwap === 'function') {
+          performSwap(id1, id2);
+          applied++;
+        } else {
+          skipped++;
+        }
+      });
+
+      toast(`${applied} échange(s) appliqué(s)${skipped ? `, ${skipped} ignoré(s)` : ''}`, applied > 0 ? 'success' : 'warning');
+      document.querySelector('.modal')?.remove();
+      window._claudeMotorSwaps = null;
     },
 
     // Afficher les résultats d'optimisation (ancien algorithme - conservé pour compatibilité)
     displayOptimizationResults(groups) {
+      // Stocker pour applyOptimizationResults
+      window._optimizationGroups = groups;
       const modal = document.createElement('div');
       modal.className = 'modal';
       modal.innerHTML = `
@@ -778,7 +789,7 @@
                 <div class="max-h-32 overflow-y-auto">
                   ${group.slice(0, 10).map(s => `
                     <div class="text-xs p-1 bg-gray-50 rounded mb-1">
-                      ${s.nom} ${s.prenom || ''} (${s.sexe})
+                      ${escapeHtml(s.nom)} ${escapeHtml(s.prenom || '')} (${escapeHtml(s.sexe)})
                     </div>
                   `).join('')}
                   ${group.length > 10 ? `<div class="text-xs text-gray-500">... et ${group.length - 10} autres</div>` : ''}
@@ -802,9 +813,44 @@
 
     // Appliquer les résultats d'optimisation
     applyOptimizationResults() {
-      // Cette fonction serait appelée pour appliquer réellement les changements
-      toast('Optimisation appliquée', 'success');
-      document.querySelector('.modal').remove();
+      const groups = window._optimizationGroups;
+      if (!groups || groups.length === 0) {
+        toast('Aucun résultat à appliquer', 'warning');
+        return;
+      }
+
+      // Récupérer les classes cibles depuis les colonnes existantes
+      const classColumns = document.querySelectorAll('.droppable-zone');
+      const classeNames = Array.from(classColumns).map(z => z.dataset.classe);
+
+      let moved = 0;
+      groups.forEach((group, idx) => {
+        const targetClasse = classeNames[idx];
+        if (!targetClasse) return;
+
+        const targetZone = document.querySelector(`.droppable-zone[data-classe="${targetClasse}"]`);
+        if (!targetZone) return;
+
+        group.forEach(student => {
+          const card = document.querySelector(`.student-card[data-id="${student.id}"]`);
+          if (!card) return;
+
+          const currentZone = card.closest('.droppable-zone');
+          if (currentZone && currentZone.dataset.classe !== targetClasse) {
+            targetZone.appendChild(card);
+            moved++;
+          }
+        });
+      });
+
+      updateAllColumnStats();
+      if (typeof updateAdvancedStats === 'function') {
+        setTimeout(() => updateAdvancedStats(), 150);
+      }
+
+      toast(`${moved} élève(s) déplacé(s)`, moved > 0 ? 'success' : 'info');
+      document.querySelector('.modal')?.remove();
+      window._optimizationGroups = null;
     }
   };
 
@@ -970,10 +1016,10 @@
             ${violations.map(v => `
               <div class="p-3 border-l-4 ${v.type === 'DISSO' ? 'border-red-500 bg-red-50' : 'border-blue-500 bg-blue-50'}">
                 <div class="font-semibold ${v.type === 'DISSO' ? 'text-red-800' : 'text-blue-800'}">
-                  ${v.type === 'DISSO' ? 'Dissociation' : 'Association'} ${v.code}
+                  ${v.type === 'DISSO' ? 'Dissociation' : 'Association'} ${escapeHtml(v.code)}
                 </div>
                 <div class="text-sm ${v.type === 'DISSO' ? 'text-red-700' : 'text-blue-700'}">
-                  ${v.message}
+                  ${escapeHtml(v.message)}
                 </div>
               </div>
             `).join('')}
@@ -1079,10 +1125,10 @@
                   <tbody>
                     ${constraints.structure.map(s => `
                       <tr class="border-b">
-                        <td class="p-2">${s.origine || '-'}</td>
-                        <td class="p-2">${s.destination || '-'}</td>
+                        <td class="p-2">${escapeHtml(s.origine || '-')}</td>
+                        <td class="p-2">${escapeHtml(s.destination || '-')}</td>
                         <td class="p-2 text-center">${s.effectif || 28}</td>
-                        <td class="p-2 text-xs">${s.options || '-'}</td>
+                        <td class="p-2 text-xs">${escapeHtml(s.options || '-')}</td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -1100,7 +1146,7 @@
             ${currentFixe.length > 0 ? `
               <div class="max-h-32 overflow-y-auto">
                 ${currentFixe.map(e => `
-                  <div class="text-sm p-1 bg-white rounded mb-1">${e}</div>
+                  <div class="text-sm p-1 bg-white rounded mb-1">${escapeHtml(e)}</div>
                 `).join('')}
               </div>
             ` : '<p class="text-sm text-gray-500">Aucun élève fixé</p>'}
@@ -1116,8 +1162,8 @@
               <div class="space-y-2">
                 ${Object.entries(currentDisso).map(([code, eleves]) => `
                   <div class="p-2 bg-white rounded border border-red-300">
-                    <div class="font-bold text-red-700">D${code} (${eleves.length} élèves)</div>
-                    <div class="text-xs text-gray-700">${eleves.join(', ')}</div>
+                    <div class="font-bold text-red-700">D${escapeHtml(code)} (${eleves.length} élèves)</div>
+                    <div class="text-xs text-gray-700">${eleves.map(e => escapeHtml(e)).join(', ')}</div>
                   </div>
                 `).join('')}
               </div>
@@ -1134,8 +1180,8 @@
               <div class="space-y-2">
                 ${Object.entries(currentAsso).map(([code, eleves]) => `
                   <div class="p-2 bg-white rounded border border-green-300">
-                    <div class="font-bold text-green-700">A${code} (${eleves.length} élèves)</div>
-                    <div class="text-xs text-gray-700">${eleves.join(', ')}</div>
+                    <div class="font-bold text-green-700">A${escapeHtml(code)} (${eleves.length} élèves)</div>
+                    <div class="text-xs text-gray-700">${eleves.map(e => escapeHtml(e)).join(', ')}</div>
                   </div>
                 `).join('')}
               </div>
@@ -1230,8 +1276,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(lv2Set).sort().map(lv2 => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="lv2" data-filter-value="${lv2}">
-                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${lv2}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="lv2" data-filter-value="${escapeHtml(lv2)}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${escapeHtml(lv2)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1245,8 +1291,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(optSet).sort().map(opt => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="opt" data-filter-value="${opt}">
-                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${opt}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="opt" data-filter-value="${escapeHtml(opt)}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${escapeHtml(opt)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1260,8 +1306,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(dissoSet).sort().map(disso => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="disso" data-filter-value="${disso}">
-                  <span class="text-sm px-3 py-1 bg-red-100 rounded hover:bg-red-200">D${disso}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="disso" data-filter-value="${escapeHtml(disso)}">
+                  <span class="text-sm px-3 py-1 bg-red-100 rounded hover:bg-red-200">D${escapeHtml(disso)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1275,8 +1321,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(assoSet).sort().map(asso => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="asso" data-filter-value="${asso}">
-                  <span class="text-sm px-3 py-1 bg-green-100 rounded hover:bg-green-200">A${asso}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="asso" data-filter-value="${escapeHtml(asso)}">
+                  <span class="text-sm px-3 py-1 bg-green-100 rounded hover:bg-green-200">A${escapeHtml(asso)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1290,8 +1336,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(mobiliteSet).sort().map(mob => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="mobilite" data-filter-value="${mob}">
-                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${mob}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="mobilite" data-filter-value="${escapeHtml(mob)}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${escapeHtml(mob)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1368,7 +1414,7 @@
         const value = checkbox.dataset.filterValue;
         return `
         <span class="px-2 py-1 bg-blue-500 text-white text-xs rounded">
-          ${type}: ${value}
+          ${escapeHtml(type)}: ${escapeHtml(value)}
         </span>
       `;
       }).join('');
@@ -1563,15 +1609,15 @@
                 </div>
                 ${change.changes.map(c => `
                   <div class="ml-4 mb-2">
-                    <div class="font-medium">${c.classe}</div>
+                    <div class="font-medium">${escapeHtml(c.classe)}</div>
                     ${c.added.length > 0 ? `
                       <div class="text-green-600 text-sm">
-                        <i class="fas fa-plus"></i> Ajoutés: ${c.added.join(', ')}
+                        <i class="fas fa-plus"></i> Ajoutés: ${c.added.map(a => escapeHtml(a)).join(', ')}
                       </div>
                     ` : ''}
                     ${c.removed.length > 0 ? `
                       <div class="text-red-600 text-sm">
-                        <i class="fas fa-minus"></i> Retirés: ${c.removed.join(', ')}
+                        <i class="fas fa-minus"></i> Retirés: ${c.removed.map(r => escapeHtml(r)).join(', ')}
                       </div>
                     ` : ''}
                   </div>

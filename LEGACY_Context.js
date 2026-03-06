@@ -136,17 +136,7 @@ function makeCtxFromSourceSheets_LEGACY() {
   // Lire les autorisations de classes pour options/LV2
   const autorisations = readClassAuthorizationsFromUI_LEGACY();
 
-  // ========== ÉTAPE 6 : LIRE FLAGS JULES CODEX ==========
-  // Lire depuis les propriétés du document
-  const docProps = PropertiesService.getDocumentProperties();
-  const useJulesCodex = docProps.getProperty('LEGACY_USE_JULES_CODEX') === 'true';
-  const useIntegratedPhase3 = useJulesCodex;  // Si JULES CODEX activé, activer phase 3 intégrée
-
-  if (useJulesCodex) {
-    logLine('INFO', '🎯 Mode JULES CODEX activé (Moteurs Silencieux + Distance Distribution)');
-  }
-
-  // ========== ÉTAPE 7 : CONSTRUIRE LE CONTEXTE ==========
+  // ========== ÉTAPE 6 : CONSTRUIRE LE CONTEXTE ==========
   const ctx = {
     ss: ss,
     modeSrc: '',  // ✅ Mode vide pour LEGACY car les sources n'ont pas de suffixe
@@ -167,10 +157,7 @@ function makeCtxFromSourceSheets_LEGACY() {
       tra: 0.5,
       part: 0.3,
       abs: 0.2
-    },
-    // 🎯 JULES CODEX FLAGS
-    useJulesCodex: useJulesCodex,
-    useIntegratedPhase3: useIntegratedPhase3
+    }
   };
 
   logLine('INFO', '✅ Contexte LEGACY créé avec succès');

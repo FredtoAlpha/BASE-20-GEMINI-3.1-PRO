@@ -174,7 +174,18 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
         if (item.assigned) continue; // Déjà placé
 
         const lv2 = String(row[idxLV2] || '').trim().toUpperCase();
-        const opt = String(row[idxOPT] || '').trim().toUpperCase();
+        var opt = String(row[idxOPT] || '').trim().toUpperCase();
+
+        // Détection anomalie saisie : OPT contient une LV2 (ex: OPT=ITA)
+        if (isOPTAnomalyLV2(opt)) {
+          logLine('WARN', '⚠️ Anomalie saisie ligne ' + i + ': OPT=' + opt + ' est une LV2, ignoré comme OPT');
+          opt = '';
+        }
+
+        // Vérification compatibilité LV2+OPT (ex: ITA+CHAV interdit)
+        if (!isLV2OPTCompatible(lv2, opt)) {
+          logLine('WARN', '⚠️ Combinaison interdite ligne ' + i + ': LV2=' + lv2 + ' + OPT=' + opt);
+        }
 
         let match = false;
         // 🌟 APPROCHE UNIVERSELLE : Ignorer les LV2 universelles (présentes dans toutes les classes)

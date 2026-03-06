@@ -200,12 +200,12 @@
         </div>
         <h2 class="error-title">Aucune donnée trouvée</h2>
         <div class="error-message">
-          ${message}
+          ${escapeHtml(String(message))}
         </div>
         <div class="error-suggestions">
           <h3 class="font-semibold mb-2">Suggestions pour résoudre le problème :</h3>
           <ul>
-            ${allSuggestions.map(s => `<li>${s}</li>`).join('')}
+            ${allSuggestions.map(s => `<li>${escapeHtml(String(s))}</li>`).join('')}
           </ul>
         </div>
         <div class="mt-4">
@@ -1867,7 +1867,7 @@
 
           toast.innerHTML = `
         <i class="fas ${icons[type]} ${isSwapError ? 'text-2xl mr-3' : 'text-lg'}"></i>
-        <span>${message}</span>
+        <span>${escapeHtml(String(message))}</span>
       `;
 
           document.body.appendChild(toast);
@@ -4095,14 +4095,14 @@
       window.showComparison = function () {
         if (!STATE.originalData) {
           toast('Aucune donnée de comparaison disponible', 'warning');
-          return; a
+          return;
         }
 
         // Créer une modal de comparaison
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.innerHTML = `
-        < div class="modal-content" style = "max-width: 1200px;" >
+        <div class="modal-content" style="max-width: 1200px;">
         <div class="modal-header">
           <h2 class="text-xl font-bold">Comparaison avant/après répartition</h2>
           <button onclick="this.closest('.modal').remove()" class="text-gray-400 hover:text-gray-600">
@@ -4121,7 +4121,7 @@
             </div>
           </div>
         </div>
-      </div >
+      </div>
         `;
 
         document.body.appendChild(modal);
@@ -4135,7 +4135,7 @@
           const div = document.createElement('div');
           div.className = 'mb-4';
           div.innerHTML = `
-        < h4 class="font-bold" > ${ group.classe }</h4 >
+        <h4 class="font-bold">${escapeHtml(group.classe)}</h4>
         <p>Total: ${group.eleves.length} élèves</p>
         <p>F/M: ${group.eleves.filter(e => e.sexe === 'F').length}/${group.eleves.filter(e => e.sexe === 'M').length}</p>
       `;
@@ -4152,7 +4152,7 @@
           const div = document.createElement('div');
           div.className = 'mb-4';
           div.innerHTML = `
-        < h4 class="font-bold" > ${ classe }</h4 >
+        <h4 class="font-bold">${escapeHtml(classe)}</h4>
         <p>Total: ${count} élèves</p>
         <p>F/M: ${countF}/${countM}</p>
       `;
@@ -4181,12 +4181,12 @@
           const div = document.createElement('div');
           div.className = 'mb-6 p-4 border rounded-lg';
           div.innerHTML = `
-        < h3 class="font-bold text-lg mb-3" > ${ classe }</h3 >
+        <h3 class="font-bold text-lg mb-3">${escapeHtml(classe)}</h3>
           <div class="grid grid-cols-2 gap-4">
             <div class="form-group">
               <label class="form-label">Capacité maximale</label>
               <input type="number" class="form-control"
-                data-classe="${classe}"
+                data-classe="${escapeHtml(classe)}"
                 data-field="capacity"
                 value="${rule.capacity || 28}"
                 min="1" max="35">
@@ -4194,9 +4194,9 @@
             <div class="form-group">
               <label class="form-label">Quotas (format: OPT=nombre)</label>
               <textarea class="form-control"
-                data-classe="${classe}"
+                data-classe="${escapeHtml(classe)}"
                 data-field="quotas"
-                rows="3">${Object.entries(rule.quotas || {}).map(([k, v]) => `${k}=${v}`).join(', ')}</textarea>
+                rows="3">${Object.entries(rule.quotas || {}).map(([k, v]) => `${escapeHtml(k)}=${v}`).join(', ')}</textarea>
             </div>
           </div>
       `;
@@ -4268,14 +4268,14 @@
 
         // HTML COMPLET avec tous les graphiques existants + nouveaux
         statsContent.innerHTML = `
-        < div class="mb-2" >
+        <div class="mb-2">
           <div class="flex gap-2 mb-2">
             <button onclick="switchChart('COM')" class="px-3 py-1 text-xs rounded font-semibold bg-green-500 text-white" id="btnCOM">COM</button>
             <button onclick="switchChart('TRA')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnTRA">TRA</button>
             <button onclick="switchChart('PART')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnPART">PART</button>
             <button onclick="switchChart('ABS')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnABS">ABS</button>
           </div>
-      </div >
+      </div>
       
       <div class="chart-container" style="padding: 10px; margin-bottom: 10px;">
         <h3 class="chart-title text-sm">Distribution - <span id="scoreType">Comportement</span></h3>
@@ -4690,7 +4690,7 @@
           });
 
           const globalStatsHtml = `
-        < p > <strong>Total élèves :</strong> ${ globalTotals.eleves }</p >
+        <p><strong>Total élèves :</strong> ${globalTotals.eleves}</p>
       <p><strong>Répartition :</strong> ${globalTotals.filles} filles (${Math.round(globalTotals.filles / globalTotals.eleves * 100)}%) / ${globalTotals.garcons} garçons (${Math.round(globalTotals.garcons / globalTotals.eleves * 100)}%)</p>
       <p class="mt-2"><strong>Moyennes globales :</strong></p>
       <ul>
@@ -4984,7 +4984,7 @@
               window.saveProgressManager.updateProgress(progress, 'step3');
 
               // Mise à jour du titre avec le nom de la classe en cours
-              if (header) header.innerHTML = `< i class="fas fa-save mr-2" ></i > ${ escapeHtml(title) } - ${ escapeHtml(classe) } (${ i + 1 }/${totalClasses})`;
+              if (header) header.innerHTML = `<i class="fas fa-save mr-2"></i> ${escapeHtml(title)} - ${escapeHtml(classe)} (${i + 1}/${totalClasses})`;
 
               try {
                 // ✅ Sauvegarder UNE classe à la fois
@@ -5660,20 +5660,23 @@
       const item = document.createElement('div');
       item.className = 'bookmark-item';
       item.innerHTML = `
-        <div class="bookmark-name">${name}</div>
+        <div class="bookmark-name">${escapeHtml(name)}</div>
         <div class="bookmark-meta">
           Sauvegardé le ${new Date(data.date).toLocaleDateString('fr-FR')}
           - ${data.stats.total} élèves
         </div>
         <div class="bookmark-actions">
-          <button class="btn btn-sm btn-primary" onclick="loadBookmark('${name}')">
+          <button class="btn btn-sm btn-primary" data-action="load" data-bookmark="${escapeHtml(name)}">
             <i class="fas fa-download"></i> Charger
           </button>
-          <button class="btn btn-sm btn-secondary" onclick="deleteBookmark('${name}')">
+          <button class="btn btn-sm btn-secondary" data-action="delete" data-bookmark="${escapeHtml(name)}">
             <i class="fas fa-trash"></i>
           </button>
         </div>
       `;
+      // Event delegation: bind via data attributes instead of inline onclick (XSS-safe)
+      item.querySelector('[data-action="load"]').addEventListener('click', () => loadBookmark(name));
+      item.querySelector('[data-action="delete"]').addEventListener('click', () => deleteBookmark(name));
       container.appendChild(item);
     });
   }
