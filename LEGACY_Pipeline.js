@@ -149,6 +149,7 @@ function legacy_runFullPipeline_PRIME() {
       }
 
       logLine('INFO', '\n⚡ PHASE 4: Optimisation ULTIMATE' + (cpLoop > 0 ? ' (cross-phase #' + cpLoop + ')' : '') + '...');
+      logLine('INFO', '🔧 [engine=LEGACY] Sélection moteur: Phase4_Ultimate_Run');
       p4Result = Phase4_Ultimate_Run(ctx);
 
       if (!p4Result.ok) {

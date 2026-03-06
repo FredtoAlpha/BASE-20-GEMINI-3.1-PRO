@@ -820,11 +820,13 @@ function phase4Stream() {
   try {
     // ✅ ARCH V3 : Utiliser la version qui lit depuis _BASEOPTI
     if (typeof Phase4_balanceScoresSwaps_BASEOPTI_V3 === 'function') {
+      logLine('INFO', '🔧 [engine=OPTI] Sélection moteur: Phase4_balanceScoresSwaps_BASEOPTI_V3');
       r = Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx);
-      logLine('INFO', '✅ P4 V3 exécutée');
+      logLine('INFO', '✅ P4 V3 exécutée [engine=OPTI]');
     } else if (typeof Phase4_balanceScoresSwaps_ === 'function') {
+      logLine('INFO', '🔧 [engine=OPTI-FALLBACK] Sélection moteur: Phase4_balanceScoresSwaps_ (fallback)');
       r = Phase4_balanceScoresSwaps_(ctx);
-      logLine('INFO', '✅ P4 exécutée (fallback)');
+      logLine('INFO', '✅ P4 exécutée [engine=OPTI-FALLBACK]');
     } else {
       logLine('ERROR', '❌ Phase4 introuvable');
       r = { ok: false, swapsApplied: 0, error: 'Phase4 introuvable' };
