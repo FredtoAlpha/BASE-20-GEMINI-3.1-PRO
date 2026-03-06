@@ -1465,17 +1465,17 @@ function v3_computeScoresPreview() {
       }
     }
 
-    // Échantillon (premiers 30 élèves)
+    // Tous les élèves avec traces (pas juste un échantillon)
     var sample = [];
-    var limit = Math.min(30, mergedArr.length);
-    for (var i = 0; i < limit; i++) {
+    for (var i = 0; i < mergedArr.length; i++) {
       sample.push({
         nom: mergedArr[i].nom || '',
         classe: mergedArr[i].classe || '',
         COM: mergedArr[i].scoreCOM,
         TRA: mergedArr[i].scoreTRA,
         PART: mergedArr[i].scorePART,
-        ABS: mergedArr[i].scoreABS
+        ABS: mergedArr[i].scoreABS,
+        traces: mergedArr[i].traces || {}
       });
     }
 
@@ -1528,15 +1528,15 @@ function v3_applyScores() {
       if (s >= 1 && s <= 4) { dist[s]++; total++; }
     }
     var sample = [];
-    var limit = Math.min(30, mergedArr.length);
-    for (var i = 0; i < limit; i++) {
+    for (var i = 0; i < mergedArr.length; i++) {
       sample.push({
         nom: mergedArr[i].nom || '',
         classe: mergedArr[i].classe || '',
         COM: mergedArr[i].scoreCOM,
         TRA: mergedArr[i].scoreTRA,
         PART: mergedArr[i].scorePART,
-        ABS: mergedArr[i].scoreABS
+        ABS: mergedArr[i].scoreABS,
+        traces: mergedArr[i].traces || {}
       });
     }
 

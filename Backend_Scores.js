@@ -390,7 +390,16 @@ function calculerScoreABS_(ss) {
       nom: nomKey, classe: e.classe,
       dj: Math.round(e.djTotal * 10) / 10,
       nj: e.nonJustifiees,
-      scoreABS: scoreABS
+      scoreABS: scoreABS,
+      trace: {
+        critere: 'ABS',
+        details: [
+          { label: 'Demi-journées', valeur: Math.round(e.djTotal * 10) / 10, score: scoreDJ, poids: seuils.poidsDJ },
+          { label: 'Non-justifiées', valeur: e.nonJustifiees, score: scoreNJ, poids: seuils.poidsNJ }
+        ],
+        formule: 'ceil(' + scoreDJ + '×' + seuils.poidsDJ + ' + ' + scoreNJ + '×' + seuils.poidsNJ + ') = ' + scoreABS,
+        seuilsUtilises: { DJ: seuils.DJ, NJ: seuils.NJ }
+      }
     });
   }
 
@@ -478,13 +487,27 @@ function calculerScoreCOM_(ss) {
   var resultats = [];
   for (var nomKey in tousNoms) {
     var ptsPun = punitions[nomKey] ? punitions[nomKey].nb : 0;
-    var ptsInc = incidents[nomKey] ? incidents[nomKey].ptsGrav * 3 : 0;
+    var nbInc = incidents[nomKey] ? incidents[nomKey].nbInc : 0;
+    var ptsGrav = incidents[nomKey] ? incidents[nomKey].ptsGrav : 0;
+    var ptsInc = ptsGrav * 3;
     var total = ptsPun + ptsInc;
     var classe = (punitions[nomKey] ? punitions[nomKey].classe : '') ||
                  (incidents[nomKey] ? incidents[nomKey].classe : '');
     var scoreCOM = attribuerScoreParSeuil_(total, seuils);
 
-    resultats.push({ nom: nomKey, classe: classe, total: total, scoreCOM: scoreCOM });
+    resultats.push({
+      nom: nomKey, classe: classe, total: total, scoreCOM: scoreCOM,
+      trace: {
+        critere: 'COM',
+        details: [
+          { label: 'Punitions', valeur: ptsPun },
+          { label: 'Incidents', valeur: nbInc, ptsGravite: ptsGrav, ponderation: '×3 = ' + ptsInc }
+        ],
+        totalPoints: total,
+        formule: ptsPun + ' (pun) + ' + ptsInc + ' (inc×3) = ' + total + ' pts → score ' + scoreCOM,
+        seuilsUtilises: seuils
+      }
+    });
   }
 
   return resultats;
@@ -558,6 +581,7 @@ function calculerScoreTRA_(ss) {
 
     var totalPts = 0;
     var totalCoeff = 0;
+    var notesDetail = [];
 
     for (var mi = 0; mi < matieresResolues.length; mi++) {
       var mat = matieresResolues[mi];
@@ -569,6 +593,7 @@ function calculerScoreTRA_(ss) {
           if (n !== null) { note = n; break; }
         }
       }
+      notesDetail.push({ matiere: mat.nom, note: note, coeff: mat.coeff });
       if (note !== null) {
         totalPts += note * mat.coeff;
         totalCoeff += mat.coeff;
@@ -583,7 +608,27 @@ function calculerScoreTRA_(ss) {
       scoreTRA = moyPond !== null ? attribuerScoreParSeuil_(moyPond, seuils) : null;
     }
 
-    resultats.push({ nom: nom, classe: classe, moyPond: moyPond, valeurBrute: moyPond, scoreTRA: scoreTRA });
+    var matieresAvecNote = notesDetail.filter(function(d) { return d.note !== null; }).length;
+    var confidence = matieresResolues.length > 0 ? Math.round(matieresAvecNote / matieresResolues.length * 100) / 100 : 0;
+
+    resultats.push({
+      nom: nom, classe: classe, moyPond: moyPond, valeurBrute: moyPond, scoreTRA: scoreTRA,
+      trace: {
+        critere: 'TRA',
+        mode: mode,
+        niveau: niveau,
+        notes: notesDetail,
+        matieresDetectees: matieresResolues.length,
+        matieresManquantes: matieresManquantes,
+        matieresAvecNote: matieresAvecNote,
+        moyPond: moyPond,
+        confidence: confidence,
+        formule: 'Moy. pond. = ' + (moyPond !== null ? moyPond + '/20' : 'N/A') +
+                 ' (' + matieresAvecNote + '/' + matieresResolues.length + ' matières)' +
+                 (mode === 'seuils' ? ' → score ' + scoreTRA : ' → percentile (2e pass)'),
+        seuilsUtilises: mode === 'seuils' ? seuils : null
+      }
+    });
   }
 
   // Mode percentile : 2e pass pour assigner les scores par rang
@@ -645,6 +690,17 @@ function calculerScorePART_(ss) {
       if (oLV2 !== null) { notes.push(oLV2); break; } // première LV2 trouvée
     }
 
+    var notesOralDetail = [];
+    if (colOralAng >= 0) {
+      var oAngTrace = parseNotePronote_(data[i][colOralAng]);
+      notesOralDetail.push({ matiere: 'Anglais Oral', note: oAngTrace });
+    }
+    for (var lv = 0; lv < colsOralLV2.length; lv++) {
+      var oLV2Trace = parseNotePronote_(data[i][colsOralLV2[lv]]);
+      notesOralDetail.push({ matiere: 'LV2 Oral', note: oLV2Trace });
+      if (oLV2Trace !== null) break;
+    }
+
     var moyOral = notes.length > 0
       ? Math.round(notes.reduce(function(a, b) { return a + b; }, 0) / notes.length * 100) / 100
       : null;
@@ -654,7 +710,19 @@ function calculerScorePART_(ss) {
       scorePART = moyOral !== null ? attribuerScoreParSeuil_(moyOral, seuils) : null;
     }
 
-    resultats.push({ nom: nom, classe: classe, moyOral: moyOral, valeurBrute: moyOral, scorePART: scorePART });
+    resultats.push({
+      nom: nom, classe: classe, moyOral: moyOral, valeurBrute: moyOral, scorePART: scorePART,
+      trace: {
+        critere: 'PART',
+        mode: mode,
+        notes: notesOralDetail,
+        moyOral: moyOral,
+        formule: 'Moy. oral = ' + (moyOral !== null ? moyOral + '/20' : 'N/A') +
+                 ' (' + notes.length + ' note(s))' +
+                 (mode === 'seuils' ? ' → score ' + scorePART : ' → percentile (2e pass)'),
+        seuilsUtilises: mode === 'seuils' ? seuils : null
+      }
+    });
   }
 
   // Mode percentile
@@ -679,28 +747,32 @@ function fusionnerScores_(absResults, comResults, traResults, partResults) {
   // Clé composite nom|classe pour éviter les collisions d'homonymes
   absResults.forEach(function(r) {
     var key = r.nom + '|' + (r.classe || '');
-    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe, traces: {} };
     fusion[key].scoreABS = r.scoreABS;
     fusion[key].dj = r.dj;
+    if (r.trace) fusion[key].traces.ABS = r.trace;
   });
 
   comResults.forEach(function(r) {
     var key = r.nom + '|' + (r.classe || '');
-    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe, traces: {} };
     fusion[key].scoreCOM = r.scoreCOM;
+    if (r.trace) fusion[key].traces.COM = r.trace;
   });
 
   traResults.forEach(function(r) {
     var key = r.nom + '|' + (r.classe || '');
-    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe, traces: {} };
     fusion[key].scoreTRA = r.scoreTRA;
     fusion[key].moyPond = r.moyPond;
+    if (r.trace) fusion[key].traces.TRA = r.trace;
   });
 
   partResults.forEach(function(r) {
     var key = r.nom + '|' + (r.classe || '');
-    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe };
+    if (!fusion[key]) fusion[key] = { nom: r.nom, classe: r.classe, traces: {} };
     fusion[key].scorePART = r.scorePART;
+    if (r.trace) fusion[key].traces.PART = r.trace;
   });
 
   return fusion;
