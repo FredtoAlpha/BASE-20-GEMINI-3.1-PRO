@@ -744,18 +744,29 @@
         return;
       }
 
-      // TODO: Implémenter l'application réelle des swaps dans l'interface
-      // Pour l'instant, juste recharger les données
-      toast(`Application de ${swaps.length} échanges...`, 'info');
+      let applied = 0;
+      let skipped = 0;
 
-      setTimeout(() => {
-        toast('Échanges appliqués ! Rechargez les données pour voir les changements.', 'success');
-        document.querySelector('.modal')?.remove();
-      }, 1000);
+      swaps.forEach(swap => {
+        const id1 = swap.student1?.id || swap.studentSource?.id;
+        const id2 = swap.student2?.id || swap.studentTarget?.id;
+        if (id1 && id2 && typeof performSwap === 'function') {
+          performSwap(id1, id2);
+          applied++;
+        } else {
+          skipped++;
+        }
+      });
+
+      toast(`${applied} échange(s) appliqué(s)${skipped ? `, ${skipped} ignoré(s)` : ''}`, applied > 0 ? 'success' : 'warning');
+      document.querySelector('.modal')?.remove();
+      window._claudeMotorSwaps = null;
     },
 
     // Afficher les résultats d'optimisation (ancien algorithme - conservé pour compatibilité)
     displayOptimizationResults(groups) {
+      // Stocker pour applyOptimizationResults
+      window._optimizationGroups = groups;
       const modal = document.createElement('div');
       modal.className = 'modal';
       modal.innerHTML = `
@@ -802,9 +813,44 @@
 
     // Appliquer les résultats d'optimisation
     applyOptimizationResults() {
-      // Cette fonction serait appelée pour appliquer réellement les changements
-      toast('Optimisation appliquée', 'success');
-      document.querySelector('.modal').remove();
+      const groups = window._optimizationGroups;
+      if (!groups || groups.length === 0) {
+        toast('Aucun résultat à appliquer', 'warning');
+        return;
+      }
+
+      // Récupérer les classes cibles depuis les colonnes existantes
+      const classColumns = document.querySelectorAll('.droppable-zone');
+      const classeNames = Array.from(classColumns).map(z => z.dataset.classe);
+
+      let moved = 0;
+      groups.forEach((group, idx) => {
+        const targetClasse = classeNames[idx];
+        if (!targetClasse) return;
+
+        const targetZone = document.querySelector(`.droppable-zone[data-classe="${targetClasse}"]`);
+        if (!targetZone) return;
+
+        group.forEach(student => {
+          const card = document.querySelector(`.student-card[data-id="${student.id}"]`);
+          if (!card) return;
+
+          const currentZone = card.closest('.droppable-zone');
+          if (currentZone && currentZone.dataset.classe !== targetClasse) {
+            targetZone.appendChild(card);
+            moved++;
+          }
+        });
+      });
+
+      updateAllColumnStats();
+      if (typeof updateAdvancedStats === 'function') {
+        setTimeout(() => updateAdvancedStats(), 150);
+      }
+
+      toast(`${moved} élève(s) déplacé(s)`, moved > 0 ? 'success' : 'info');
+      document.querySelector('.modal')?.remove();
+      window._optimizationGroups = null;
     }
   };
 
