@@ -323,6 +323,11 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
     }
   }
 
+  // ✅ Vérifier compatibilité LV2+OPT (ex: ITA+CHAV interdit)
+  if (!isLV2OPTCompatible(eleveLV2, eleveOPT)) {
+    logLine('WARN', '⚠️ DISSO: Combinaison interdite LV2=' + eleveLV2 + ' + OPT=' + eleveOPT + ', placement contraint');
+  }
+
   if (eleveLV2 || eleveOPT) {
     for (const cls of Array.from(allClasses)) {
       if (classesWithD.has(cls)) continue;
@@ -340,6 +345,7 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
       // ✅ FIX #1 : Vérifier LV2 ET OPT cumulativement (pas else if)
       // Un élève peut avoir LV2=ITA + OPT=LATIN simultanément
       let canPlace = true;
+
       if (eleveLV2 && isKnownLV2(eleveLV2)) {
         if (!(quotas[eleveLV2] !== undefined && quotas[eleveLV2] > 0)) canPlace = false;
       }

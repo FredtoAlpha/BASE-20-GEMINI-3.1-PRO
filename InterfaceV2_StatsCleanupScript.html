@@ -242,7 +242,7 @@ window.performSwap = function(id1, id2) {
   
   const eleve1 = STATE.students[id1];
   const eleve2 = STATE.students[id2];
-  toast(`Swap réussi entre ${eleve1.nom} et ${eleve2.nom}`, 'success');
+  toast(`Swap réussi entre ${escapeHtml(eleve1.nom)} et ${escapeHtml(eleve2.nom)}`, 'success');
 };
 
 console.log('✅ Nettoyage terminé - Le panneau stats devrait maintenant rester stable');

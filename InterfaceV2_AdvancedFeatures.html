@@ -644,11 +644,11 @@
             ${results.swaps.map((swap, i) => `
               <div class="text-sm p-2 bg-gray-50 rounded mb-2">
                 <strong>#${i + 1}</strong>:
-                ${swap.student1?.nom || swap.studentSource?.nom || 'Élève 1'}
-                (${swap.class1 || swap.sourceClass || '?'})
+                ${escapeHtml(swap.student1?.nom || swap.studentSource?.nom || 'Élève 1')}
+                (${escapeHtml(swap.class1 || swap.sourceClass || '?')})
                 ↔
-                ${swap.student2?.nom || swap.studentTarget?.nom || 'Élève 2'}
-                (${swap.class2 || swap.targetClass || '?'})
+                ${escapeHtml(swap.student2?.nom || swap.studentTarget?.nom || 'Élève 2')}
+                (${escapeHtml(swap.class2 || swap.targetClass || '?')})
               </div>
             `).join('')}
           </div>

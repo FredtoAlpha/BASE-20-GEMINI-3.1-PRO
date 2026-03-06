@@ -200,12 +200,12 @@
         </div>
         <h2 class="error-title">Aucune donnée trouvée</h2>
         <div class="error-message">
-          ${message}
+          ${escapeHtml(String(message))}
         </div>
         <div class="error-suggestions">
           <h3 class="font-semibold mb-2">Suggestions pour résoudre le problème :</h3>
           <ul>
-            ${allSuggestions.map(s => `<li>${s}</li>`).join('')}
+            ${allSuggestions.map(s => `<li>${escapeHtml(String(s))}</li>`).join('')}
           </ul>
         </div>
         <div class="mt-4">
@@ -1867,7 +1867,7 @@
 
           toast.innerHTML = `
         <i class="fas ${icons[type]} ${isSwapError ? 'text-2xl mr-3' : 'text-lg'}"></i>
-        <span>${message}</span>
+        <span>${escapeHtml(String(message))}</span>
       `;
 
           document.body.appendChild(toast);
@@ -4181,12 +4181,12 @@
           const div = document.createElement('div');
           div.className = 'mb-6 p-4 border rounded-lg';
           div.innerHTML = `
-        < h3 class="font-bold text-lg mb-3" > ${ classe }</h3 >
+        <h3 class="font-bold text-lg mb-3">${escapeHtml(classe)}</h3>
           <div class="grid grid-cols-2 gap-4">
             <div class="form-group">
               <label class="form-label">Capacité maximale</label>
               <input type="number" class="form-control"
-                data-classe="${classe}"
+                data-classe="${escapeHtml(classe)}"
                 data-field="capacity"
                 value="${rule.capacity || 28}"
                 min="1" max="35">
@@ -4194,9 +4194,9 @@
             <div class="form-group">
               <label class="form-label">Quotas (format: OPT=nombre)</label>
               <textarea class="form-control"
-                data-classe="${classe}"
+                data-classe="${escapeHtml(classe)}"
                 data-field="quotas"
-                rows="3">${Object.entries(rule.quotas || {}).map(([k, v]) => `${k}=${v}`).join(', ')}</textarea>
+                rows="3">${Object.entries(rule.quotas || {}).map(([k, v]) => `${escapeHtml(k)}=${v}`).join(', ')}</textarea>
             </div>
           </div>
       `;
@@ -5666,14 +5666,17 @@
           - ${data.stats.total} élèves
         </div>
         <div class="bookmark-actions">
-          <button class="btn btn-sm btn-primary" onclick="loadBookmark('${escapeHtml(name)}')">
+          <button class="btn btn-sm btn-primary" data-action="load" data-bookmark="${escapeHtml(name)}">
             <i class="fas fa-download"></i> Charger
           </button>
-          <button class="btn btn-sm btn-secondary" onclick="deleteBookmark('${escapeHtml(name)}')">
+          <button class="btn btn-sm btn-secondary" data-action="delete" data-bookmark="${escapeHtml(name)}">
             <i class="fas fa-trash"></i>
           </button>
         </div>
       `;
+      // Event delegation: bind via data attributes instead of inline onclick (XSS-safe)
+      item.querySelector('[data-action="load"]').addEventListener('click', () => loadBookmark(name));
+      item.querySelector('[data-action="delete"]').addEventListener('click', () => deleteBookmark(name));
       container.appendChild(item);
     });
   }
