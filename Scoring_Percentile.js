@@ -27,6 +27,18 @@ function computePercentileScores(entries, distribution) {
   if (!entries || entries.length === 0) return [];
   if (!distribution) distribution = { 1: 0.10, 2: 0.25, 3: 0.40, 4: 0.25 };
 
+  // Valider que la distribution somme à ~1.0, normaliser sinon
+  var distSum = (distribution[1] || 0) + (distribution[2] || 0) + (distribution[3] || 0) + (distribution[4] || 0);
+  if (distSum > 0 && Math.abs(distSum - 1.0) > 0.05) {
+    Logger.log('⚠️ Distribution percentile invalide (somme=' + distSum.toFixed(3) + '), normalisation...');
+    distribution = {
+      1: (distribution[1] || 0) / distSum,
+      2: (distribution[2] || 0) / distSum,
+      3: (distribution[3] || 0) / distSum,
+      4: (distribution[4] || 0) / distSum
+    };
+  }
+
   // Séparer les entrées avec/sans valeur
   var withValue = [];
   var withoutValue = [];

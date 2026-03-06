@@ -1445,12 +1445,20 @@ function v3_computeScoresPreview() {
     // Fusionner par nom+classe
     var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART);
 
+    // Convertir l'objet fusion en tableau (fusionnerScores_ retourne un objet, pas un array)
+    var mergedKeys = Object.keys(merged);
+    var mergedArr = [];
+    for (var i = 0; i < mergedKeys.length; i++) {
+      var entry = merged[mergedKeys[i]];
+      entry.nom = mergedKeys[i].split('|')[0]; // clé composite "nom|classe"
+      mergedArr.push(entry);
+    }
+
     // Distribution
     var dist = { 1: 0, 2: 0, 3: 0, 4: 0 };
     var total = 0;
-    for (var i = 0; i < merged.length; i++) {
-      // Compter sur le score TRA comme indicateur principal
-      var s = merged[i].scoreTRA;
+    for (var i = 0; i < mergedArr.length; i++) {
+      var s = mergedArr[i].scoreTRA;
       if (s >= 1 && s <= 4) {
         dist[s]++;
         total++;
@@ -1459,15 +1467,15 @@ function v3_computeScoresPreview() {
 
     // Échantillon (premiers 30 élèves)
     var sample = [];
-    var limit = Math.min(30, merged.length);
+    var limit = Math.min(30, mergedArr.length);
     for (var i = 0; i < limit; i++) {
       sample.push({
-        nom: merged[i].nom || '',
-        classe: merged[i].classe || '',
-        COM: merged[i].scoreCOM,
-        TRA: merged[i].scoreTRA,
-        PART: merged[i].scorePART,
-        ABS: merged[i].scoreABS
+        nom: mergedArr[i].nom || '',
+        classe: mergedArr[i].classe || '',
+        COM: mergedArr[i].scoreCOM,
+        TRA: mergedArr[i].scoreTRA,
+        PART: mergedArr[i].scorePART,
+        ABS: mergedArr[i].scoreABS
       });
     }
 
@@ -1503,23 +1511,32 @@ function v3_applyScores() {
     // Injecter dans les onglets sources
     injecterScoresDansOngletsSources_(ss, merged);
 
+    // Convertir l'objet fusion en tableau
+    var mergedKeys = Object.keys(merged);
+    var mergedArr = [];
+    for (var i = 0; i < mergedKeys.length; i++) {
+      var entry = merged[mergedKeys[i]];
+      entry.nom = mergedKeys[i].split('|')[0];
+      mergedArr.push(entry);
+    }
+
     // Construire preview pour retour
     var dist = { 1: 0, 2: 0, 3: 0, 4: 0 };
     var total = 0;
-    for (var i = 0; i < merged.length; i++) {
-      var s = merged[i].scoreTRA;
+    for (var i = 0; i < mergedArr.length; i++) {
+      var s = mergedArr[i].scoreTRA;
       if (s >= 1 && s <= 4) { dist[s]++; total++; }
     }
     var sample = [];
-    var limit = Math.min(30, merged.length);
+    var limit = Math.min(30, mergedArr.length);
     for (var i = 0; i < limit; i++) {
       sample.push({
-        nom: merged[i].nom || '',
-        classe: merged[i].classe || '',
-        COM: merged[i].scoreCOM,
-        TRA: merged[i].scoreTRA,
-        PART: merged[i].scorePART,
-        ABS: merged[i].scoreABS
+        nom: mergedArr[i].nom || '',
+        classe: mergedArr[i].classe || '',
+        COM: mergedArr[i].scoreCOM,
+        TRA: mergedArr[i].scoreTRA,
+        PART: mergedArr[i].scorePART,
+        ABS: mergedArr[i].scoreABS
       });
     }
 

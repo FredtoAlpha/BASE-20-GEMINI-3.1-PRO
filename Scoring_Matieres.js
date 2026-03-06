@@ -177,14 +177,25 @@ function detectNiveauAuto() {
     }
   } catch (e) { /* ignore */ }
 
-  // Stratégie 2 : premier onglet source
+  // Stratégie 2 : scanner tous les onglets sources, retourner le niveau le plus fréquent
   try {
     var sheets = SpreadsheetApp.getActive().getSheets();
+    var niveauxCount = {};
     for (var i = 0; i < sheets.length; i++) {
       var name = sheets[i].getName();
       if (/.+°\d+$/.test(name)) {
-        return detectNiveauFromSheetName(name);
+        var niv = detectNiveauFromSheetName(name);
+        niveauxCount[niv] = (niveauxCount[niv] || 0) + 1;
       }
+    }
+    var niveaux = Object.keys(niveauxCount);
+    if (niveaux.length > 1) {
+      Logger.log('⚠️ SCORING: Plusieurs niveaux détectés (' + niveaux.join(', ') + '). Le plus fréquent sera utilisé.');
+    }
+    if (niveaux.length > 0) {
+      // Retourner le niveau le plus fréquent
+      niveaux.sort(function(a, b) { return niveauxCount[b] - niveauxCount[a]; });
+      return niveaux[0];
     }
   } catch (e) { /* ignore */ }
 
