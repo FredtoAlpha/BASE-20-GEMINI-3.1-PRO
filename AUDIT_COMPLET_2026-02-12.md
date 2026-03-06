@@ -348,9 +348,9 @@ Ce fichier est une copie monolithique de presque tout le projet. Il rend les fic
 | `LEGACY_Phase1_OptionsLV2.js` | ~350 |
 | `LEGACY_Phase2_DissoAsso.js` | ~300 |
 | `LEGACY_Phase3_Parite.js` | ~560 |
-| `LEGACY_Phase4_JulesCodex.js` | ~800 |
-| `LEGACY_Phase4_Optimisation.js` | ~700 |
-| `LEGACY_Context.js` | ~630 |
+| ~~`LEGACY_Phase4_JulesCodex.js`~~ | ~~800~~ | **SUPPRIMÉ** (2026-03-06, orphelin, 0 call sites) |
+| ~~`LEGACY_Phase4_Optimisation.js`~~ | ~~700~~ | **SUPPRIMÉ** (2026-03-06, orphelin, 0 call sites) |
+| `LEGACY_Context.js` | ~630 | Nettoyé : flags JULES_CODEX retirés (2026-03-06) |
 | `LEGACY_Init_Onglets.js` | ~520 |
 | `LEGACY_Mobility_Calculator.js` | ~300 |
 | `LEGACY_Mobility.js` | ~200 |

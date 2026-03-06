@@ -3,42 +3,32 @@
  * 📋 PRIME LEGACY - MENU GOOGLE SHEETS
  * ===================================================================
  *
- * Menu Google Sheets pour PRIME LEGACY
- * ⚙️ LEGACY : Interface utilisateur complète
+ * @deprecated Ce menu n'est PAS appelé depuis Code.js > onOpen().
+ * L'entrée officielle est Console V3 (menu "PILOTAGE CLASSE").
+ * Conservé uniquement pour les fonctions utilitaires
+ * legacy_viewSourceClasses_PRIME et legacy_viewTestResults_PRIME
+ * qui sont référencées depuis d'autres fichiers.
  *
- * Date : 2025-11-13
- * Branche : claude/prime-legacy-cleanup-015Zz6D3gh1QcbpR19TUYMLw
- *
+ * Date : 2025-11-13 (nettoyé 2026-03-06)
  * ===================================================================
  */
 
 /**
- * Crée le menu LEGACY dans l'interface Google Sheets
- * ✅ Appeler depuis Code.gs > onOpen()
+ * @deprecated Menu LEGACY non utilisé. L'entrée officielle est Console V3.
+ * Orphan callbacks retirés : showPilotageConsole, legacy_showPipelineStatus,
+ * legacy_runPhase[1-4]_PRIME, legacy_runJulesCodex_Menu.
  */
 function createLegacyMenu_PRIME() {
   const ui = SpreadsheetApp.getUi();
 
-  ui.createMenu('⚙️ PRIME LEGACY')
-    .addItem('🚀 Nouvelle Console de Pilotage', 'showPilotageConsole')
+  ui.createMenu('⚙️ PRIME LEGACY (deprecated)')
+    .addItem('Lancer Interface Moderne', 'showLegacyInterface')
+    .addItem('Diagnostic Pré-Lancement', 'legacy_runDiagnostic_Menu')
     .addSeparator()
-    .addSubMenu(ui.createMenu('Anciennes Actions')
-      .addItem('Lancer Interface Moderne', 'showLegacyInterface')
-      .addSeparator()
-      .addItem('Statut Pipeline', 'legacy_showPipelineStatus')
-      .addItem('Diagnostic Pré-Lancement', 'legacy_runDiagnostic_Menu')
-      .addSeparator()
-      .addItem('Pipeline Complet (menu)', 'legacy_runFullPipeline_PRIME')
-      .addItem('Pipeline JULES CODEX (Moteurs Silencieux)', 'legacy_runJulesCodex_Menu')
-      .addSeparator()
-      .addSubMenu(ui.createMenu('Phases Individuelles')
-        .addItem('Phase 1 - Options & LV2', 'legacy_runPhase1_PRIME')
-        .addItem('Phase 2 - ASSO/DISSO', 'legacy_runPhase2_PRIME')
-        .addItem('Phase 3 - Effectifs & Parité', 'legacy_runPhase3_PRIME')
-        .addItem('Phase 4 - Équilibrage Scores (OPTIMUM PRIME)', 'legacy_runPhase4_PRIME'))
-      .addSeparator()
-      .addItem('Voir Classes Sources', 'legacy_viewSourceClasses_PRIME')
-      .addItem('Voir Résultats TEST', 'legacy_viewTestResults_PRIME'))
+    .addItem('Pipeline Complet', 'legacy_runFullPipeline_PRIME')
+    .addSeparator()
+    .addItem('Voir Classes Sources', 'legacy_viewSourceClasses_PRIME')
+    .addItem('Voir Résultats TEST', 'legacy_viewTestResults_PRIME')
     .addSeparator()
     .addSubMenu(ui.createMenu('Logs')
       .addItem('Ouvrir Logs', 'openLegacyLogsSheet')
@@ -47,7 +37,7 @@ function createLegacyMenu_PRIME() {
       .addItem('Effacer Logs', 'clearLegacyLogs'))
     .addToUi();
 
-  logLine('INFO', '✅ Menu PRIME LEGACY créé');
+  logLine('INFO', '✅ Menu PRIME LEGACY créé (deprecated - utiliser Console V3)');
 }
 
 /**
@@ -166,44 +156,5 @@ function legacy_viewTestResults_PRIME() {
 
   } catch (e) {
     ui.alert('❌ Erreur', e.toString(), ui.ButtonSet.OK);
-  }
-}
-
-/**
- * Lance le pipeline JULES CODEX avec Moteurs Silencieux
- */
-function legacy_runJulesCodex_Menu() {
-  const ui = SpreadsheetApp.getUi();
-
-  const response = ui.alert(
-    '🎯 JULES CODEX - Pipeline Intelligent',
-    'Cette action va lancer le pipeline LEGACY avec JULES CODEX :\n\n' +
-    '✅ Moteurs Silencieux (ciblage élèves problématiques)\n' +
-    '✅ Distance de distribution (vs variance)\n' +
-    '✅ Ancre de stabilité (anti-oscillations)\n' +
-    '✅ Phase 3 intégrée dans Phase 4\n' +
-    '✅ API unifiée evaluateSwap\n\n' +
-    'Avantages :\n' +
-    '• Convergence plus rapide\n' +
-    '• Meilleure qualité de répartition\n' +
-    '• Prévention des oscillations\n\n' +
-    'Continuer ?',
-    ui.ButtonSet.YES_NO
-  );
-
-  if (response !== ui.Button.YES) {
-    return;
-  }
-
-  try {
-    // Forcer JULES CODEX via propriété de document
-    const docProps = PropertiesService.getDocumentProperties();
-    docProps.setProperty('LEGACY_USE_JULES_CODEX', 'true');
-
-    // Lancer le pipeline (qui détectera automatiquement le flag)
-    legacy_runFullPipeline_PRIME();
-
-  } catch (e) {
-    ui.alert('❌ Erreur JULES CODEX', e.toString(), ui.ButtonSet.OK);
   }
 }
