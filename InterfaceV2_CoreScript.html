@@ -4135,7 +4135,7 @@
           const div = document.createElement('div');
           div.className = 'mb-4';
           div.innerHTML = `
-        < h4 class="font-bold" > ${ group.classe }</h4 >
+        <h4 class="font-bold">${escapeHtml(group.classe)}</h4>
         <p>Total: ${group.eleves.length} élèves</p>
         <p>F/M: ${group.eleves.filter(e => e.sexe === 'F').length}/${group.eleves.filter(e => e.sexe === 'M').length}</p>
       `;
@@ -4152,7 +4152,7 @@
           const div = document.createElement('div');
           div.className = 'mb-4';
           div.innerHTML = `
-        < h4 class="font-bold" > ${ classe }</h4 >
+        <h4 class="font-bold">${escapeHtml(classe)}</h4>
         <p>Total: ${count} élèves</p>
         <p>F/M: ${countF}/${countM}</p>
       `;
@@ -5660,16 +5660,16 @@
       const item = document.createElement('div');
       item.className = 'bookmark-item';
       item.innerHTML = `
-        <div class="bookmark-name">${name}</div>
+        <div class="bookmark-name">${escapeHtml(name)}</div>
         <div class="bookmark-meta">
           Sauvegardé le ${new Date(data.date).toLocaleDateString('fr-FR')}
           - ${data.stats.total} élèves
         </div>
         <div class="bookmark-actions">
-          <button class="btn btn-sm btn-primary" onclick="loadBookmark('${name}')">
+          <button class="btn btn-sm btn-primary" onclick="loadBookmark('${escapeHtml(name)}')">
             <i class="fas fa-download"></i> Charger
           </button>
-          <button class="btn btn-sm btn-secondary" onclick="deleteBookmark('${name}')">
+          <button class="btn btn-sm btn-secondary" onclick="deleteBookmark('${escapeHtml(name)}')">
             <i class="fas fa-trash"></i>
           </button>
         </div>

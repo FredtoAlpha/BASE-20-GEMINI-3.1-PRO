@@ -1079,10 +1079,10 @@
                   <tbody>
                     ${constraints.structure.map(s => `
                       <tr class="border-b">
-                        <td class="p-2">${s.origine || '-'}</td>
-                        <td class="p-2">${s.destination || '-'}</td>
+                        <td class="p-2">${escapeHtml(s.origine || '-')}</td>
+                        <td class="p-2">${escapeHtml(s.destination || '-')}</td>
                         <td class="p-2 text-center">${s.effectif || 28}</td>
-                        <td class="p-2 text-xs">${s.options || '-'}</td>
+                        <td class="p-2 text-xs">${escapeHtml(s.options || '-')}</td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -1260,8 +1260,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(dissoSet).sort().map(disso => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="disso" data-filter-value="${disso}">
-                  <span class="text-sm px-3 py-1 bg-red-100 rounded hover:bg-red-200">D${disso}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="disso" data-filter-value="${escapeHtml(disso)}">
+                  <span class="text-sm px-3 py-1 bg-red-100 rounded hover:bg-red-200">D${escapeHtml(disso)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1275,8 +1275,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(assoSet).sort().map(asso => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="asso" data-filter-value="${asso}">
-                  <span class="text-sm px-3 py-1 bg-green-100 rounded hover:bg-green-200">A${asso}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="asso" data-filter-value="${escapeHtml(asso)}">
+                  <span class="text-sm px-3 py-1 bg-green-100 rounded hover:bg-green-200">A${escapeHtml(asso)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1290,8 +1290,8 @@
             <div class="flex flex-wrap gap-2">
               ${Array.from(mobiliteSet).sort().map(mob => `
                 <label class="inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="mobilite" data-filter-value="${mob}">
-                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${mob}</span>
+                  <input type="checkbox" class="filter-checkbox mr-2" data-filter-type="mobilite" data-filter-value="${escapeHtml(mob)}">
+                  <span class="text-sm px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">${escapeHtml(mob)}</span>
                 </label>
               `).join('')}
             </div>
@@ -1563,15 +1563,15 @@
                 </div>
                 ${change.changes.map(c => `
                   <div class="ml-4 mb-2">
-                    <div class="font-medium">${c.classe}</div>
+                    <div class="font-medium">${escapeHtml(c.classe)}</div>
                     ${c.added.length > 0 ? `
                       <div class="text-green-600 text-sm">
-                        <i class="fas fa-plus"></i> Ajoutés: ${c.added.join(', ')}
+                        <i class="fas fa-plus"></i> Ajoutés: ${c.added.map(a => escapeHtml(a)).join(', ')}
                       </div>
                     ` : ''}
                     ${c.removed.length > 0 ? `
                       <div class="text-red-600 text-sm">
-                        <i class="fas fa-minus"></i> Retirés: ${c.removed.join(', ')}
+                        <i class="fas fa-minus"></i> Retirés: ${c.removed.map(r => escapeHtml(r)).join(', ')}
                       </div>
                     ` : ''}
                   </div>

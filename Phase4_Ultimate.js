@@ -802,9 +802,18 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
   }
 
   const lv2_s1 = String(s1.row[idxLV2] || '').trim().toUpperCase();
-  const opt_s1 = String(s1.row[idxOPT] || '').trim().toUpperCase();
+  var opt_s1 = String(s1.row[idxOPT] || '').trim().toUpperCase();
   const lv2_s2 = String(s2.row[idxLV2] || '').trim().toUpperCase();
-  const opt_s2 = String(s2.row[idxOPT] || '').trim().toUpperCase();
+  var opt_s2 = String(s2.row[idxOPT] || '').trim().toUpperCase();
+
+  // Neutraliser OPT si c'est en réalité une LV2 (anomalie saisie)
+  if (isOPTAnomalyLV2(opt_s1)) opt_s1 = '';
+  if (isOPTAnomalyLV2(opt_s2)) opt_s2 = '';
+
+  // Bloquer swap si combinaison LV2+OPT interdite dans la classe cible
+  if (!isLV2OPTCompatible(lv2_s2, opt_s2) || !isLV2OPTCompatible(lv2_s1, opt_s1)) {
+    return false;
+  }
   const disso_s1 = String(s1.row[idxDISSO] || '').trim().toUpperCase();
   const disso_s2 = String(s2.row[idxDISSO] || '').trim().toUpperCase();
 

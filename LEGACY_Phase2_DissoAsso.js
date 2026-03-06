@@ -294,7 +294,13 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
   const idxOPT = headers.indexOf('OPT');
 
   const eleveLV2 = eleveIdx >= 0 ? String(allData[eleveIdx].row[idxLV2] || '').trim().toUpperCase() : '';
-  const eleveOPT = eleveIdx >= 0 ? String(allData[eleveIdx].row[idxOPT] || '').trim().toUpperCase() : '';
+  var eleveOPT = eleveIdx >= 0 ? String(allData[eleveIdx].row[idxOPT] || '').trim().toUpperCase() : '';
+
+  // Détection anomalie saisie : OPT contient une LV2 (ex: OPT=ITA)
+  if (isOPTAnomalyLV2(eleveOPT)) {
+    logLine('WARN', '⚠️ DISSO: OPT=' + eleveOPT + ' est une LV2 (anomalie saisie), ignoré');
+    eleveOPT = '';
+  }
 
   const classesWithD = new Set();
   indicesWithD.forEach(function(i) {

@@ -81,7 +81,18 @@ function Phase1I_dispatchOptionsLV2_BASEOPTI_V3(ctx) {
         if (assigned) continue; // Déjà placé
 
         const lv2 = String(row[idxLV2] || '').trim().toUpperCase();
-        const opt = String(row[idxOPT] || '').trim().toUpperCase();
+        var opt = String(row[idxOPT] || '').trim().toUpperCase();
+
+        // Détection anomalie saisie : OPT contient une LV2 (ex: OPT=ITA)
+        if (isOPTAnomalyLV2(opt)) {
+          logLine('WARN', '⚠️ Anomalie saisie ligne ' + i + ': OPT=' + opt + ' est une LV2, ignoré comme OPT');
+          opt = '';
+        }
+
+        // Vérification compatibilité LV2+OPT (ex: ITA+CHAV interdit)
+        if (!isLV2OPTCompatible(lv2, opt)) {
+          logLine('WARN', '⚠️ Combinaison interdite ligne ' + i + ': LV2=' + lv2 + ' + OPT=' + opt);
+        }
 
         let match = false;
         if (isKnownLV2(optName)) {
@@ -456,7 +467,13 @@ function findClassWithoutCodeD_V3(data, headers, codeD, indicesWithD, eleveIdx, 
 
   // Récupérer LV2/OPT de l'élève
   const eleveLV2 = eleveIdx ? String(data[eleveIdx][idxLV2] || '').trim().toUpperCase() : '';
-  const eleveOPT = eleveIdx ? String(data[eleveIdx][idxOPT] || '').trim().toUpperCase() : '';
+  var eleveOPT = eleveIdx ? String(data[eleveIdx][idxOPT] || '').trim().toUpperCase() : '';
+
+  // Détection anomalie saisie : OPT contient une LV2 (ex: OPT=ITA)
+  if (isOPTAnomalyLV2(eleveOPT)) {
+    logLine('WARN', '⚠️ DISSO V3: OPT=' + eleveOPT + ' est une LV2 (anomalie saisie), ignoré');
+    eleveOPT = '';
+  }
 
   // ✅ BUG FIX: Scanner l'état ACTUEL de data pour trouver les classes avec ce code DISSO
   // (au lieu de se baser sur indicesWithD qui reflète l'état INITIAL avant les déplacements)
