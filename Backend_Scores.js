@@ -556,7 +556,7 @@ function calculerScoreCOM_(ss) {
 // MODULE TRA — Score de travail (détection dynamique des matières)
 // =============================================================================
 
-function calculerScoreTRA_(ss) {
+function calculerScoreTRA_(ss, cohort) {
   var wsData = ss.getSheetByName('DATA_NOTES');
   if (!wsData || wsData.getLastRow() < 2) return [];
 
@@ -670,10 +670,29 @@ function calculerScoreTRA_(ss) {
     });
   }
 
-  // Mode percentile : 2e pass pour assigner les scores par rang
+  // Mode percentile : 2e pass pour assigner les scores par rang (cohorte filtrée)
   if (mode === 'percentile') {
     var distribution = scoringCfg.percentile ? scoringCfg.percentile.distribution : null;
-    resultats = applyPercentileToResults(resultats, 'scoreTRA', distribution);
+    if (cohort) {
+      // Filtrer : percentile uniquement sur les élèves de la cohorte source
+      var inCohort = [];
+      var outCohort = [];
+      for (var ri = 0; ri < resultats.length; ri++) {
+        var rKey = resultats[ri].nom + '|' + (resultats[ri].classe || '');
+        var inSrc = !!cohort[rKey];
+        if (!inSrc) {
+          // Tenter match par nom seul
+          var rNom = resultats[ri].nom;
+          for (var ck in cohort) { if (ck.split('|')[0] === rNom) { inSrc = true; break; } }
+        }
+        if (inSrc) { inCohort.push(resultats[ri]); } else { outCohort.push(resultats[ri]); }
+      }
+      Logger.log('[PERCENTILE] TRA cohorte: ' + inCohort.length + ' in, ' + outCohort.length + ' out');
+      inCohort = applyPercentileToResults(inCohort, 'scoreTRA', distribution);
+      resultats = inCohort.concat(outCohort);
+    } else {
+      resultats = applyPercentileToResults(resultats, 'scoreTRA', distribution);
+    }
   }
 
   return resultats;
@@ -683,7 +702,7 @@ function calculerScoreTRA_(ss) {
 // MODULE PART — Score de participation orale (détection dynamique)
 // =============================================================================
 
-function calculerScorePART_(ss) {
+function calculerScorePART_(ss, cohort) {
   var wsData = ss.getSheetByName('DATA_NOTES');
   if (!wsData || wsData.getLastRow() < 2) return [];
 
@@ -764,10 +783,27 @@ function calculerScorePART_(ss) {
     });
   }
 
-  // Mode percentile
+  // Mode percentile (cohorte filtrée)
   if (mode === 'percentile') {
     var distribution = scoringCfg.percentile ? scoringCfg.percentile.distribution : null;
-    resultats = applyPercentileToResults(resultats, 'scorePART', distribution);
+    if (cohort) {
+      var inCohort = [];
+      var outCohort = [];
+      for (var ri = 0; ri < resultats.length; ri++) {
+        var rKey = resultats[ri].nom + '|' + (resultats[ri].classe || '');
+        var inSrc = !!cohort[rKey];
+        if (!inSrc) {
+          var rNom = resultats[ri].nom;
+          for (var ck in cohort) { if (ck.split('|')[0] === rNom) { inSrc = true; break; } }
+        }
+        if (inSrc) { inCohort.push(resultats[ri]); } else { outCohort.push(resultats[ri]); }
+      }
+      Logger.log('[PERCENTILE] PART cohorte: ' + inCohort.length + ' in, ' + outCohort.length + ' out');
+      inCohort = applyPercentileToResults(inCohort, 'scorePART', distribution);
+      resultats = inCohort.concat(outCohort);
+    } else {
+      resultats = applyPercentileToResults(resultats, 'scorePART', distribution);
+    }
   }
 
   return resultats;

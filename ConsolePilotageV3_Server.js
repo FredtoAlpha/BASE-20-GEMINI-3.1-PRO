@@ -1464,11 +1464,11 @@ function v3_computeScoresPreview() {
     var cohort = buildSourceCohort_(ss);
     var sourceCount = Object.keys(cohort).length;
 
-    // Calculer les 4 scores (sans injecter)
+    // Calculer les 4 scores (cohort passée à TRA/PART pour percentile)
     var resABS = calculerScoreABS_(ss);
     var resCOM = calculerScoreCOM_(ss);
-    var resTRA = calculerScoreTRA_(ss);
-    var resPART = calculerScorePART_(ss);
+    var resTRA = calculerScoreTRA_(ss, cohort);
+    var resPART = calculerScorePART_(ss, cohort);
 
     Logger.log('[SCORING] Resultats bruts: ABS=' + resABS.length + ' COM=' + resCOM.length +
       ' TRA=' + resTRA.length + ' PART=' + resPART.length);
@@ -1574,11 +1574,11 @@ function v3_applyScores() {
     var cohort = buildSourceCohort_(ss);
     var sourceCount = Object.keys(cohort).length;
 
-    // Calculer
+    // Calculer (cohort passée à TRA/PART pour percentile)
     var resABS = calculerScoreABS_(ss);
     var resCOM = calculerScoreCOM_(ss);
-    var resTRA = calculerScoreTRA_(ss);
-    var resPART = calculerScorePART_(ss);
+    var resTRA = calculerScoreTRA_(ss, cohort);
+    var resPART = calculerScorePART_(ss, cohort);
 
     Logger.log('[SCORING] Resultats bruts: ABS=' + resABS.length + ' COM=' + resCOM.length +
       ' TRA=' + resTRA.length + ' PART=' + resPART.length);
