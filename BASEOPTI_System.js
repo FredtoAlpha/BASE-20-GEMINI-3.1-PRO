@@ -14,23 +14,7 @@
 // UTILITAIRES DE BASE
 // ===================================================================
 
-/**
- * Fonction de log universelle (si elle n'existe pas déjà)
- * Wrapper pour Logger avec fallback vers console.log
- */
-if (typeof logLine !== 'function') {
-  function logLine(level, message) {
-    // Utiliser Logger si disponible, sinon fallback vers console.log
-    if (typeof Logger !== 'undefined' && Logger[level.toLowerCase()]) {
-      Logger[level.toLowerCase()](message);
-    } else {
-      const timestamp = new Date().toISOString();
-      const prefix = '[' + timestamp + '] [' + level + '] ';
-      console.log(prefix + message);
-    }
-  }
-}
-
+// logLine : définition canonique dans App.Core.js (pas de fallback local)
 // getOrCreateSheetByName_ → supprimée (doublon de getOrCreateSheet_ dans App.SheetsData.js)
 
 /**
