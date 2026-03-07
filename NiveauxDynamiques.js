@@ -193,19 +193,4 @@ function readNiveauxFromUI_V2() {
   return genererNiveauxDynamiques();
 }
 
-// ===================================================================
-// FONCTION DE LOG (si elle n'existe pas déjà)
-// ===================================================================
-
-if (typeof logLine !== 'function') {
-  function logLine(level, message) {
-    // Utiliser Logger si disponible, sinon fallback vers console.log
-    if (typeof Logger !== 'undefined' && Logger[level.toLowerCase()]) {
-      Logger[level.toLowerCase()](message);
-    } else {
-      const timestamp = new Date().toISOString();
-      const prefix = '[' + timestamp + '] [' + level + '] ';
-      console.log(prefix + message);
-    }
-  }
-}
+// logLine : définition canonique dans App.Core.js (pas de fallback local)
