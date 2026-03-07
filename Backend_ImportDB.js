@@ -707,7 +707,7 @@ function v3_parseObservations(rows) {
     }
 
     var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
-    Logger.log('Observations - Headers bruts: ' + headers.join(' | '));
+    Logger.log('Observations [v2] - Headers bruts: ' + headers.join(' | '));
 
     // "Élèves" dans Pronote, pas "Nom" : on ajoute le pattern ELEVE
     var colNom = findImportCol_(headers, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
@@ -747,7 +747,7 @@ function v3_parseObservations(rows) {
 
       var firstCell = String(row[0] || '').trim();
 
-      // Ligne resume de classe : detectee par symbole Unicode
+      // Ligne resume de classe : detectee par symbole Unicode uniquement
       if (classSummaryRe.test(firstCell)) {
         currentClasse = firstCell.replace(/^[\u25A0-\u25FF\u2190-\u21FF\u2794\u27A1]\s*/, '').trim();
         currentClasse = currentClasse.replace(/[,;].*/, '').trim();
@@ -756,10 +756,9 @@ function v3_parseObservations(rows) {
       }
 
       var nom = colNom >= 0 ? String(row[colNom] || '').trim() : '';
-      if (!nom) continue;
+      // Ligne de synthese : colonne NOM vide ou contient "NN élèves"
+      if (!nom || syntheseRe.test(nom)) { nbLignesIgnorees++; continue; }
       if (classSummaryRe.test(nom) || nom.length < 2) { nbLignesIgnorees++; continue; }
-      // Filtrer les lignes de synthese "NN élèves" (pas des noms d'eleves)
-      if (syntheseRe.test(nom)) { nbLignesIgnorees++; continue; }
 
       var prenom = colPrenom >= 0 ? String(row[colPrenom] || '').trim() : '';
       var classe = normaliserClasse_(classeCell || currentClasse);
