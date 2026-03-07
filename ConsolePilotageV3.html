@@ -1792,7 +1792,23 @@
                 resultEl.style.display = 'block';
 
                 var safeClassesList = (s.classesList || []).map(function(c) { return escapeHtml(c); }).join(', ');
+
+                // Mini résumé runId + rapport
+                var reportHtml = '';
+                if (res.runReport) {
+                    var rr = res.runReport;
+                    reportHtml = '<div style="background:#0c1222;border:1px solid #1e3a5f;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-family:monospace;font-size:11px;color:#64748b;">' +
+                        '<span style="color:#3b82f6;font-weight:700;">' + escapeHtml(rr.runId) + '</span>' +
+                        ' &mdash; ' + escapeHtml(rr.durationHuman || '') +
+                        (rr.matching ? ' | Notes ' + (rr.matching.notes.matched||0) + '/' + (rr.matching.notes.total||0) +
+                         ' | Abs ' + (rr.matching.absences.matched||0) + '/' + (rr.matching.absences.total||0) : '') +
+                        (rr.anomalies && (rr.anomalies.lv2Vide > 0 || rr.anomalies.optVide > 0) ?
+                         ' | <span style="color:#f59e0b;">LV2&#8709; ' + rr.anomalies.lv2Vide + ' OPT&#8709; ' + rr.anomalies.optVide + '</span>' : '') +
+                        '</div>';
+                }
+
                 document.getElementById('import-result-content').innerHTML =
+                    reportHtml +
                     '<div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 15px;">' +
                     '<div style="background:#0f172a;padding:15px;border-radius:8px;text-align:center;">' +
                         '<div style="font-size:28px;font-weight:900;color:var(--success);">' + parseInt(s.totalStudents || 0, 10) + '</div>' +
@@ -2144,7 +2160,11 @@
             runServerCall('v3_runGeneration', [], res => {
                 setLoading('btn-engine', false);
                 if (res.success) {
-                    showToast('Calcul terminé', 'success');
+                    var toastMsg = 'Calcul terminé';
+                    if (res.runReport) {
+                        toastMsg += ' [' + res.runReport.runId + '] ' + (res.runReport.durationHuman || '');
+                    }
+                    showToast(toastMsg, 'success');
                     saveProgress(6);
                     setTimeout(() => goTo(6), 1000);
                 } else showModal(res.error, 'error');
@@ -2357,6 +2377,9 @@
                 renderScoringPreview(res);
                 document.getElementById('scoring-preview-container').style.display = 'block';
                 updateScoringStatusFromPreview(res);
+                if (res.runReport) {
+                    showToast('Preview [' + res.runReport.runId + '] ' + (res.runReport.durationHuman || ''), 'info');
+                }
             }, function(err) {
                 setLoading('btn-preview-scoring', false);
                 showModal(err.message, 'error');
@@ -2368,7 +2391,11 @@
             runServerCall('v3_applyScores', [], function(res) {
                 setLoading('btn-apply-scoring', false);
                 if (res && res.success) {
-                    showToast('Scores calculés et injectés !', 'success');
+                    var toastMsg = 'Scores calculés et injectés !';
+                    if (res.runReport) {
+                        toastMsg += ' [' + res.runReport.runId + '] ' + (res.runReport.durationHuman || '');
+                    }
+                    showToast(toastMsg, 'success');
                     if (res.preview) {
                         renderScoringPreview(res.preview);
                         document.getElementById('scoring-preview-container').style.display = 'block';

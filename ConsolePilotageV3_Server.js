@@ -246,30 +246,43 @@ function v3_runDiagnostics() {
  * @returns {Object} {success: boolean, message?: string, error?: string}
  */
 function v3_runGeneration() {
+  var runId = RunAudit_createId();
+  var timer = RunAudit_startTimer();
   try {
+    RunAudit_log(runId, 'INFO', 'Pipeline GENERATION demarré');
+
     // 1. BACKUP et CONVERSION de _STRUCTURE au format LEGACY
-    Logger.log('🔄 Backup et conversion de _STRUCTURE au format LEGACY...');
     const conversionResult = v3_backupAndConvertStructure();
-    
+
     if (!conversionResult.success) {
       throw new Error(conversionResult.error || 'Échec de la conversion de _STRUCTURE');
     }
-    
-    Logger.log('✅ _STRUCTURE convertie au format LEGACY');
-    
+
+    RunAudit_log(runId, 'INFO', '_STRUCTURE convertie au format LEGACY');
+
     // 2. LANCEMENT du pipeline LEGACY
     legacy_runFullPipeline();
 
-    // Si aucune exception n'est levée, on considère que c'est un succès
+    var durationMs = RunAudit_stopTimer(timer);
+    var runReport = RunAudit_buildReport({
+      runId: runId, operation: 'PIPELINE', durationMs: durationMs, success: true
+    });
+
     return {
       success: true,
-      message: "Génération des classes lancée. Le processus peut prendre 2-5 minutes."
+      message: "Génération des classes terminée.",
+      runReport: runReport
     };
   } catch (e) {
-    Logger.log(`Erreur dans v3_runGeneration: ${e.message}`);
+    var durationMs2 = RunAudit_stopTimer(timer);
+    var runReport2 = RunAudit_buildReport({
+      runId: runId, operation: 'PIPELINE', durationMs: durationMs2,
+      success: false, error: e.message
+    });
     return {
       success: false,
-      error: e.message || "Erreur lors de la génération des classes"
+      error: e.message || "Erreur lors de la génération des classes",
+      runReport: runReport2
     };
   }
 }
@@ -1433,8 +1446,11 @@ function v3_getScoringMatieres(niveau) {
  * @returns {Object} { success, distribution, sample, total }
  */
 function v3_computeScoresPreview() {
+  var runId = RunAudit_createId();
+  var timer = RunAudit_startTimer();
   try {
     var ss = SpreadsheetApp.getActive();
+    RunAudit_log(runId, 'INFO', 'Scoring PREVIEW demarré');
 
     // Calculer les 4 scores (sans injecter)
     var resABS = calculerScoreABS_(ss);
@@ -1445,12 +1461,12 @@ function v3_computeScoresPreview() {
     // Fusionner par nom+classe
     var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART);
 
-    // Convertir l'objet fusion en tableau (fusionnerScores_ retourne un objet, pas un array)
+    // Convertir l'objet fusion en tableau
     var mergedKeys = Object.keys(merged);
     var mergedArr = [];
     for (var i = 0; i < mergedKeys.length; i++) {
       var entry = merged[mergedKeys[i]];
-      entry.nom = mergedKeys[i].split('|')[0]; // clé composite "nom|classe"
+      entry.nom = mergedKeys[i].split('|')[0];
       mergedArr.push(entry);
     }
 
@@ -1465,7 +1481,7 @@ function v3_computeScoresPreview() {
       }
     }
 
-    // Tous les élèves avec traces (pas juste un échantillon)
+    // Tous les élèves avec traces
     var sample = [];
     for (var i = 0; i < mergedArr.length; i++) {
       sample.push({
@@ -1479,15 +1495,27 @@ function v3_computeScoresPreview() {
       });
     }
 
+    var durationMs = RunAudit_stopTimer(timer);
+    var runReport = RunAudit_buildReport({
+      runId: runId, operation: 'SCORING_PREVIEW', durationMs: durationMs, success: true,
+      scoresTotal: total, distribution: dist
+    });
+
     return {
       success: true,
       distribution: dist,
       total: total,
-      sample: sample
+      sample: sample,
+      runReport: runReport
     };
   } catch (e) {
+    var durationMs2 = RunAudit_stopTimer(timer);
+    RunAudit_buildReport({
+      runId: runId, operation: 'SCORING_PREVIEW', durationMs: durationMs2,
+      success: false, error: e.message
+    });
     Logger.log('v3_computeScoresPreview error: ' + e.message);
-    return { success: false, error: e.message };
+    return { success: false, error: e.message, runId: runId };
   }
 }
 
@@ -1496,8 +1524,11 @@ function v3_computeScoresPreview() {
  * @returns {Object} { success, preview }
  */
 function v3_applyScores() {
+  var runId = RunAudit_createId();
+  var timer = RunAudit_startTimer();
   try {
     var ss = SpreadsheetApp.getActive();
+    RunAudit_log(runId, 'INFO', 'Scoring APPLY demarré');
 
     // Calculer
     var resABS = calculerScoreABS_(ss);
@@ -1540,12 +1571,24 @@ function v3_applyScores() {
       });
     }
 
+    var durationMs = RunAudit_stopTimer(timer);
+    var runReport = RunAudit_buildReport({
+      runId: runId, operation: 'SCORING_APPLY', durationMs: durationMs, success: true,
+      scoresTotal: total, distribution: dist
+    });
+
     return {
       success: true,
-      preview: { distribution: dist, total: total, sample: sample }
+      preview: { distribution: dist, total: total, sample: sample },
+      runReport: runReport
     };
   } catch (e) {
+    var durationMs2 = RunAudit_stopTimer(timer);
+    RunAudit_buildReport({
+      runId: runId, operation: 'SCORING_APPLY', durationMs: durationMs2,
+      success: false, error: e.message
+    });
     Logger.log('v3_applyScores error: ' + e.message);
-    return { success: false, error: e.message };
+    return { success: false, error: e.message, runId: runId };
   }
 }
