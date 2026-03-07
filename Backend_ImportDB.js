@@ -1001,9 +1001,11 @@ function v3_parseIncidents(rows) {
  * @returns {Object} {success, summary, dissoSuggestions}
  */
 function v3_compileImport(data) {
+  var runId = RunAudit_createId();
+  var timer = RunAudit_startTimer();
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    Logger.log('=== COMPILATION IMPORT MULTI-PASTE ===');
+    RunAudit_log(runId, 'INFO', '=== COMPILATION IMPORT MULTI-PASTE ===');
 
     // *** UNWRAP : extraire les tableaux bruts des objets-resultat ***
     var elevesList = (data.eleves && data.eleves.eleves) ? data.eleves.eleves : (Array.isArray(data.eleves) ? data.eleves : []);
@@ -1223,7 +1225,31 @@ function v3_compileImport(data) {
     // 11. DISSO AUTO-SUGGESTION
     var dissoSuggestion = suggestDissoGroups_(studentMap, classeGroups);
 
-    Logger.log('=== COMPILATION TERMINEE ===');
+    // 12. DETECTION ANOMALIES LV2/OPT
+    var anomLV2 = 0, anomOPT = 0;
+    for (var cleA in studentMap) {
+      var stA = studentMap[cleA];
+      if (!stA.lv2) anomLV2++;
+      if (!stA.opt) anomOPT++;
+    }
+    if (anomLV2 > 0) RunAudit_log(runId, 'WARN', 'LV2 vide pour ' + anomLV2 + ' eleve(s)');
+    if (anomOPT > 0) RunAudit_log(runId, 'WARN', 'OPT vide pour ' + anomOPT + ' eleve(s)');
+
+    RunAudit_log(runId, 'INFO', '=== COMPILATION TERMINEE ===');
+
+    var durationMs = RunAudit_stopTimer(timer);
+    var runReport = RunAudit_buildReport({
+      runId: runId, operation: 'IMPORT', durationMs: durationMs, success: true,
+      totalEleves: elevesList.length,
+      notesMatched: notesMatched, notesTotal: notesTotal, notesUnmatched: notesUnmatched,
+      absMatched: absMatched, absTotal: absencesList.length,
+      obsMatched: obsMatched, obsTotal: observationsList.length,
+      punMatched: punMatched, punTotal: punitionsList.length,
+      incMatched: incMatched, incTotal: incidentsList.length,
+      classesList: Object.keys(classeGroups),
+      anomaliesLV2: anomLV2, anomaliesOPT: anomOPT
+    });
+
     var summary = {
       totalStudents: elevesList.length,
       classesProcessed: Object.keys(classeGroups).length,
@@ -1236,12 +1262,17 @@ function v3_compileImport(data) {
     };
 
     logAction('Import multi-paste: ' + elevesList.length + ' eleves dans ' + Object.keys(classeGroups).length + ' classes');
-    return { success: true, summary: summary, dissoSuggestions: dissoSuggestion.groups || [] };
+    return { success: true, summary: summary, runReport: runReport, dissoSuggestions: dissoSuggestion.groups || [] };
 
   } catch (e) {
+    var durationMs2 = RunAudit_stopTimer(timer);
+    RunAudit_buildReport({
+      runId: runId, operation: 'IMPORT', durationMs: durationMs2,
+      success: false, error: e.toString()
+    });
     Logger.log('Erreur v3_compileImport: ' + e.toString());
     Logger.log(e.stack);
-    return { success: false, error: e.toString() };
+    return { success: false, error: e.toString(), runId: runId };
   }
 }
 
