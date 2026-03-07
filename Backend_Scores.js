@@ -338,6 +338,45 @@ function v3_getScoresPreview() {
 }
 
 // =============================================================================
+// COHORTE — Construction de l'ensemble autorisé depuis les onglets sources
+// =============================================================================
+
+/**
+ * Construit l'ensemble des élèves autorisés à partir des onglets sources (pattern °digit).
+ * Retourne un objet { 'NOM|classe': true } normalisé.
+ */
+function buildSourceCohort_(ss) {
+  var allSheets = ss.getSheets();
+  var sheets = allSheets.filter(function(s) {
+    return /.+°\d+$/.test(s.getName());
+  });
+
+  var cohort = {};
+  var count = 0;
+
+  sheets.forEach(function(sheet) {
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return;
+    var headersNorm = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
+    var idxNom = headersNorm.indexOf('NOM');
+    var idxNomPrenom = headersNorm.indexOf('NOM_PRENOM');
+
+    for (var i = 1; i < data.length; i++) {
+      var nom = '';
+      if (idxNomPrenom >= 0) nom = String(data[i][idxNomPrenom] || '').trim();
+      if (!nom && idxNom >= 0) nom = String(data[i][idxNom] || '').trim();
+      if (!nom) continue;
+      var key = nom + '|' + sheet.getName();
+      cohort[key] = true;
+      count++;
+    }
+  });
+
+  Logger.log('[COHORTE] ' + count + ' élèves dans ' + sheets.length + ' onglets sources');
+  return cohort;
+}
+
+// =============================================================================
 // MODULE ABS — Score d'assiduité (détection dynamique)
 // =============================================================================
 
@@ -561,8 +600,8 @@ function calculerScoreTRA_(ss) {
   }
 
   if (matieresManquantes.length > 0) {
-    Logger.log('DATA_NOTES: matières non trouvées pour ' + niveau + ': ' + matieresManquantes.join(', ') +
-               ' | En-têtes: ' + h.join(' | '));
+    Logger.log('[INFO] DATA_NOTES: matières absentes des données importées pour ' + niveau + ': ' +
+               matieresManquantes.join(', ') + ' (normal si non enseignées)');
   }
 
   if (matieresResolues.length === 0) {
@@ -740,8 +779,14 @@ function calculerScorePART_(ss) {
 
 /**
  * Fusionne les résultats des 4 modules en un seul objet par élève.
+ * @param {Array} absResults
+ * @param {Array} comResults
+ * @param {Array} traResults
+ * @param {Array} partResults
+ * @param {Object} [cohort] - Si fourni, filtre les entrées hors cohorte
+ * @returns {Object} fusion keyed by nom|classe
  */
-function fusionnerScores_(absResults, comResults, traResults, partResults) {
+function fusionnerScores_(absResults, comResults, traResults, partResults, cohort) {
   var fusion = {};
 
   // Clé composite nom|classe pour éviter les collisions d'homonymes
@@ -774,6 +819,32 @@ function fusionnerScores_(absResults, comResults, traResults, partResults) {
     fusion[key].scorePART = r.scorePART;
     if (r.trace) fusion[key].traces.PART = r.trace;
   });
+
+  // Filtrage cohorte : ne garder que les élèves présents dans les onglets sources
+  if (cohort) {
+    var beforeCount = Object.keys(fusion).length;
+    var excluded = [];
+    for (var key in fusion) {
+      if (!cohort[key]) {
+        // Tenter match par nom seul (sans classe) — chercher dans la cohorte
+        var nomPart = key.split('|')[0];
+        var found = false;
+        for (var ck in cohort) {
+          if (ck.split('|')[0] === nomPart) { found = true; break; }
+        }
+        if (!found) {
+          if (excluded.length < 5) excluded.push(key);
+          delete fusion[key];
+        }
+      }
+    }
+    var afterCount = Object.keys(fusion).length;
+    Logger.log('[COHORTE] Fusion: avant=' + beforeCount + ' apres=' + afterCount +
+      ' filtres=' + (beforeCount - afterCount));
+    if (excluded.length > 0) {
+      Logger.log('[COHORTE] Exemples exclus: ' + excluded.join(', '));
+    }
+  }
 
   return fusion;
 }
