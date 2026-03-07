@@ -2404,48 +2404,91 @@
             });
         }
 
+        // Auto-save config UI avant calcul pour éviter les écarts seuils/percentile
+        function autoSaveAndRun_(callbackFn) {
+            var config = buildScoringConfigFromUI();
+            runServerCall('v3_saveScoringConfig', [config], function(saveRes) {
+                if (saveRes && saveRes.success) {
+                    callbackFn();
+                } else {
+                    showToast('Config sauvegardée avec avertissement', 'info');
+                    callbackFn(); // on continue quand même
+                }
+            }, function() {
+                callbackFn(); // fallback: continuer même si save échoue
+            });
+        }
+
         function previewScoring() {
             setLoading('btn-preview-scoring', true);
-            runServerCall('v3_computeScoresPreview', [], function(res) {
-                setLoading('btn-preview-scoring', false);
-                if (!res || !res.success) {
-                    showModal((res && res.error) || 'Erreur preview', 'error');
-                    return;
-                }
-                renderScoringPreview(res);
-                document.getElementById('scoring-preview-container').style.display = 'block';
-                updateScoringStatusFromPreview(res);
-                if (res.runReport) {
-                    showToast('Preview [' + res.runReport.runId + '] ' + (res.runReport.durationHuman || ''), 'info');
-                }
-            }, function(err) {
-                setLoading('btn-preview-scoring', false);
-                showModal(err.message, 'error');
+            autoSaveAndRun_(function() {
+                runServerCall('v3_computeScoresPreview', [], function(res) {
+                    setLoading('btn-preview-scoring', false);
+                    if (!res || !res.success) {
+                        showModal((res && res.error) || 'Erreur preview', 'error');
+                        return;
+                    }
+                    renderScoringPreview(res);
+                    document.getElementById('scoring-preview-container').style.display = 'block';
+                    updateScoringStatusFromPreview(res);
+                    updateScoringModeDisplay_(res);
+                    var toastMsg = 'Preview: ' + (res.total || 0) + ' élèves';
+                    if (res.sourceCount) toastMsg += ' (source: ' + res.sourceCount + ')';
+                    if (res.modeActif) toastMsg += ' — mode ' + res.modeActif;
+                    if (res.runReport) toastMsg += ' [' + res.runReport.runId + ']';
+                    showToast(toastMsg, 'info');
+                }, function(err) {
+                    setLoading('btn-preview-scoring', false);
+                    showModal(err.message, 'error');
+                });
             });
         }
 
         function applyScoring() {
             setLoading('btn-apply-scoring', true);
-            runServerCall('v3_applyScores', [], function(res) {
-                setLoading('btn-apply-scoring', false);
-                if (res && res.success) {
-                    var toastMsg = 'Scores calculés et injectés !';
-                    if (res.runReport) {
-                        toastMsg += ' [' + res.runReport.runId + '] ' + (res.runReport.durationHuman || '');
+            autoSaveAndRun_(function() {
+                runServerCall('v3_applyScores', [], function(res) {
+                    setLoading('btn-apply-scoring', false);
+                    if (res && res.success) {
+                        var toastMsg = 'Scores injectés: ' + (res.preview ? res.preview.total : '?') + ' élèves';
+                        if (res.modeActif) toastMsg += ' — mode ' + res.modeActif;
+                        if (res.runReport) {
+                            toastMsg += ' [' + res.runReport.runId + '] ' + (res.runReport.durationHuman || '');
+                        }
+                        showToast(toastMsg, 'success');
+                        if (res.preview) {
+                            renderScoringPreview(res.preview);
+                            document.getElementById('scoring-preview-container').style.display = 'block';
+                            updateScoringStatusFromPreview(res.preview);
+                        }
+                        updateScoringModeDisplay_(res);
+                    } else {
+                        showModal((res && res.error) || 'Erreur', 'error');
                     }
-                    showToast(toastMsg, 'success');
-                    if (res.preview) {
-                        renderScoringPreview(res.preview);
-                        document.getElementById('scoring-preview-container').style.display = 'block';
-                        updateScoringStatusFromPreview(res.preview);
-                    }
-                } else {
-                    showModal((res && res.error) || 'Erreur', 'error');
-                }
-            }, function(err) {
-                setLoading('btn-apply-scoring', false);
-                showModal(err.message, 'error');
+                }, function(err) {
+                    setLoading('btn-apply-scoring', false);
+                    showModal(err.message, 'error');
+                });
             });
+        }
+
+        // Affiche le mode effectif serveur dans le panneau statut
+        function updateScoringModeDisplay_(res) {
+            var modeEl = document.getElementById('scoring-status-mode');
+            if (!modeEl || !res) return;
+            var label = (res.modeActif === 'percentile') ? 'Percentile' : 'Seuils fixes';
+            if (res.modeParCritere) {
+                label += ' (TRA/PART: ' + res.modeParCritere.TRA + ', ABS/COM: seuils)';
+            }
+            modeEl.textContent = label;
+            // Warning si mode UI ≠ mode serveur
+            var modeUI = document.querySelector('input[name="scoring-mode"]:checked');
+            if (modeUI && modeUI.value !== res.modeActif) {
+                modeEl.textContent += ' ⚠ UI non synchronisée';
+                modeEl.style.color = '#f59e0b';
+            } else {
+                modeEl.style.color = '#e2e8f0';
+            }
         }
 
         // Stockage global des données de preview pour le clic sur les scores

@@ -1452,14 +1452,29 @@ function v3_computeScoresPreview() {
     var ss = SpreadsheetApp.getActive();
     RunAudit_log(runId, 'INFO', 'Scoring PREVIEW demarré');
 
-    // Calculer les 4 scores (sans injecter)
+    // Résoudre le mode effectif
+    var scoringCfg = getScoringConfig();
+    var modeEffectif = scoringCfg.mode || 'seuils';
+    Logger.log('[SCORING_MODE] effective=' + modeEffectif +
+      ' | TRA=' + (modeEffectif === 'percentile' ? 'percentile' : 'seuils') +
+      ' PART=' + (modeEffectif === 'percentile' ? 'percentile' : 'seuils') +
+      ' ABS=seuils COM=seuils');
+
+    // Construire la cohorte source
+    var cohort = buildSourceCohort_(ss);
+    var sourceCount = Object.keys(cohort).length;
+
+    // Calculer les 4 scores (cohort passée à TRA/PART pour percentile)
     var resABS = calculerScoreABS_(ss);
     var resCOM = calculerScoreCOM_(ss);
-    var resTRA = calculerScoreTRA_(ss);
-    var resPART = calculerScorePART_(ss);
+    var resTRA = calculerScoreTRA_(ss, cohort);
+    var resPART = calculerScorePART_(ss, cohort);
 
-    // Fusionner par nom+classe
-    var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART);
+    Logger.log('[SCORING] Resultats bruts: ABS=' + resABS.length + ' COM=' + resCOM.length +
+      ' TRA=' + resTRA.length + ' PART=' + resPART.length);
+
+    // Fusionner par nom+classe avec filtrage cohorte
+    var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART, cohort);
 
     // Convertir l'objet fusion en tableau
     var mergedKeys = Object.keys(merged);
@@ -1470,16 +1485,27 @@ function v3_computeScoresPreview() {
       mergedArr.push(entry);
     }
 
-    // Distribution
-    var dist = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    var total = 0;
+    // Distribution par critère
+    var distTRA = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
+    var distPART = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
+    var distABS = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
+    var distCOM = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
+    var total = mergedArr.length;
     for (var i = 0; i < mergedArr.length; i++) {
-      var s = mergedArr[i].scoreTRA;
-      if (s >= 1 && s <= 4) {
-        dist[s]++;
-        total++;
-      }
+      var e = mergedArr[i];
+      if (e.scoreTRA >= 1 && e.scoreTRA <= 4) distTRA[e.scoreTRA]++; else distTRA.null++;
+      if (e.scorePART >= 1 && e.scorePART <= 4) distPART[e.scorePART]++; else distPART.null++;
+      if (e.scoreABS >= 1 && e.scoreABS <= 4) distABS[e.scoreABS]++; else distABS.null++;
+      if (e.scoreCOM >= 1 && e.scoreCOM <= 4) distCOM[e.scoreCOM]++; else distCOM.null++;
     }
+
+    // Legacy dist format (TRA-based)
+    var dist = { 1: distTRA[1], 2: distTRA[2], 3: distTRA[3], 4: distTRA[4] };
+
+    Logger.log('[SCORING] Distribution TRA: ' + JSON.stringify(distTRA));
+    Logger.log('[SCORING] Distribution PART: ' + JSON.stringify(distPART));
+    Logger.log('[SCORING] Distribution ABS: ' + JSON.stringify(distABS));
+    Logger.log('[SCORING] Distribution COM: ' + JSON.stringify(distCOM));
 
     // Tous les élèves avec traces
     var sample = [];
@@ -1506,6 +1532,14 @@ function v3_computeScoresPreview() {
       distribution: dist,
       total: total,
       sample: sample,
+      modeActif: modeEffectif,
+      modeParCritere: {
+        TRA: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
+        PART: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
+        ABS: 'seuils',
+        COM: 'seuils'
+      },
+      sourceCount: sourceCount,
       runReport: runReport
     };
   } catch (e) {
@@ -1515,6 +1549,7 @@ function v3_computeScoresPreview() {
       success: false, error: e.message
     });
     Logger.log('v3_computeScoresPreview error: ' + e.message);
+    Logger.log(e.stack);
     return { success: false, error: e.message, runId: runId };
   }
 }
@@ -1530,17 +1565,30 @@ function v3_applyScores() {
     var ss = SpreadsheetApp.getActive();
     RunAudit_log(runId, 'INFO', 'Scoring APPLY demarré');
 
-    // Calculer
+    // Résoudre le mode effectif
+    var scoringCfg = getScoringConfig();
+    var modeEffectif = scoringCfg.mode || 'seuils';
+    Logger.log('[SCORING_MODE] APPLY effective=' + modeEffectif);
+
+    // Construire la cohorte source
+    var cohort = buildSourceCohort_(ss);
+    var sourceCount = Object.keys(cohort).length;
+
+    // Calculer (cohort passée à TRA/PART pour percentile)
     var resABS = calculerScoreABS_(ss);
     var resCOM = calculerScoreCOM_(ss);
-    var resTRA = calculerScoreTRA_(ss);
-    var resPART = calculerScorePART_(ss);
+    var resTRA = calculerScoreTRA_(ss, cohort);
+    var resPART = calculerScorePART_(ss, cohort);
 
-    // Fusionner
-    var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART);
+    Logger.log('[SCORING] Resultats bruts: ABS=' + resABS.length + ' COM=' + resCOM.length +
+      ' TRA=' + resTRA.length + ' PART=' + resPART.length);
+
+    // Fusionner avec filtrage cohorte
+    var merged = fusionnerScores_(resABS, resCOM, resTRA, resPART, cohort);
 
     // Injecter dans les onglets sources
-    injecterScoresDansOngletsSources_(ss, merged);
+    var injResult = injecterScoresDansOngletsSources_(ss, merged);
+    Logger.log('[SCORING] Injection: ' + JSON.stringify(injResult));
 
     // Convertir l'objet fusion en tableau
     var mergedKeys = Object.keys(merged);
@@ -1553,10 +1601,10 @@ function v3_applyScores() {
 
     // Construire preview pour retour
     var dist = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    var total = 0;
+    var total = mergedArr.length;
     for (var i = 0; i < mergedArr.length; i++) {
       var s = mergedArr[i].scoreTRA;
-      if (s >= 1 && s <= 4) { dist[s]++; total++; }
+      if (s >= 1 && s <= 4) { dist[s]++; }
     }
     var sample = [];
     for (var i = 0; i < mergedArr.length; i++) {
@@ -1580,6 +1628,14 @@ function v3_applyScores() {
     return {
       success: true,
       preview: { distribution: dist, total: total, sample: sample },
+      modeActif: modeEffectif,
+      modeParCritere: {
+        TRA: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
+        PART: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
+        ABS: 'seuils',
+        COM: 'seuils'
+      },
+      sourceCount: sourceCount,
       runReport: runReport
     };
   } catch (e) {
@@ -1589,6 +1645,7 @@ function v3_applyScores() {
       success: false, error: e.message
     });
     Logger.log('v3_applyScores error: ' + e.message);
+    Logger.log(e.stack);
     return { success: false, error: e.message, runId: runId };
   }
 }

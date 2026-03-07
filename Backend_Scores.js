@@ -338,6 +338,45 @@ function v3_getScoresPreview() {
 }
 
 // =============================================================================
+// COHORTE — Construction de l'ensemble autorisé depuis les onglets sources
+// =============================================================================
+
+/**
+ * Construit l'ensemble des élèves autorisés à partir des onglets sources (pattern °digit).
+ * Retourne un objet { 'NOM|classe': true } normalisé.
+ */
+function buildSourceCohort_(ss) {
+  var allSheets = ss.getSheets();
+  var sheets = allSheets.filter(function(s) {
+    return /.+°\d+$/.test(s.getName());
+  });
+
+  var cohort = {};
+  var count = 0;
+
+  sheets.forEach(function(sheet) {
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return;
+    var headersNorm = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
+    var idxNom = headersNorm.indexOf('NOM');
+    var idxNomPrenom = headersNorm.indexOf('NOM_PRENOM');
+
+    for (var i = 1; i < data.length; i++) {
+      var nom = '';
+      if (idxNomPrenom >= 0) nom = String(data[i][idxNomPrenom] || '').trim();
+      if (!nom && idxNom >= 0) nom = String(data[i][idxNom] || '').trim();
+      if (!nom) continue;
+      var key = nom + '|' + sheet.getName();
+      cohort[key] = true;
+      count++;
+    }
+  });
+
+  Logger.log('[COHORTE] ' + count + ' élèves dans ' + sheets.length + ' onglets sources');
+  return cohort;
+}
+
+// =============================================================================
 // MODULE ABS — Score d'assiduité (détection dynamique)
 // =============================================================================
 
@@ -517,7 +556,7 @@ function calculerScoreCOM_(ss) {
 // MODULE TRA — Score de travail (détection dynamique des matières)
 // =============================================================================
 
-function calculerScoreTRA_(ss) {
+function calculerScoreTRA_(ss, cohort) {
   var wsData = ss.getSheetByName('DATA_NOTES');
   if (!wsData || wsData.getLastRow() < 2) return [];
 
@@ -561,8 +600,8 @@ function calculerScoreTRA_(ss) {
   }
 
   if (matieresManquantes.length > 0) {
-    Logger.log('DATA_NOTES: matières non trouvées pour ' + niveau + ': ' + matieresManquantes.join(', ') +
-               ' | En-têtes: ' + h.join(' | '));
+    Logger.log('[INFO] DATA_NOTES: matières absentes des données importées pour ' + niveau + ': ' +
+               matieresManquantes.join(', ') + ' (normal si non enseignées)');
   }
 
   if (matieresResolues.length === 0) {
@@ -631,10 +670,29 @@ function calculerScoreTRA_(ss) {
     });
   }
 
-  // Mode percentile : 2e pass pour assigner les scores par rang
+  // Mode percentile : 2e pass pour assigner les scores par rang (cohorte filtrée)
   if (mode === 'percentile') {
     var distribution = scoringCfg.percentile ? scoringCfg.percentile.distribution : null;
-    resultats = applyPercentileToResults(resultats, 'scoreTRA', distribution);
+    if (cohort) {
+      // Filtrer : percentile uniquement sur les élèves de la cohorte source
+      var inCohort = [];
+      var outCohort = [];
+      for (var ri = 0; ri < resultats.length; ri++) {
+        var rKey = resultats[ri].nom + '|' + (resultats[ri].classe || '');
+        var inSrc = !!cohort[rKey];
+        if (!inSrc) {
+          // Tenter match par nom seul
+          var rNom = resultats[ri].nom;
+          for (var ck in cohort) { if (ck.split('|')[0] === rNom) { inSrc = true; break; } }
+        }
+        if (inSrc) { inCohort.push(resultats[ri]); } else { outCohort.push(resultats[ri]); }
+      }
+      Logger.log('[PERCENTILE] TRA cohorte: ' + inCohort.length + ' in, ' + outCohort.length + ' out');
+      inCohort = applyPercentileToResults(inCohort, 'scoreTRA', distribution);
+      resultats = inCohort.concat(outCohort);
+    } else {
+      resultats = applyPercentileToResults(resultats, 'scoreTRA', distribution);
+    }
   }
 
   return resultats;
@@ -644,7 +702,7 @@ function calculerScoreTRA_(ss) {
 // MODULE PART — Score de participation orale (détection dynamique)
 // =============================================================================
 
-function calculerScorePART_(ss) {
+function calculerScorePART_(ss, cohort) {
   var wsData = ss.getSheetByName('DATA_NOTES');
   if (!wsData || wsData.getLastRow() < 2) return [];
 
@@ -725,10 +783,27 @@ function calculerScorePART_(ss) {
     });
   }
 
-  // Mode percentile
+  // Mode percentile (cohorte filtrée)
   if (mode === 'percentile') {
     var distribution = scoringCfg.percentile ? scoringCfg.percentile.distribution : null;
-    resultats = applyPercentileToResults(resultats, 'scorePART', distribution);
+    if (cohort) {
+      var inCohort = [];
+      var outCohort = [];
+      for (var ri = 0; ri < resultats.length; ri++) {
+        var rKey = resultats[ri].nom + '|' + (resultats[ri].classe || '');
+        var inSrc = !!cohort[rKey];
+        if (!inSrc) {
+          var rNom = resultats[ri].nom;
+          for (var ck in cohort) { if (ck.split('|')[0] === rNom) { inSrc = true; break; } }
+        }
+        if (inSrc) { inCohort.push(resultats[ri]); } else { outCohort.push(resultats[ri]); }
+      }
+      Logger.log('[PERCENTILE] PART cohorte: ' + inCohort.length + ' in, ' + outCohort.length + ' out');
+      inCohort = applyPercentileToResults(inCohort, 'scorePART', distribution);
+      resultats = inCohort.concat(outCohort);
+    } else {
+      resultats = applyPercentileToResults(resultats, 'scorePART', distribution);
+    }
   }
 
   return resultats;
@@ -740,8 +815,14 @@ function calculerScorePART_(ss) {
 
 /**
  * Fusionne les résultats des 4 modules en un seul objet par élève.
+ * @param {Array} absResults
+ * @param {Array} comResults
+ * @param {Array} traResults
+ * @param {Array} partResults
+ * @param {Object} [cohort] - Si fourni, filtre les entrées hors cohorte
+ * @returns {Object} fusion keyed by nom|classe
  */
-function fusionnerScores_(absResults, comResults, traResults, partResults) {
+function fusionnerScores_(absResults, comResults, traResults, partResults, cohort) {
   var fusion = {};
 
   // Clé composite nom|classe pour éviter les collisions d'homonymes
@@ -774,6 +855,32 @@ function fusionnerScores_(absResults, comResults, traResults, partResults) {
     fusion[key].scorePART = r.scorePART;
     if (r.trace) fusion[key].traces.PART = r.trace;
   });
+
+  // Filtrage cohorte : ne garder que les élèves présents dans les onglets sources
+  if (cohort) {
+    var beforeCount = Object.keys(fusion).length;
+    var excluded = [];
+    for (var key in fusion) {
+      if (!cohort[key]) {
+        // Tenter match par nom seul (sans classe) — chercher dans la cohorte
+        var nomPart = key.split('|')[0];
+        var found = false;
+        for (var ck in cohort) {
+          if (ck.split('|')[0] === nomPart) { found = true; break; }
+        }
+        if (!found) {
+          if (excluded.length < 5) excluded.push(key);
+          delete fusion[key];
+        }
+      }
+    }
+    var afterCount = Object.keys(fusion).length;
+    Logger.log('[COHORTE] Fusion: avant=' + beforeCount + ' apres=' + afterCount +
+      ' filtres=' + (beforeCount - afterCount));
+    if (excluded.length > 0) {
+      Logger.log('[COHORTE] Exemples exclus: ' + excluded.join(', '));
+    }
+  }
 
   return fusion;
 }
