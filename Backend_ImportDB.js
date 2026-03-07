@@ -707,77 +707,94 @@ function v3_parseObservations(rows) {
     }
 
     var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
-    Logger.log('Observations - Headers: ' + headers.join(' | '));
+    Logger.log('Observations - Headers bruts: ' + headers.join(' | '));
 
     // "Élèves" dans Pronote, pas "Nom" : on ajoute le pattern ELEVE
     var colNom = findImportCol_(headers, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
     var colPrenom = findImportCol_(headers, ['PR[E\u00c9]NOM', 'PRENOM']);
     var colClasse = findImportCol_(headers, ['CLASSE']);
+    // Col C : Observations (negatif)
     var colObs = findImportCol_(headers, ['OBSERVATION']);
-    var colDefCarnet = findImportCol_(headers, ['D[E\u00c9]FAUT.*CARNET', 'CARNET']);
-    var colLecon = findImportCol_(headers, ['LE[C\u00c7]ON.*NON', 'LECON']);
-    var colOubli = findImportCol_(headers, ['OUBLI', 'MAT[E\u00c9]RIEL']);
-    var colTravail = findImportCol_(headers, ['TRAVAIL.*NON', 'TRAVAIL']);
+    // Col D : Encouragements/valorisations (attenuation)
     var colEncourage = findImportCol_(headers, ['ENCOURAGEMENT', 'ENCOUR', 'VALORIS']);
+    // Col F : Lecon non apprise (negatif)
+    var colLecon = findImportCol_(headers, ['LE[C\u00c7]ON.*NON', 'LECON']);
+    // Col G : Oubli de materiel (negatif)
+    var colOubli = findImportCol_(headers, ['OUBLI', 'MAT[E\u00c9]RIEL']);
+    // Col H : Travail non fait (negatif)
+    var colTravail = findImportCol_(headers, ['TRAVAIL.*NON', 'TRAVAIL']);
 
-    Logger.log('Observations - Colonnes: NOM=' + colNom + ' CLASSE=' + colClasse +
-      ' OBS=' + colObs + ' CARNET=' + colDefCarnet + ' LECON=' + colLecon +
-      ' OUBLI=' + colOubli + ' TRAVAIL=' + colTravail + ' ENCOUR=' + colEncourage);
+    Logger.log('Observations - Colonnes detectees: NOM=' + colNom + ' CLASSE=' + colClasse +
+      ' OBS(C)=' + colObs + ' ENCOURAGE(D)=' + colEncourage +
+      ' LECON(F)=' + colLecon + ' OUBLI(G)=' + colOubli + ' TRAVAIL(H)=' + colTravail);
 
     var observations = [];
     var currentClasse = '';
+    var nbLignesIgnorees = 0;
 
     // Regex elargi pour detecter les lignes-resume de classe (tous les triangles/fleches Unicode)
     var classSummaryRe = /^[\u25A0-\u25FF\u2190-\u21FF\u2794\u27A1]/;
-    // Regex pour detecter un nom de classe dans la premiere colonne (ex: "4E 1, 25 élèves")
-    var classeInCellRe = /\d+\s*[eèéEÈÉ]\s*\d+/i;
+    // Regex pour detecter les lignes de synthese : "NN élèves" ou "NN eleves"
+    var syntheseRe = /^\d+\s+[e\u00e9]l[e\u00e8]ve/i;
 
     for (var i = headerRow + 1; i < rows.length; i++) {
       var row = rows[i];
+      if (!row || row.length < 2) continue;
+
+      // Detection de la classe courante via col CLASSE
+      var classeCell = colClasse >= 0 ? String(row[colClasse] || '').trim() : '';
+      if (classeCell) currentClasse = classeCell;
+
       var firstCell = String(row[0] || '').trim();
 
-      // Ligne resume de classe : detectee par symbole ou par format "4E 1, NN élèves"
+      // Ligne resume de classe : detectee par symbole Unicode
       if (classSummaryRe.test(firstCell)) {
         currentClasse = firstCell.replace(/^[\u25A0-\u25FF\u2190-\u21FF\u2794\u27A1]\s*/, '').trim();
-        // Extraire juste le nom de classe (avant la virgule/espace avec nb eleves)
         currentClasse = currentClasse.replace(/[,;].*/, '').trim();
-        continue;
-      }
-      if (classeInCellRe.test(firstCell) && (!colNom || colNom !== 0)) {
-        // Premiere colonne contient un pattern de classe comme "4E 1, 25 élèves" -> ligne resume
-        currentClasse = firstCell.replace(/[,;].*/, '').trim();
+        nbLignesIgnorees++;
         continue;
       }
 
       var nom = colNom >= 0 ? String(row[colNom] || '').trim() : '';
       if (!nom) continue;
-      if (classSummaryRe.test(nom) || nom.length < 2) continue;
-      // Filtrer les lignes "NN élèves" qui ne sont pas des noms
-      if (/^\d+\s+[e\u00e9]l[e\u00e8]ve/i.test(nom)) continue;
+      if (classSummaryRe.test(nom) || nom.length < 2) { nbLignesIgnorees++; continue; }
+      // Filtrer les lignes de synthese "NN élèves" (pas des noms d'eleves)
+      if (syntheseRe.test(nom)) { nbLignesIgnorees++; continue; }
 
       var prenom = colPrenom >= 0 ? String(row[colPrenom] || '').trim() : '';
-      var classe = normaliserClasse_(colClasse >= 0 ? String(row[colClasse] || '').trim() : currentClasse);
+      var classe = normaliserClasse_(classeCell || currentClasse);
 
-      var nbIncidents = 0;
-      if (colDefCarnet >= 0) nbIncidents += (parseNote_(row[colDefCarnet]) || 0);
-      if (colLecon >= 0)     nbIncidents += (parseNote_(row[colLecon]) || 0);
-      if (colOubli >= 0)     nbIncidents += (parseNote_(row[colOubli]) || 0);
-      if (colTravail >= 0)   nbIncidents += (parseNote_(row[colTravail]) || 0);
+      // Bloc negatif : C + F + G + H
+      var nbObsNeg = 0;
+      if (colObs >= 0)     nbObsNeg += (parseNote_(row[colObs]) || 0);
+      if (colLecon >= 0)   nbObsNeg += (parseNote_(row[colLecon]) || 0);
+      if (colOubli >= 0)   nbObsNeg += (parseNote_(row[colOubli]) || 0);
+      if (colTravail >= 0) nbObsNeg += (parseNote_(row[colTravail]) || 0);
 
-      var nbObs = colObs >= 0 ? (parseNote_(row[colObs]) || 0) : 0;
+      // D = encouragements (attenuation, pas negatif)
       var nbEncourage = colEncourage >= 0 ? (parseNote_(row[colEncourage]) || 0) : 0;
 
       observations.push({
         nom: nom.toUpperCase(),
         prenom: prenom,
         classe: classe,
-        nbObs: nbObs,
-        nbIncidents: nbIncidents,
+        nbObservationsNeg: nbObsNeg,
         nbEncourage: nbEncourage
       });
     }
 
-    Logger.log('Observations: ' + observations.length + ' eleves parses');
+    // Logs de controle : distribution
+    var distNeg = {}, distEnc = {};
+    for (var d = 0; d < observations.length; d++) {
+      var kn = observations[d].nbObservationsNeg;
+      var ke = observations[d].nbEncourage;
+      distNeg[kn] = (distNeg[kn] || 0) + 1;
+      distEnc[ke] = (distEnc[ke] || 0) + 1;
+    }
+    Logger.log('Observations: ' + observations.length + ' eleves parses, ' + nbLignesIgnorees + ' lignes ignorees (synthese)');
+    Logger.log('Observations - Distribution nbObservationsNeg: ' + JSON.stringify(distNeg));
+    Logger.log('Observations - Distribution nbEncourage: ' + JSON.stringify(distEnc));
+
     return { success: true, observations: observations, count: observations.length };
 
   } catch (e) {
@@ -1102,13 +1119,13 @@ function v3_compileImport(data) {
     }
     Logger.log('Incidents fusionnes: ' + incMatched + '/' + incidentsList.length);
 
-    // 6. FUSIONNER OBSERVATIONS (feuilles d'appel : oublis, defaut carnet, etc.)
+    // 6. FUSIONNER OBSERVATIONS (feuilles d'appel : C+F+G+H negatif, D=encourage)
     var obsMatched = 0;
     for (var o = 0; o < observationsList.length; o++) {
       var obsData = observationsList[o];
       var cleObs = findMatchingStudent_(studentMap, obsData.nom, obsData.prenom);
       if (cleObs) {
-        studentMap[cleObs].nbObservations += (obsData.nbObs || 0) + (obsData.nbIncidents || 0);
+        studentMap[cleObs].nbObservations += (obsData.nbObservationsNeg || 0);
         studentMap[cleObs].nbEncourage += (obsData.nbEncourage || 0);
         obsMatched++;
       }
@@ -1124,7 +1141,7 @@ function v3_compileImport(data) {
       st.scoreTRA = calcScoreTRA_import_(st.moyennes);
       st.scorePART = calcScorePART_import_(st.oraux);
       st.scoreABS = calcScoreABS_import_(st.dj, st.nj);
-      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations);
+      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations, st.nbEncourage);
       if (st.scoreTRA || st.scorePART || st.scoreABS || st.scoreCOM) scoresCount++;
 
       // Diagnostic TRA
@@ -1362,9 +1379,15 @@ function calcScoreABS_import_(dj, nj) {
   return Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
 }
 
-function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations) {
-  // Ponderation : incidents x3, punitions (incl. retenues) x2, observations x0.5
-  var total = (nbPunitions || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil((nbObservations || 0) * 0.5);
+function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations, nbEncourage) {
+  // Attenuation : encouragements reduisent le bloc observations (max 30%), jamais les punitions/incidents
+  var obsNet = nbObservations || 0;
+  if ((nbEncourage || 0) > 0 && obsNet > 0) {
+    var attenuation = Math.min(nbEncourage, Math.floor(obsNet * 0.3));
+    obsNet = obsNet - attenuation;
+  }
+  // Ponderation : incidents x3, punitions (incl. retenues) x2, observations nettes x0.5
+  var total = (nbPunitions || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil(obsNet * 0.5);
   return attribuerScoreParSeuil_(total, SCORES_CONFIG.SEUILS_COM);
 }
 

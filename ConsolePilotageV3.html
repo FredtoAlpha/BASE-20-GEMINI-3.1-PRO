@@ -1497,14 +1497,52 @@
             if (!text || !text.trim()) return [];
             // Remove BOM
             if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
+            // Detection TSV vs CSV : si la 1re ligne contient des tabs => TSV, sinon CSV
+            var firstLine = text.split('\n')[0] || '';
+            var isTSV = firstLine.indexOf('\t') >= 0;
             var lines = text.split('\n');
             var rows = [];
             for (var i = 0; i < lines.length; i++) {
                 var line = lines[i].replace(/\r$/, '');
                 if (line.trim() === '') continue;
-                rows.push(line.split('\t'));
+                if (isTSV) {
+                    rows.push(line.split('\t'));
+                } else {
+                    rows.push(parseCSVLine_(line));
+                }
             }
             return rows;
+        }
+
+        // Parse une ligne CSV avec gestion des guillemets
+        function parseCSVLine_(line) {
+            var fields = [];
+            var current = '';
+            var inQuotes = false;
+            for (var i = 0; i < line.length; i++) {
+                var ch = line[i];
+                if (inQuotes) {
+                    if (ch === '"' && i + 1 < line.length && line[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else if (ch === '"') {
+                        inQuotes = false;
+                    } else {
+                        current += ch;
+                    }
+                } else {
+                    if (ch === '"') {
+                        inQuotes = true;
+                    } else if (ch === ',') {
+                        fields.push(current.trim());
+                        current = '';
+                    } else {
+                        current += ch;
+                    }
+                }
+            }
+            fields.push(current.trim());
+            return fields;
         }
 
         function updateImportBadge(step, status, detail) {
