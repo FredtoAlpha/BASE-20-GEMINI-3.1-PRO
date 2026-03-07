@@ -1077,6 +1077,7 @@ function reshuffleWorstClass_V3_(ctx) {
  * - EFF: Pénalité d'effectif dans ClassState.computeError
  */
 function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
+  logLine('INFO', '🔧 [engine=OPTI] Phase4_balanceScoresSwaps_BASEOPTI_V3 (Interface V2 / Prof)');
   logLine('INFO', '='.repeat(80));
   logLine('INFO', '📌 PHASE 4 V3 - MULTI-RESTART NAUTILUS');
   logLine('INFO', '='.repeat(80));
