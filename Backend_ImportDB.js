@@ -409,15 +409,10 @@ function v3_parseNotesMoyennes(rows) {
       if (gradeCols.length >= 2) {
         colMoy = gradeCols[gradeCols.length - 1];  // Derniere col note = moyenne
         if (mat.hasOral) {
-          colOral = gradeCols[0];  // Premiere col note = ecrit (oral = la derniere)
-          // Pour PART: on veut l'oral, pas l'ecrit. Swap si hasOral
-          colOral = gradeCols[gradeCols.length - 1];
+          // PRONOTE langues : col[0]=moyenne, col[1]=ecrit, col[2]=oral
+          // 2 cols : col[0]=moyenne(TRA), col[1]=oral(PART)
           colMoy = gradeCols[0];
-          // Note: si 3 grade cols (ecrit, oral, moyenne), on veut col[2]=moy, col[1]=oral
-          if (gradeCols.length >= 3) {
-            colMoy = gradeCols[gradeCols.length - 1];  // derniere = moyenne
-            colOral = gradeCols[gradeCols.length - 2]; // avant-derniere = oral
-          }
+          colOral = gradeCols[gradeCols.length - 1];  // derniere = oral (PART)
         }
       } else {
         colMoy = gradeCols[0];
