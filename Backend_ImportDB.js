@@ -52,11 +52,16 @@ function parseNote_(val) {
 }
 
 /**
- * Normalise un nom : MAJUSCULES, trim, supprime accents
+ * Normalise un nom : MAJUSCULES, trim, supprime accents, guillemets, espaces invisibles
  */
 function normaliserNom_(s) {
   if (!s) return '';
-  return String(s).trim().toUpperCase()
+  return String(s).trim()
+    .replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB"'`\u2018\u2019\u201A\u2039\u203A]/g, '')  // guillemets typo + droits
+    .replace(/[\u00A0\u2007\u202F\u200B\u200C\u200D\uFEFF]/g, ' ')  // espaces insecables/invisibles
+    .replace(/\s+/g, ' ')  // compacter espaces multiples
+    .trim()
+    .toUpperCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
@@ -464,6 +469,19 @@ function v3_parseNotesMoyennes(rows) {
 
       if (!nom) continue;
 
+      // Nettoyer guillemets/invisibles dans nom et prenom (meme nettoyage que normaliserNom_)
+      nom = nom.replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB"'`\u2018\u2019\u201A\u2039\u203A]/g, '')
+               .replace(/[\u00A0\u2007\u202F\u200B\u200C\u200D\uFEFF]/g, ' ').replace(/\s+/g, ' ').trim();
+      prenom = prenom.replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB"'`\u2018\u2019\u201A\u2039\u203A]/g, '')
+                     .replace(/[\u00A0\u2007\u202F\u200B\u200C\u200D\uFEFF]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      // Si prenom vide et nom contient plusieurs mots, tenter split NOM PRENOM
+      if (!prenom && nom.indexOf(' ') >= 0) {
+        var nameParts = nom.split(/\s+/);
+        nom = nameParts[0];
+        prenom = nameParts.slice(1).join(' ');
+      }
+
       // FILTRER les lignes parasites : en-tetes repetes et lignes de resume
       var nomUpper = nom.toUpperCase();
       if (nomUpper === 'NOM' || nomUpper === 'ELEVE' || nomUpper === 'ÉLÈVE' || nomUpper === 'ÉLÈVES'
@@ -497,6 +515,11 @@ function v3_parseNotesMoyennes(rows) {
     }
 
     Logger.log('Notes: ' + notes.length + ' eleves parses, classe=' + classeDetected);
+    // [DIAG] Echantillon noms nettoyes
+    if (notes.length > 0) {
+      var sampleNames = notes.slice(0, 5).map(function(n) { return n.nom + '|' + n.prenom; });
+      Logger.log('[DIAG] Notes echantillon noms nettoyes: ' + sampleNames.join(', '));
+    }
 
     return {
       success: true,
@@ -707,7 +730,7 @@ function v3_parseObservations(rows) {
     }
 
     var headers = rows[headerRow].map(function(h) { return String(h || '').trim().toUpperCase(); });
-    Logger.log('Observations - Headers bruts: ' + headers.join(' | '));
+    Logger.log('Observations [v2] - Headers bruts: ' + headers.join(' | '));
 
     // "Élèves" dans Pronote, pas "Nom" : on ajoute le pattern ELEVE
     var colNom = findImportCol_(headers, ['^NOM$', '^[E\u00c9]L[E\u00c8]VE', 'NOM']);
@@ -747,7 +770,7 @@ function v3_parseObservations(rows) {
 
       var firstCell = String(row[0] || '').trim();
 
-      // Ligne resume de classe : detectee par symbole Unicode
+      // Ligne resume de classe : detectee par symbole Unicode uniquement
       if (classSummaryRe.test(firstCell)) {
         currentClasse = firstCell.replace(/^[\u25A0-\u25FF\u2190-\u21FF\u2794\u27A1]\s*/, '').trim();
         currentClasse = currentClasse.replace(/[,;].*/, '').trim();
@@ -756,10 +779,9 @@ function v3_parseObservations(rows) {
       }
 
       var nom = colNom >= 0 ? String(row[colNom] || '').trim() : '';
-      if (!nom) continue;
+      // Ligne de synthese : colonne NOM vide ou contient "NN élèves"
+      if (!nom || syntheseRe.test(nom)) { nbLignesIgnorees++; continue; }
       if (classSummaryRe.test(nom) || nom.length < 2) { nbLignesIgnorees++; continue; }
-      // Filtrer les lignes de synthese "NN élèves" (pas des noms d'eleves)
-      if (syntheseRe.test(nom)) { nbLignesIgnorees++; continue; }
 
       var prenom = colPrenom >= 0 ? String(row[colPrenom] || '').trim() : '';
       var classe = normaliserClasse_(classeCell || currentClasse);
@@ -1057,6 +1079,10 @@ function v3_compileImport(data) {
     Logger.log('Eleves mappes: ' + Object.keys(studentMap).length);
     Logger.log('Classes: ' + Object.keys(classeGroups).join(', '));
 
+    // [DIAG] Echantillon cles studentMap
+    var smKeys = Object.keys(studentMap);
+    Logger.log('[DIAG] Echantillon cles studentMap (5 premiers): ' + smKeys.slice(0, 5).join(', '));
+
     // 2. FUSIONNER LES NOTES (notesResults = [ {success, notes: [{nom,prenom,moyennes,oraux}], classe} ])
     var notesMatched = 0;
     var notesTotal = 0;
@@ -1065,6 +1091,15 @@ function v3_compileImport(data) {
       var noteResult = notesResults[nr];
       var noteList = (noteResult && noteResult.notes) ? noteResult.notes : (Array.isArray(noteResult) ? noteResult : []);
       notesTotal += noteList.length;
+
+      // [DIAG] Echantillon noms source notes (3 premiers de chaque classe)
+      if (noteList.length > 0) {
+        var sampleNotes = noteList.slice(0, 3).map(function(nd) {
+          return '"' + nd.nom + '|' + (nd.prenom || '') + '" -> norm:"' + normaliserNom_(nd.nom) + '|' + normaliserNom_(nd.prenom) + '"';
+        });
+        Logger.log('[DIAG] Notes classe ' + nr + ' echantillon: ' + sampleNotes.join(', '));
+      }
+
       for (var n = 0; n < noteList.length; n++) {
         var noteData = noteList[n];
         var cle2 = findMatchingStudent_(studentMap, noteData.nom, noteData.prenom);
@@ -1133,6 +1168,13 @@ function v3_compileImport(data) {
     Logger.log('Observations fusionnees: ' + obsMatched + '/' + observationsList.length);
 
     // 7. CALCULER LES SCORES + DIAGNOSTIC
+    var importCfg = getImportScoringCfg_();
+    Logger.log('[SCORING] Config source: ' + importCfg._source +
+      ' | seuils presents: TRA=' + !!importCfg.seuils.TRA +
+      ' PART=' + !!importCfg.seuils.PART +
+      ' COM=' + !!importCfg.seuils.COM +
+      ' ABS=' + !!importCfg.seuils.ABS);
+
     var scoresCount = 0;
     var diagTRA = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0, samples: [] };
     var diagPART = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0 };
@@ -1300,10 +1342,20 @@ function findMatchingStudent_(studentMap, nom, prenom) {
   var normNom = normaliserNom_(nom);
   var normPrenom = normaliserNom_(prenom);
 
-  // 2. Match normalise (accents, casse)
+  // 2. Match normalise (accents, casse, guillemets, invisibles)
   for (var key in studentMap) {
     var st = studentMap[key];
     if (normaliserNom_(st.nom) === normNom && normaliserNom_(st.prenom) === normPrenom) return key;
+  }
+
+  // 2b. Fullname normalise : NOM+PRENOM concatenes sans separateur
+  var srcFull = (normNom + normPrenom).replace(/\s+/g, '');
+  if (srcFull.length >= 3) {
+    for (var keyF in studentMap) {
+      var stF = studentMap[keyF];
+      var refFull0 = (normaliserNom_(stF.nom) + normaliserNom_(stF.prenom)).replace(/\s+/g, '');
+      if (srcFull === refFull0) return keyF;
+    }
   }
 
   // 3. Fullname = "NOM PRENOM" dans une seule cellule : tester tous les splits possibles
@@ -1343,8 +1395,68 @@ function findMatchingStudent_(studentMap, nom, prenom) {
 // CALCUL DES SCORES (VERSION IMPORT)
 // =============================================================================
 
+/**
+ * Helper : resout la config scoring depuis getScoringConfig() ou fallback statique.
+ * Ne throw jamais — retourne toujours un objet utilisable.
+ */
+function getImportScoringCfg_() {
+  try {
+    if (typeof getScoringConfig === 'function') {
+      var cfg = getScoringConfig();
+      if (cfg && cfg.seuils && cfg.seuils.TRA && cfg.seuils.ABS) {
+        cfg._source = 'dynamique (getScoringConfig)';
+        return cfg;
+      }
+    }
+  } catch (e) {
+    Logger.log('[WARN] getScoringConfig() a echoue: ' + e.toString());
+  }
+  // Fallback statique (memes seuils que SCORING_DEFAULTS)
+  Logger.log('[WARN] Scoring: fallback statique (getScoringConfig indisponible)');
+  return {
+    _source: 'fallback statique',
+    seuils: {
+      TRA: [
+        { score: 4, min: 15, max: 20 },
+        { score: 3, min: 12, max: 14.999 },
+        { score: 2, min: 8, max: 11.999 },
+        { score: 1, min: 0, max: 7.999 }
+      ],
+      PART: [
+        { score: 4, min: 15, max: 20 },
+        { score: 3, min: 12, max: 14.999 },
+        { score: 2, min: 8, max: 11.999 },
+        { score: 1, min: 0, max: 7.999 }
+      ],
+      COM: [
+        { score: 4, min: 0, max: 0 },
+        { score: 3, min: 1, max: 5 },
+        { score: 2, min: 6, max: 20 },
+        { score: 1, min: 21, max: 999 }
+      ],
+      ABS: {
+        DJ: [
+          { score: 4, min: 0, max: 5 },
+          { score: 3, min: 6, max: 13 },
+          { score: 2, min: 14, max: 25 },
+          { score: 1, min: 26, max: 999 }
+        ],
+        NJ: [
+          { score: 4, min: 0, max: 0 },
+          { score: 3, min: 1, max: 2 },
+          { score: 2, min: 3, max: 5 },
+          { score: 1, min: 6, max: 999 }
+        ],
+        poidsDJ: 0.6,
+        poidsNJ: 0.4
+      }
+    }
+  };
+}
+
 function calcScoreTRA_import_(moyennes) {
   if (!moyennes || Object.keys(moyennes).length === 0) return null;
+  var cfg = getImportScoringCfg_();
   var coeffMap = { 'FRANC':4.5, 'MATH':3.5, 'HG':3.0, 'ANG':3.0, 'LV2':2.5, 'EPS':2.0, 'PHCH':1.5, 'SVT':1.5, 'TECH':1.5, 'APLA':1.0, 'MUS':1.0, 'LAT':1.0 };
   var totalPts = 0, totalCoeff = 0;
   for (var id in moyennes) {
@@ -1356,11 +1468,12 @@ function calcScoreTRA_import_(moyennes) {
   }
   if (totalCoeff === 0) return null;
   var moy = Math.round(totalPts / totalCoeff * 100) / 100;
-  return attribuerScoreParSeuil_(moy, SCORES_CONFIG.SEUILS_TRA);
+  return attribuerScoreParSeuil_(moy, cfg.seuils.TRA);
 }
 
 function calcScorePART_import_(oraux) {
   if (!oraux || Object.keys(oraux).length === 0) return null;
+  var cfg = getImportScoringCfg_();
   var notes = [];
   for (var id in oraux) {
     if (oraux[id] !== null && oraux[id] !== undefined) notes.push(oraux[id]);
@@ -1368,18 +1481,20 @@ function calcScorePART_import_(oraux) {
   if (notes.length === 0) return null;
   var moy = notes.reduce(function(a, b) { return a + b; }, 0) / notes.length;
   moy = Math.round(moy * 100) / 100;
-  return attribuerScoreParSeuil_(moy, SCORES_CONFIG.SEUILS_PART);
+  return attribuerScoreParSeuil_(moy, cfg.seuils.PART);
 }
 
 function calcScoreABS_import_(dj, nj) {
   if (dj === 0 && nj === 0) return 4;
-  var seuils = SCORES_CONFIG.SEUILS_ABS;
+  var cfg = getImportScoringCfg_();
+  var seuils = cfg.seuils.ABS;
   var scoreDJ = attribuerScoreParSeuil_(dj, seuils.DJ);
   var scoreNJ = attribuerScoreParSeuil_(nj, seuils.NJ);
   return Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
 }
 
 function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations, nbEncourage) {
+  var cfg = getImportScoringCfg_();
   // Attenuation : encouragements reduisent le bloc observations (max 30%), jamais les punitions/incidents
   var obsNet = nbObservations || 0;
   if ((nbEncourage || 0) > 0 && obsNet > 0) {
@@ -1388,7 +1503,7 @@ function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations, nbEncour
   }
   // Ponderation : incidents x3, punitions (incl. retenues) x2, observations nettes x0.5
   var total = (nbPunitions || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil(obsNet * 0.5);
-  return attribuerScoreParSeuil_(total, SCORES_CONFIG.SEUILS_COM);
+  return attribuerScoreParSeuil_(total, cfg.seuils.COM);
 }
 
 // =============================================================================
