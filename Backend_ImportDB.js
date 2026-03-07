@@ -52,11 +52,16 @@ function parseNote_(val) {
 }
 
 /**
- * Normalise un nom : MAJUSCULES, trim, supprime accents
+ * Normalise un nom : MAJUSCULES, trim, supprime accents, guillemets, espaces invisibles
  */
 function normaliserNom_(s) {
   if (!s) return '';
-  return String(s).trim().toUpperCase()
+  return String(s).trim()
+    .replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB"'`\u2018\u2019\u201A\u2039\u203A]/g, '')  // guillemets typo + droits
+    .replace(/[\u00A0\u2007\u202F\u200B\u200C\u200D\uFEFF]/g, ' ')  // espaces insecables/invisibles
+    .replace(/\s+/g, ' ')  // compacter espaces multiples
+    .trim()
+    .toUpperCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
@@ -464,6 +469,19 @@ function v3_parseNotesMoyennes(rows) {
 
       if (!nom) continue;
 
+      // Nettoyer guillemets/invisibles dans nom et prenom (meme nettoyage que normaliserNom_)
+      nom = nom.replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB"'`\u2018\u2019\u201A\u2039\u203A]/g, '')
+               .replace(/[\u00A0\u2007\u202F\u200B\u200C\u200D\uFEFF]/g, ' ').replace(/\s+/g, ' ').trim();
+      prenom = prenom.replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB"'`\u2018\u2019\u201A\u2039\u203A]/g, '')
+                     .replace(/[\u00A0\u2007\u202F\u200B\u200C\u200D\uFEFF]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      // Si prenom vide et nom contient plusieurs mots, tenter split NOM PRENOM
+      if (!prenom && nom.indexOf(' ') >= 0) {
+        var nameParts = nom.split(/\s+/);
+        nom = nameParts[0];
+        prenom = nameParts.slice(1).join(' ');
+      }
+
       // FILTRER les lignes parasites : en-tetes repetes et lignes de resume
       var nomUpper = nom.toUpperCase();
       if (nomUpper === 'NOM' || nomUpper === 'ELEVE' || nomUpper === 'ÉLÈVE' || nomUpper === 'ÉLÈVES'
@@ -497,6 +515,11 @@ function v3_parseNotesMoyennes(rows) {
     }
 
     Logger.log('Notes: ' + notes.length + ' eleves parses, classe=' + classeDetected);
+    // [DIAG] Echantillon noms nettoyes
+    if (notes.length > 0) {
+      var sampleNames = notes.slice(0, 5).map(function(n) { return n.nom + '|' + n.prenom; });
+      Logger.log('[DIAG] Notes echantillon noms nettoyes: ' + sampleNames.join(', '));
+    }
 
     return {
       success: true,
@@ -1056,6 +1079,10 @@ function v3_compileImport(data) {
     Logger.log('Eleves mappes: ' + Object.keys(studentMap).length);
     Logger.log('Classes: ' + Object.keys(classeGroups).join(', '));
 
+    // [DIAG] Echantillon cles studentMap
+    var smKeys = Object.keys(studentMap);
+    Logger.log('[DIAG] Echantillon cles studentMap (5 premiers): ' + smKeys.slice(0, 5).join(', '));
+
     // 2. FUSIONNER LES NOTES (notesResults = [ {success, notes: [{nom,prenom,moyennes,oraux}], classe} ])
     var notesMatched = 0;
     var notesTotal = 0;
@@ -1064,6 +1091,15 @@ function v3_compileImport(data) {
       var noteResult = notesResults[nr];
       var noteList = (noteResult && noteResult.notes) ? noteResult.notes : (Array.isArray(noteResult) ? noteResult : []);
       notesTotal += noteList.length;
+
+      // [DIAG] Echantillon noms source notes (3 premiers de chaque classe)
+      if (noteList.length > 0) {
+        var sampleNotes = noteList.slice(0, 3).map(function(nd) {
+          return '"' + nd.nom + '|' + (nd.prenom || '') + '" -> norm:"' + normaliserNom_(nd.nom) + '|' + normaliserNom_(nd.prenom) + '"';
+        });
+        Logger.log('[DIAG] Notes classe ' + nr + ' echantillon: ' + sampleNotes.join(', '));
+      }
+
       for (var n = 0; n < noteList.length; n++) {
         var noteData = noteList[n];
         var cle2 = findMatchingStudent_(studentMap, noteData.nom, noteData.prenom);
@@ -1299,10 +1335,20 @@ function findMatchingStudent_(studentMap, nom, prenom) {
   var normNom = normaliserNom_(nom);
   var normPrenom = normaliserNom_(prenom);
 
-  // 2. Match normalise (accents, casse)
+  // 2. Match normalise (accents, casse, guillemets, invisibles)
   for (var key in studentMap) {
     var st = studentMap[key];
     if (normaliserNom_(st.nom) === normNom && normaliserNom_(st.prenom) === normPrenom) return key;
+  }
+
+  // 2b. Fullname normalise : NOM+PRENOM concatenes sans separateur
+  var srcFull = (normNom + normPrenom).replace(/\s+/g, '');
+  if (srcFull.length >= 3) {
+    for (var keyF in studentMap) {
+      var stF = studentMap[keyF];
+      var refFull0 = (normaliserNom_(stF.nom) + normaliserNom_(stF.prenom)).replace(/\s+/g, '');
+      if (srcFull === refFull0) return keyF;
+    }
   }
 
   // 3. Fullname = "NOM PRENOM" dans une seule cellule : tester tous les splits possibles
