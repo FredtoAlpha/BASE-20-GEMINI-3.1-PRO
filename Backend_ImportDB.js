@@ -1168,6 +1168,13 @@ function v3_compileImport(data) {
     Logger.log('Observations fusionnees: ' + obsMatched + '/' + observationsList.length);
 
     // 7. CALCULER LES SCORES + DIAGNOSTIC
+    var importCfg = getImportScoringCfg_();
+    Logger.log('[SCORING] Config source: ' + importCfg._source +
+      ' | seuils presents: TRA=' + !!importCfg.seuils.TRA +
+      ' PART=' + !!importCfg.seuils.PART +
+      ' COM=' + !!importCfg.seuils.COM +
+      ' ABS=' + !!importCfg.seuils.ABS);
+
     var scoresCount = 0;
     var diagTRA = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0, samples: [] };
     var diagPART = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0 };
@@ -1388,8 +1395,68 @@ function findMatchingStudent_(studentMap, nom, prenom) {
 // CALCUL DES SCORES (VERSION IMPORT)
 // =============================================================================
 
+/**
+ * Helper : resout la config scoring depuis getScoringConfig() ou fallback statique.
+ * Ne throw jamais — retourne toujours un objet utilisable.
+ */
+function getImportScoringCfg_() {
+  try {
+    if (typeof getScoringConfig === 'function') {
+      var cfg = getScoringConfig();
+      if (cfg && cfg.seuils && cfg.seuils.TRA && cfg.seuils.ABS) {
+        cfg._source = 'dynamique (getScoringConfig)';
+        return cfg;
+      }
+    }
+  } catch (e) {
+    Logger.log('[WARN] getScoringConfig() a echoue: ' + e.toString());
+  }
+  // Fallback statique (memes seuils que SCORING_DEFAULTS)
+  Logger.log('[WARN] Scoring: fallback statique (getScoringConfig indisponible)');
+  return {
+    _source: 'fallback statique',
+    seuils: {
+      TRA: [
+        { score: 4, min: 15, max: 20 },
+        { score: 3, min: 12, max: 14.999 },
+        { score: 2, min: 8, max: 11.999 },
+        { score: 1, min: 0, max: 7.999 }
+      ],
+      PART: [
+        { score: 4, min: 15, max: 20 },
+        { score: 3, min: 12, max: 14.999 },
+        { score: 2, min: 8, max: 11.999 },
+        { score: 1, min: 0, max: 7.999 }
+      ],
+      COM: [
+        { score: 4, min: 0, max: 0 },
+        { score: 3, min: 1, max: 5 },
+        { score: 2, min: 6, max: 20 },
+        { score: 1, min: 21, max: 999 }
+      ],
+      ABS: {
+        DJ: [
+          { score: 4, min: 0, max: 5 },
+          { score: 3, min: 6, max: 13 },
+          { score: 2, min: 14, max: 25 },
+          { score: 1, min: 26, max: 999 }
+        ],
+        NJ: [
+          { score: 4, min: 0, max: 0 },
+          { score: 3, min: 1, max: 2 },
+          { score: 2, min: 3, max: 5 },
+          { score: 1, min: 6, max: 999 }
+        ],
+        poidsDJ: 0.6,
+        poidsNJ: 0.4
+      }
+    }
+  };
+}
+
 function calcScoreTRA_import_(moyennes) {
   if (!moyennes || Object.keys(moyennes).length === 0) return null;
+  var cfg = getImportScoringCfg_();
   var coeffMap = { 'FRANC':4.5, 'MATH':3.5, 'HG':3.0, 'ANG':3.0, 'LV2':2.5, 'EPS':2.0, 'PHCH':1.5, 'SVT':1.5, 'TECH':1.5, 'APLA':1.0, 'MUS':1.0, 'LAT':1.0 };
   var totalPts = 0, totalCoeff = 0;
   for (var id in moyennes) {
@@ -1401,11 +1468,12 @@ function calcScoreTRA_import_(moyennes) {
   }
   if (totalCoeff === 0) return null;
   var moy = Math.round(totalPts / totalCoeff * 100) / 100;
-  return attribuerScoreParSeuil_(moy, SCORES_CONFIG.SEUILS_TRA);
+  return attribuerScoreParSeuil_(moy, cfg.seuils.TRA);
 }
 
 function calcScorePART_import_(oraux) {
   if (!oraux || Object.keys(oraux).length === 0) return null;
+  var cfg = getImportScoringCfg_();
   var notes = [];
   for (var id in oraux) {
     if (oraux[id] !== null && oraux[id] !== undefined) notes.push(oraux[id]);
@@ -1413,18 +1481,20 @@ function calcScorePART_import_(oraux) {
   if (notes.length === 0) return null;
   var moy = notes.reduce(function(a, b) { return a + b; }, 0) / notes.length;
   moy = Math.round(moy * 100) / 100;
-  return attribuerScoreParSeuil_(moy, SCORES_CONFIG.SEUILS_PART);
+  return attribuerScoreParSeuil_(moy, cfg.seuils.PART);
 }
 
 function calcScoreABS_import_(dj, nj) {
   if (dj === 0 && nj === 0) return 4;
-  var seuils = SCORES_CONFIG.SEUILS_ABS;
+  var cfg = getImportScoringCfg_();
+  var seuils = cfg.seuils.ABS;
   var scoreDJ = attribuerScoreParSeuil_(dj, seuils.DJ);
   var scoreNJ = attribuerScoreParSeuil_(nj, seuils.NJ);
   return Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
 }
 
 function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations, nbEncourage) {
+  var cfg = getImportScoringCfg_();
   // Attenuation : encouragements reduisent le bloc observations (max 30%), jamais les punitions/incidents
   var obsNet = nbObservations || 0;
   if ((nbEncourage || 0) > 0 && obsNet > 0) {
@@ -1433,7 +1503,7 @@ function calcScoreCOM_import_(nbPunitions, nbIncidents, nbObservations, nbEncour
   }
   // Ponderation : incidents x3, punitions (incl. retenues) x2, observations nettes x0.5
   var total = (nbPunitions || 0) * 2 + (nbIncidents || 0) * 3 + Math.ceil(obsNet * 0.5);
-  return attribuerScoreParSeuil_(total, SCORES_CONFIG.SEUILS_COM);
+  return attribuerScoreParSeuil_(total, cfg.seuils.COM);
 }
 
 // =============================================================================
