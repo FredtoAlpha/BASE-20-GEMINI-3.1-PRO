@@ -1,8 +1,8 @@
 // ... (début du fichier ConsolePilotage_Server.gs) ...
 
 /**
- * Fournit le contexte de pont à l'InterfaceV2 et le supprime ensuite.
- * C'est la fonction appelée par l'InterfaceV2 à son initialisation.
+ * Fournit le contexte de pont à SCORE INTERFACE et le supprime ensuite.
+ * C'est la fonction appelée par SCORE INTERFACE à son initialisation.
  * @returns {Object} Un objet contenant {success: Boolean, context: Object|null}.
  */
 /**
@@ -137,7 +137,7 @@ function formatDefSheet_ConsolePilotage(sheet) {
 }
 
 /**
- * Stores the necessary context for InterfaceV2 to initialize.
+ * Stores the necessary context for SCORE INTERFACE to initialize.
  * @param {string} mode - The mode to load (e.g., 'TEST').
  */
 function setBridgeContext(mode, sourceSheetName) {

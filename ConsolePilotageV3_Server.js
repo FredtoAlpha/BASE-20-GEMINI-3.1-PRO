@@ -450,8 +450,8 @@ function v3_getMetrics() {
  */
 function createConsolePilotageV3Menu() {
   SpreadsheetApp.getUi()
-    .createMenu('🚀 Console de Pilotage V3')
-    .addItem('📊 Ouvrir la Console V3', 'ouvrirConsolePilotageV3')
+    .createMenu('🚀 S.C.O.R.E.S')
+    .addItem('📊 Ouvrir SCORE CONSOLE', 'ouvrirConsolePilotageV3')
     .addSeparator()
     .addItem('📈 Voir les Métriques', 'showV3Metrics')
     .addToUi();
@@ -472,7 +472,7 @@ function showV3Metrics() {
 
 /**
  * ===================================================================
- * FONCTIONS SUPPLÉMENTAIRES POUR CONSOLE V3
+ * FONCTIONS SUPPLÉMENTAIRES POUR SCORE CONSOLE
  * ===================================================================
  */
 
@@ -1458,14 +1458,15 @@ function v3_computeScoresPreview() {
     Logger.log('[SCORING_MODE] effective=' + modeEffectif +
       ' | TRA=' + (modeEffectif === 'percentile' ? 'percentile' : 'seuils') +
       ' PART=' + (modeEffectif === 'percentile' ? 'percentile' : 'seuils') +
-      ' ABS=seuils COM=seuils');
+      ' ABS=' + (modeEffectif === 'percentile' ? 'percentile' : 'seuils') +
+      ' COM=seuils');
 
     // Construire la cohorte source
     var cohort = buildSourceCohort_(ss);
     var sourceCount = Object.keys(cohort).length;
 
-    // Calculer les 4 scores (cohort passée à TRA/PART pour percentile)
-    var resABS = calculerScoreABS_(ss);
+    // Calculer les 4 scores (cohort passée à TRA/PART/ABS pour percentile)
+    var resABS = calculerScoreABS_(ss, cohort);
     var resCOM = calculerScoreCOM_(ss);
     var resTRA = calculerScoreTRA_(ss, cohort);
     var resPART = calculerScorePART_(ss, cohort);
@@ -1536,7 +1537,7 @@ function v3_computeScoresPreview() {
       modeParCritere: {
         TRA: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
         PART: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
-        ABS: 'seuils',
+        ABS: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
         COM: 'seuils'
       },
       sourceCount: sourceCount,
@@ -1574,8 +1575,8 @@ function v3_applyScores() {
     var cohort = buildSourceCohort_(ss);
     var sourceCount = Object.keys(cohort).length;
 
-    // Calculer (cohort passée à TRA/PART pour percentile)
-    var resABS = calculerScoreABS_(ss);
+    // Calculer (cohort passée à TRA/PART/ABS pour percentile)
+    var resABS = calculerScoreABS_(ss, cohort);
     var resCOM = calculerScoreCOM_(ss);
     var resTRA = calculerScoreTRA_(ss, cohort);
     var resPART = calculerScorePART_(ss, cohort);
@@ -1632,7 +1633,7 @@ function v3_applyScores() {
       modeParCritere: {
         TRA: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
         PART: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
-        ABS: 'seuils',
+        ABS: modeEffectif === 'percentile' ? 'percentile' : 'seuils',
         COM: 'seuils'
       },
       sourceCount: sourceCount,

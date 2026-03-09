@@ -8,7 +8,7 @@
  * de gestion de répartition des élèves. Il gère:
  * - Le menu Google Sheets
  * - L'accès web pour les professeurs
- * - Les fonctions backend pour InterfaceV2
+ * - Les fonctions backend pour SCORE INTERFACE
  * - La gestion des données de classes
  *
  * 📚 Historique des phases de refactoring :
@@ -169,7 +169,7 @@ function safeSetUserProperty(key, value) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🚀 PILOTAGE CLASSE')
-    .addItem('📊 Ouvrir la Console V3', 'ouvrirConsolePilotageV3')
+    .addItem('📊 Ouvrir SCORE CONSOLE', 'ouvrirConsolePilotageV3')
     .addSeparator()
     .addSubMenu(SpreadsheetApp.getUi().createMenu('🛠️ Outils Spécifiques')
         .addItem('➕ Intégrer un Nouvel Élève', 'ouvrirModuleNouvelEleve')
@@ -191,7 +191,7 @@ function onOpen() {
 
 /**
  * Point d'entrée pour l'application web (doGet trigger)
- * Renvoie l'interface InterfaceV2 pour les professeurs
+ * Renvoie SCORE INTERFACE pour les professeurs
  * @param {Object} e - Objet événement (paramètres GET)
  * @returns {HtmlOutput} Page HTML de l'interface professeurs
  * @see {@link https://developers.google.com/apps-script/guides/web|Google Apps Script Web Apps}
@@ -199,7 +199,7 @@ function onOpen() {
 function doGet(e) {
   return HtmlService.createTemplateFromFile('InterfaceV2')
     .evaluate()
-    .setTitle('Interface Répartition - Professeurs')
+    .setTitle('SCORE INTERFACE - Répartition Professeurs')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -245,14 +245,14 @@ function ouvrirModuleNouvelEleve() {
 }
 
 /**
- * Ouvre la Console V3 directement sur la phase Scores Élèves
+ * Ouvre SCORE CONSOLE directement sur la phase Scores Élèves
  * Raccourci pour accéder au module de calcul des scores Pronote
  */
 function ouvrirScoresEleves() {
   var html = HtmlService.createHtmlOutputFromFile('ConsolePilotageV3')
     .setWidth(1600)
     .setHeight(900)
-    .setTitle('Scores Élèves - Console de Pilotage V3');
+    .setTitle('Scores Élèves - SCORE CONSOLE');
   SpreadsheetApp.getUi().showModelessDialog(html, 'Scores Élèves');
   // Note : la console s'ouvre sur phase 1 par défaut.
   // L'utilisateur navigue vers SCORES via la sidebar.
@@ -636,7 +636,7 @@ function loadStructureRules() {
 }
 
 /**
- * 🎯 ADAPTATEUR SAS - Fonction principale pour InterfaceV2
+ * 🎯 ADAPTATEUR SAS - Fonction principale pour SCORE INTERFACE
  * Convertit les onglets TEST/FIN/CACHE/PREVIOUS au format attendu
  * @param {string} mode - Mode de chargement
  * @returns {Object} {success: boolean, data: Array, rules: Object}

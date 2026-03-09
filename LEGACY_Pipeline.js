@@ -324,7 +324,7 @@ function finalizeAllSheets(ctx) {
 }
 
 /**
- * Applique la mise en forme EXACTE de l'Interface V2 sur un onglet FIN
+ * Applique la mise en forme EXACTE de SCORE INTERFACE sur un onglet FIN
  * Copie fidèle du style avec couleurs cellule par cellule
  * @param {Sheet} sheet - L'onglet FIN à formater
  */
@@ -528,7 +528,7 @@ function formatFinSheet_LEGACY(sheet) {
     addStatistics_LEGACY_V2(sheet, headers, rowData, idx);
     
     SpreadsheetApp.flush();
-    logLine('INFO', `    🎨 Mise en forme Interface V2 appliquée à ${sheet.getName()}`);
+    logLine('INFO', `    🎨 Mise en forme SCORE INTERFACE appliquée à ${sheet.getName()}`);
     
   } catch (e) {
     logLine('WARN', `    ⚠️ Erreur formatage ${sheet.getName()}: ${e.message}`);
@@ -536,7 +536,7 @@ function formatFinSheet_LEGACY(sheet) {
 }
 
 /**
- * Ajoute des statistiques en bas de l'onglet FIN (Style Interface V2)
+ * Ajoute des statistiques en bas de l'onglet FIN (Style SCORE INTERFACE)
  * @param {Sheet} sheet - L'onglet FIN
  * @param {Array} headers - En-têtes
  * @param {Array} rowData - Données élèves
@@ -546,7 +546,7 @@ function addStatistics_LEGACY_V2(sheet, headers, rowData, idx) {
   try {
     const statsRow = rowData.length + 3; // +3 pour séparer des données
     
-    // Couleurs Interface V2 (EXACTES - vives)
+    // Couleurs SCORE INTERFACE (EXACTES - vives)
     const COLORS = {
       sexeF: '#f4cccc',
       sexeM: '#cfe2f3',
@@ -648,10 +648,10 @@ function addStatistics_LEGACY_V2(sheet, headers, rowData, idx) {
 // ===================================================================
 
 /**
- * Entrée depuis Console V3 (Phase 4 button)
+ * Entrée depuis SCORE CONSOLE (Phase 4 button)
  */
 function ouvrirPipeline_FromConsole_V3(options) {
-  logLine('INFO', '📋 Appel depuis Console V3');
+  logLine('INFO', '📋 Appel depuis SCORE CONSOLE');
   return legacy_runFullPipeline_PRIME();
 }
 

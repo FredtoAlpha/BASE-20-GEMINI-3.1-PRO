@@ -1,6 +1,6 @@
 /**
  * ===================================================================
- * BACKEND CORE - Fonctions essentielles pour InterfaceV2
+ * BACKEND CORE - Fonctions essentielles pour SCORE INTERFACE
  * ===================================================================
  * Version: 1.1.0 — SAFE: suppression des 6 fonctions en collision avec Code.js
  *

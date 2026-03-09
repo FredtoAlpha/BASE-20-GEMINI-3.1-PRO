@@ -14,7 +14,7 @@
  *    - Phases anciennes
  *
  * 2. SYSTÈME NOUVEAU (ce fichier) :
- *    - UI Optimisation (InterfaceV2)
+ *    - UI Optimisation (SCORE INTERFACE)
  *    - Lit depuis _OPTI_CONFIG
  *    - Fonctions : getOptimizationContext_V2(), buildCtx_V2()
  *    - Phases BASEOPTI
@@ -478,7 +478,7 @@ function computeTargetsFromUI_(classes, totalStudents) {
 
 /**
  * Sauvegarde le profil d'optimisation depuis l'UI
- * Appelé par l'interface InterfaceV2 quand l'utilisateur valide
+ * Appelé par SCORE INTERFACE quand l'utilisateur valide
  *
  * @param {Object} payload - { offersByClass, targetsByClass, weights, parityTolerance, maxSwaps, mode }
  * @returns {Object} { ok: true }

@@ -197,19 +197,22 @@ function v3_getScoresStatus() {
 
 /**
  * Calcule TOUS les scores et les injecte dans les onglets sources.
- * Point d'entrée principal depuis la Console V3.
+ * Point d'entrée principal depuis SCORE CONSOLE.
  * @returns {Object} {success, results: {abs, com, tra, part}, injected}
  */
 function v3_calculerTousScores() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    var absResults = calculerScoreABS_(ss);
-    var comResults = calculerScoreCOM_(ss);
-    var traResults = calculerScoreTRA_(ss);
-    var partResults = calculerScorePART_(ss);
+    // Construire la cohorte source pour percentile
+    var cohort = buildSourceCohort_(ss);
 
-    var fusion = fusionnerScores_(absResults, comResults, traResults, partResults);
+    var absResults = calculerScoreABS_(ss, cohort);
+    var comResults = calculerScoreCOM_(ss);
+    var traResults = calculerScoreTRA_(ss, cohort);
+    var partResults = calculerScorePART_(ss, cohort);
+
+    var fusion = fusionnerScores_(absResults, comResults, traResults, partResults, cohort);
 
     // Lister les onglets sources pour diagnostic
     var allSheetNames = ss.getSheets().map(function(s) { return s.getName(); });
@@ -294,19 +297,22 @@ function v3_calculerScore(type) {
 }
 
 /**
- * Récupère un aperçu des scores calculés (pour affichage dans la Console V3).
+ * Récupère un aperçu des scores calculés (pour affichage dans SCORE CONSOLE).
  * @returns {Object} {success, preview: [{nom, classe, abs, com, tra, part}]}
  */
 function v3_getScoresPreview() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    var absResults = calculerScoreABS_(ss);
-    var comResults = calculerScoreCOM_(ss);
-    var traResults = calculerScoreTRA_(ss);
-    var partResults = calculerScorePART_(ss);
+    // Construire la cohorte source pour percentile
+    var cohort = buildSourceCohort_(ss);
 
-    var fusion = fusionnerScores_(absResults, comResults, traResults, partResults);
+    var absResults = calculerScoreABS_(ss, cohort);
+    var comResults = calculerScoreCOM_(ss);
+    var traResults = calculerScoreTRA_(ss, cohort);
+    var partResults = calculerScorePART_(ss, cohort);
+
+    var fusion = fusionnerScores_(absResults, comResults, traResults, partResults, cohort);
 
     // Scores bruts 1-4 (identiques à ce qui est dans les onglets sources)
     var preview = [];
@@ -380,7 +386,7 @@ function buildSourceCohort_(ss) {
 // MODULE ABS — Score d'assiduité (détection dynamique)
 // =============================================================================
 
-function calculerScoreABS_(ss) {
+function calculerScoreABS_(ss, cohort) {
   var wsData = ss.getSheetByName('DATA_ABS');
   if (!wsData || wsData.getLastRow() < 2) return [];
 
@@ -390,6 +396,7 @@ function calculerScoreABS_(ss) {
   if (h.length === 0) return [];
 
   var scoringCfg = getScoringConfig();
+  var mode = scoringCfg.mode || 'seuils';
   var pats = scoringCfg.patterns.ABS;
   var colNom     = findCol_(h, pats.nom);
   var colClasse  = findCol_(h, pats.classe);
@@ -423,23 +430,59 @@ function calculerScoreABS_(ss) {
     var e = eleves[nomKey];
     var scoreDJ = attribuerScoreParSeuil_(e.djTotal, seuils.DJ);
     var scoreNJ = attribuerScoreParSeuil_(e.nonJustifiees, seuils.NJ);
-    var scoreABS = Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
+
+    // Valeur brute inversée pour le percentile : moins d'absences = meilleur rang
+    // DJ pondéré + NJ pondéré (NJ pèse plus car plus grave), négatif pour que moins = mieux
+    var valeurBrute = -(e.djTotal * seuils.poidsDJ + e.nonJustifiees * 3 * seuils.poidsNJ);
+
+    // En mode seuils, calculer directement ; en mode percentile, on fera un 2e pass
+    var scoreABS = null;
+    if (mode === 'seuils') {
+      scoreABS = Math.ceil(scoreDJ * seuils.poidsDJ + scoreNJ * seuils.poidsNJ);
+    }
 
     resultats.push({
       nom: nomKey, classe: e.classe,
       dj: Math.round(e.djTotal * 10) / 10,
       nj: e.nonJustifiees,
+      valeurBrute: valeurBrute,
       scoreABS: scoreABS,
       trace: {
         critere: 'ABS',
+        mode: mode,
         details: [
           { label: 'Demi-journées', valeur: Math.round(e.djTotal * 10) / 10, score: scoreDJ, poids: seuils.poidsDJ },
           { label: 'Non-justifiées', valeur: e.nonJustifiees, score: scoreNJ, poids: seuils.poidsNJ }
         ],
-        formule: 'ceil(' + scoreDJ + '×' + seuils.poidsDJ + ' + ' + scoreNJ + '×' + seuils.poidsNJ + ') = ' + scoreABS,
-        seuilsUtilises: { DJ: seuils.DJ, NJ: seuils.NJ }
+        formule: mode === 'seuils'
+          ? 'ceil(' + scoreDJ + '×' + seuils.poidsDJ + ' + ' + scoreNJ + '×' + seuils.poidsNJ + ') = ' + scoreABS
+          : 'percentile (valeur brute = ' + Math.round(valeurBrute * 100) / 100 + ')',
+        seuilsUtilises: mode === 'seuils' ? { DJ: seuils.DJ, NJ: seuils.NJ } : null
       }
     });
+  }
+
+  // Mode percentile : 2e pass pour assigner les scores par rang (cohorte filtrée)
+  if (mode === 'percentile') {
+    var distribution = scoringCfg.percentile ? scoringCfg.percentile.distribution : null;
+    if (cohort) {
+      var inCohort = [];
+      var outCohort = [];
+      for (var ri = 0; ri < resultats.length; ri++) {
+        var rKey = resultats[ri].nom + '|' + (resultats[ri].classe || '');
+        var inSrc = !!cohort[rKey];
+        if (!inSrc) {
+          var rNom = resultats[ri].nom;
+          for (var ck in cohort) { if (ck.split('|')[0] === rNom) { inSrc = true; break; } }
+        }
+        if (inSrc) { inCohort.push(resultats[ri]); } else { outCohort.push(resultats[ri]); }
+      }
+      Logger.log('[PERCENTILE] ABS cohorte: ' + inCohort.length + ' in, ' + outCohort.length + ' out');
+      inCohort = applyPercentileToResults(inCohort, 'scoreABS', distribution);
+      resultats = inCohort.concat(outCohort);
+    } else {
+      resultats = applyPercentileToResults(resultats, 'scoreABS', distribution);
+    }
   }
 
   return resultats;

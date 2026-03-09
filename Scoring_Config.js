@@ -129,8 +129,13 @@ function scoringKvGet_(key, scope, defaultValue) {
   var data = sh.getRange(2, 1, last - 1, 3).getValues();
 
   for (var i = 0; i < data.length; i++) {
-    if (data[i][0] === key && data[i][2] === scope) {
-      return data[i][1];
+    var cellKey = String(data[i][0]).trim();
+    var cellScope = String(data[i][2]).trim();
+    if (cellKey === key && cellScope === scope) {
+      var val = data[i][1];
+      // Trim les chaînes pour éviter les espaces parasites de Google Sheets
+      if (typeof val === 'string') val = val.trim();
+      return val;
     }
   }
 
@@ -153,7 +158,9 @@ function scoringKvSet_(key, value, scope) {
   if (last > 1) {
     var data = sh.getRange(2, 1, last - 1, 3).getValues();
     for (var i = 0; i < data.length; i++) {
-      if (data[i][0] === key && data[i][2] === scope) {
+      var cellKey = String(data[i][0]).trim();
+      var cellScope = String(data[i][2]).trim();
+      if (cellKey === key && cellScope === scope) {
         row = i + 2;
         break;
       }
@@ -180,9 +187,16 @@ function getScoringConfig(niveau) {
   // Commencer avec les defaults
   var config = JSON.parse(JSON.stringify(SCORING_DEFAULTS));
 
-  // Lire le mode depuis KV
+  // Lire le mode depuis KV (valider que c'est une valeur connue)
   var modeKv = scoringKvGet_('scoring.mode', 'GLOBAL', null);
-  if (modeKv) config.mode = modeKv;
+  if (modeKv) {
+    var modeStr = String(modeKv).trim().toLowerCase();
+    if (modeStr === 'seuils' || modeStr === 'percentile') {
+      config.mode = modeStr;
+    } else {
+      Logger.log('Scoring_Config: mode KV invalide "' + modeKv + '", fallback sur defaults');
+    }
+  }
 
   // Lire les seuils custom depuis KV
   var seuilsJson = scoringKvGet_('scoring.seuils', 'GLOBAL', null);

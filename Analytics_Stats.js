@@ -4,7 +4,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * 
  * Lit l'onglet CONSOLIDATION et calcule toutes les statistiques nécessaires
- * pour la Phase STATS de la Console V3.
+ * pour la Phase STATS de SCORE CONSOLE.
  */
 
 /**

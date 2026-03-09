@@ -67,7 +67,7 @@ function DEBUG_checkLogger() {
 }
 
 /**
- * Version pour Interface V2
+ * Version pour SCORE INTERFACE
  */
 function DEBUG_checkLoggerForInterface() {
   try {
