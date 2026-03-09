@@ -1048,13 +1048,13 @@
         <div id="phase-6" class="phase">
             <h1>FINALISATION</h1>
             <div class="card">
-                <h2>Accès à l'Interface V2</h2>
+                <h2>Accès à SCORE INTERFACE</h2>
                 <p style="color: #94a3b8; margin-bottom: 20px;">
                     Les onglets FIN ont déjà été générés par le pipeline LEGACY.<br>
-                    Vous pouvez maintenant ouvrir l'Interface V2 pour visualiser et affiner les répartitions.
+                    Vous pouvez maintenant ouvrir SCORE INTERFACE pour visualiser et affiner les répartitions.
                 </p>
                 <button onclick="openInterfaceV2()" id="btn-interface-v2" class="btn btn-primary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                    <span><i class="fas fa-external-link-alt"></i> OUVRIR INTERFACE V2</span>
+                    <span><i class="fas fa-external-link-alt"></i> OUVRIR SCORE INTERFACE</span>
                 </button>
                 <p style="color: #64748b; font-size: 13px; margin-top: 15px; text-align: center;">
                     L'interface s'ouvrira dans un nouvel onglet de votre navigateur
@@ -2210,19 +2210,19 @@
         }
 
         /**
-         * Ouvre l'Interface V2 dans une nouvelle fenêtre du navigateur
-         * puis ferme la Console Pilotage
+         * Ouvre SCORE INTERFACE dans une nouvelle fenêtre du navigateur
+         * puis ferme SCORE CONSOLE
          */
         function openInterfaceV2() {
             const interfaceURL = 'https://script.google.com/macros/s/AKfycbwb6XbvEQjbskiqsMlKUa1EPXicH8bCu6fTxpyiKl0Oh47nRFJKcUy2IsNDWQsbbXltjQ/exec';
             
-            // Ouvrir l'Interface V2 dans un nouvel onglet
+            // Ouvrir SCORE INTERFACE dans un nouvel onglet
             window.open(interfaceURL, '_blank');
             
             // Afficher un message de confirmation
-            showToast('Interface V2 ouverte dans un nouvel onglet', 'success');
+            showToast('SCORE INTERFACE ouverte dans un nouvel onglet', 'success');
             
-            // Fermer la Console Pilotage après un court délai
+            // Fermer SCORE CONSOLE après un court délai
             setTimeout(() => {
                 google.script.host.close();
             }, 1500);

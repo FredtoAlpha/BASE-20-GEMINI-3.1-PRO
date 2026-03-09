@@ -3,7 +3,7 @@
  * BACKEND_IMPORTDB.JS - MODULE IMPORT MULTI-PASTE PRONOTE
  * ===================================================================
  * Architecture multi-collage : l'utilisateur copie depuis Pronote
- * et colle dans la Console V3. Le systeme parse, calcule les scores
+ * et colle dans SCORE CONSOLE. Le systeme parse, calcule les scores
  * et peuple les onglets sources.
  *
  * 4 ETAPES DE COLLAGE :

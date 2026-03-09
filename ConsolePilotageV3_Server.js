@@ -450,8 +450,8 @@ function v3_getMetrics() {
  */
 function createConsolePilotageV3Menu() {
   SpreadsheetApp.getUi()
-    .createMenu('🚀 Console de Pilotage V3')
-    .addItem('📊 Ouvrir la Console V3', 'ouvrirConsolePilotageV3')
+    .createMenu('🚀 S.C.O.R.E.S')
+    .addItem('📊 Ouvrir SCORE CONSOLE', 'ouvrirConsolePilotageV3')
     .addSeparator()
     .addItem('📈 Voir les Métriques', 'showV3Metrics')
     .addToUi();
@@ -472,7 +472,7 @@ function showV3Metrics() {
 
 /**
  * ===================================================================
- * FONCTIONS SUPPLÉMENTAIRES POUR CONSOLE V3
+ * FONCTIONS SUPPLÉMENTAIRES POUR SCORE CONSOLE
  * ===================================================================
  */
 

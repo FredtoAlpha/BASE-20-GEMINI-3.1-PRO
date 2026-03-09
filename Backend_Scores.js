@@ -197,7 +197,7 @@ function v3_getScoresStatus() {
 
 /**
  * Calcule TOUS les scores et les injecte dans les onglets sources.
- * Point d'entrée principal depuis la Console V3.
+ * Point d'entrée principal depuis SCORE CONSOLE.
  * @returns {Object} {success, results: {abs, com, tra, part}, injected}
  */
 function v3_calculerTousScores() {
@@ -294,7 +294,7 @@ function v3_calculerScore(type) {
 }
 
 /**
- * Récupère un aperçu des scores calculés (pour affichage dans la Console V3).
+ * Récupère un aperçu des scores calculés (pour affichage dans SCORE CONSOLE).
  * @returns {Object} {success, preview: [{nom, classe, abs, com, tra, part}]}
  */
 function v3_getScoresPreview() {
