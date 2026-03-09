@@ -2263,8 +2263,10 @@
                 if (!res) return;
                 scoringConfigCache = res;
 
-                // Mode
-                var modeRadio = document.querySelector('input[name="scoring-mode"][value="' + (res.mode || 'seuils') + '"]');
+                // Mode — forcer trim + validation pour éviter les désync KV
+                var modeValue = String(res.mode || 'seuils').trim().toLowerCase();
+                if (modeValue !== 'seuils' && modeValue !== 'percentile') modeValue = 'seuils';
+                var modeRadio = document.querySelector('input[name="scoring-mode"][value="' + modeValue + '"]');
                 if (modeRadio) modeRadio.checked = true;
                 onScoringModeChange();
 
@@ -2478,7 +2480,7 @@
             if (!modeEl || !res) return;
             var label = (res.modeActif === 'percentile') ? 'Percentile' : 'Seuils fixes';
             if (res.modeParCritere) {
-                label += ' (TRA/PART: ' + res.modeParCritere.TRA + ', ABS/COM: seuils)';
+                label += ' (TRA/PART/ABS: ' + res.modeParCritere.TRA + ', COM: seuils)';
             }
             modeEl.textContent = label;
             // Warning si mode UI ≠ mode serveur
