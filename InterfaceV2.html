@@ -1165,7 +1165,6 @@
 
   <!-- 1. CHARGER LES MODULES DE BASE EN PREMIER (UI, Tooltips, etc) -->
   <?!= include('UIComponents'); ?>
-  <?!= include('TooltipRegistry'); ?>
 
   <!-- 1.5 PERFORMANCE OPTIMIZER - Phase 11 (Debounce, DOM Cache, Batch Operations) -->
   <?!= include('PerformanceOptimizer'); ?>
@@ -1835,10 +1834,6 @@
   <?!= include('GroupsAlgorithmV4'); ?>
   <?!= include('GroupsInterfaceV4'); ?>
   <?!= include('InterfaceV2_GroupsModuleV4_Script'); ?>
-
-  <!-- ============================================================ -->
-  <!-- TooltipRegistry déjà chargé en ligne ~1170 — ne pas re-inclure -->
-  <!-- ============================================================ -->
 
   <!-- ============================================================ -->
   <!-- FONCTION D'OUVERTURE DU MODULE ANALYTIQUE -->
