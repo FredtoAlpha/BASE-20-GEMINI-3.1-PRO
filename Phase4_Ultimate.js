@@ -636,25 +636,34 @@ function loadAndClassifyData_Ultimate(ctx) {
 }
 
 /**
- * Calcule les statistiques globales
+ * Calcule les statistiques globales.
+ * Garde NaN : si une métrique est non-numérique ou absente, fallback à 2.
+ * Correction 0-as-falsy : on distingue 0 (valeur réelle) de undefined/null.
  */
 function calculateGlobalStats_Ultimate(allData) {
+  const safe = (v, fb) => (typeof v === 'number' && !isNaN(v)) ? v : fb;
+  const DEFAULT_AVG = 2.5;
+  const DEFAULT_VAL = 2;
   let total = allData.length;
-  if (total === 0) return { ratioF: 0.5, avgCOM: 2.5, avgTRA: 2.5, avgPART: 2.5, avgABS: 2.5 };
+  if (total === 0) return { ratioF: 0.5, avgCOM: DEFAULT_AVG, avgTRA: DEFAULT_AVG, avgPART: DEFAULT_AVG, avgABS: DEFAULT_AVG };
 
   const nbFilles = allData.filter(s => s.sexe === 'F').length;
-  const sumCOM = allData.reduce((sum, s) => sum + s.COM, 0);
-  const sumTRA = allData.reduce((sum, s) => sum + s.TRA, 0);
-  const sumPART = allData.reduce((sum, s) => sum + (s.PART || 2), 0);
-  // ✅ FIX #2 : Calculer avgABS (manquait)
-  const sumABS = allData.reduce((sum, s) => sum + (s.ABS || 2), 0);
+  const sumCOM = allData.reduce((sum, s) => sum + safe(s.COM, DEFAULT_VAL), 0);
+  const sumTRA = allData.reduce((sum, s) => sum + safe(s.TRA, DEFAULT_VAL), 0);
+  const sumPART = allData.reduce((sum, s) => sum + safe(s.PART, DEFAULT_VAL), 0);
+  const sumABS = allData.reduce((sum, s) => sum + safe(s.ABS, DEFAULT_VAL), 0);
+
+  const avg = (s) => {
+    const v = s / total;
+    return (typeof v === 'number' && !isNaN(v)) ? v : DEFAULT_AVG;
+  };
 
   return {
-    ratioF: nbFilles / total,
-    avgCOM: sumCOM / total,
-    avgTRA: sumTRA / total,
-    avgPART: sumPART / total,
-    avgABS: sumABS / total
+    ratioF: total > 0 ? nbFilles / total : 0.5,
+    avgCOM: avg(sumCOM),
+    avgTRA: avg(sumTRA),
+    avgPART: avg(sumPART),
+    avgABS: avg(sumABS)
   };
 }
 

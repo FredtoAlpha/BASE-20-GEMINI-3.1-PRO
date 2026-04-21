@@ -4988,7 +4988,12 @@ const GroupsInterfaceV4 = (function() {
 
     // === LISIBILITÉ ===
     // Charger les préférences sauvegardées
-    const savedPrefs = JSON.parse(localStorage.getItem('groups-readability-prefs') || '{}');
+    const savedPrefs = (function () {
+      const raw = localStorage.getItem('groups-readability-prefs');
+      if (!raw) return {};
+      try { return JSON.parse(raw) || {}; }
+      catch (e) { localStorage.removeItem('groups-readability-prefs'); return {}; }
+    })();
     const prefs = {
       showPastilles: savedPrefs.showPastilles !== false,
       showFMScores: savedPrefs.showFMScores !== false,
@@ -5362,7 +5367,12 @@ const GroupsInterfaceV4 = (function() {
    */
   function initLisibilityControls() {
     // Charger les préférences sauvegardées
-    const savedPrefs = JSON.parse(localStorage.getItem('groups-readability-prefs') || '{}');
+    const savedPrefs = (function () {
+      const raw = localStorage.getItem('groups-readability-prefs');
+      if (!raw) return {};
+      try { return JSON.parse(raw) || {}; }
+      catch (e) { localStorage.removeItem('groups-readability-prefs'); return {}; }
+    })();
     const prefs = {
       showPastilles: savedPrefs.showPastilles !== false, // true par défaut
       showFMScores: savedPrefs.showFMScores !== false,   // true par défaut
