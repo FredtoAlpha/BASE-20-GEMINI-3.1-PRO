@@ -104,11 +104,20 @@ function readModeFromUI_() {
 }
 
 /**
- * @deprecated Utiliser genererNiveauxDynamiques() à la place
+ * @deprecated Utiliser genererNiveauxDynamiques() à la place.
+ * Conservé pour compat : délègue maintenant à la version dynamique
+ * si disponible, au lieu de renvoyer des niveaux hardcodés.
  */
 function readNiveauxFromUI_() {
-  if (typeof logLine === 'function') {
-    logLine('WARN', '⚠️ readNiveauxFromUI_() est obsolète, utilisez genererNiveauxDynamiques()');
+  if (typeof genererNiveauxDynamiques === 'function') {
+    try {
+      const dyn = genererNiveauxDynamiques();
+      if (Array.isArray(dyn) && dyn.length > 0) return dyn;
+    } catch (e) {
+      if (typeof logLine === 'function') {
+        logLine('WARN', `readNiveauxFromUI_ fallback sur hardcoded: ${e && e.message}`);
+      }
+    }
   }
   return ['6°1', '6°2', '6°3', '6°4', '6°5'];
 }

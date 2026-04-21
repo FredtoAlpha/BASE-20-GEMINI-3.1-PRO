@@ -194,24 +194,6 @@ const TooltipRegistry = {
       });
     }
     
-    // Mettre à jour les tooltips des métriques
-    if (data.metrics) {
-      const metricsEl = document.getElementById('metrics-summary');
-      if (metricsEl) {
-        const finalComposite = data.metrics.finalComposite ?? null;
-        const compositeGain = data.metrics.compositeImprovement ?? null;
-        const initialComposite = data.metrics.initialComposite ?? null;
-        const compositePct = (typeof compositeGain === 'number' && typeof initialComposite === 'number' && initialComposite !== 0)
-          ? ((compositeGain / initialComposite) * 100).toFixed(1) + '%'
-          : 'N/A';
-        const finalAcademic = data.metrics.finalAcademic ?? null;
-        const finalParity = data.metrics.finalParity ?? null;
-        this.update(metricsEl, {
-          value: `Composite : ${typeof finalComposite === 'number' ? finalComposite.toFixed(2) : 'N/A'}`,
-          detail: `Δ=${typeof compositeGain === 'number' ? compositeGain.toFixed(2) : 'N/A'} (${compositePct}) • Harmonie=${typeof finalAcademic === 'number' ? finalAcademic.toFixed(2) : 'N/A'} • Parité=${typeof finalParity === 'number' ? finalParity.toFixed(2) : 'N/A'}`
-        });
-      }
-    }
   },
   
   /**

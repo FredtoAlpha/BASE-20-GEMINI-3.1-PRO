@@ -212,9 +212,6 @@
           <button onclick="attemptRefresh()" class="btn btn-primary">
             <i class="fas fa-sync"></i> Réessayer
           </button>
-          <button onclick="createDemoStructure()" class="btn btn-secondary ml-3">
-            <i class="fas fa-plus"></i> Créer structure exemple
-          </button>
         </div>
       </div>
     </div>
@@ -2854,7 +2851,9 @@
         // Charger les préférences au démarrage
         const saved = localStorage.getItem('lisibilite-preferences');
         if (saved) {
-          const prefs = JSON.parse(saved);
+          let prefs = {};
+          try { prefs = JSON.parse(saved) || {}; }
+          catch (e) { localStorage.removeItem('lisibilite-preferences'); }
           setRadioValue('fontSize', prefs.size || 'medium');
           setRadioValue('fontStyle', prefs.style || 'normal');
           setRadioValue('contrast', prefs.contrast || 'normal');
@@ -2869,7 +2868,10 @@
         const saved = localStorage.getItem('lisibilite-preferences');
         if (!saved) return;
 
-        const prefs = JSON.parse(saved);
+        let prefs;
+        try { prefs = JSON.parse(saved); }
+        catch (e) { localStorage.removeItem('lisibilite-preferences'); return; }
+        if (!prefs) return;
 
         // Appliquer la taille des noms
         const studentCards = document.querySelectorAll('.student-card');
@@ -3804,14 +3806,14 @@
           // 4. Construire le message avec harmonie
           const nom1 = bestSwap.student1.nom + (bestSwap.student1.prenom ? ' ' + bestSwap.student1.prenom : '');
           const nom2 = bestSwap.student2.nom + (bestSwap.student2.prenom ? ' ' + bestSwap.student2.prenom : '');
-          const harmonieLabel = harmonieBefore ? ' (Harmonie actuelle : ' + harmonieBefore.score + '%)' : '';
+          const harmonieLabel = harmonieBefore ? ' (Harmonie actuelle : ' + escapeHtml(String(harmonieBefore.score)) + '%)' : '';
 
           // 5. Mettre à jour la barre d'instruction avec boutons d'action
           const instruction = document.getElementById('swapInstruction');
           if (instruction) {
             instruction.innerHTML =
               '<span class="font-bold text-purple-700">Suggestion :</span> ' +
-              'Inverser <b>' + nom1 + '</b> (' + bestSwap.classe1 + ') et <b>' + nom2 + '</b> (' + bestSwap.classe2 + ')' +
+              'Inverser <b>' + escapeHtml(nom1) + '</b> (' + escapeHtml(String(bestSwap.classe1)) + ') et <b>' + escapeHtml(nom2) + '</b> (' + escapeHtml(String(bestSwap.classe2)) + ')' +
               harmonieLabel +
               ' <button onclick="applySmartSwap()" class="ml-3 px-3 py-0.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-full shadow transition-all hover:scale-105">' +
               '<i class="fas fa-check mr-1"></i>Appliquer</button>' +
@@ -5579,6 +5581,14 @@
     };
   }
 
+  // Helper : parse localStorage avec fallback si JSON corrompu
+  function safeParseLocalStorage(key, fallback) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    try { return JSON.parse(raw); }
+    catch (e) { localStorage.removeItem(key); return fallback; }
+  }
+
   // Système de bookmarks
   window.toggleBookmarksMenu = function () {
     const menu = document.getElementById('bookmarksMenu');
@@ -5590,7 +5600,7 @@
     const name = prompt('Nom du favori :');
     if (!name) return;
 
-    const bookmarks = JSON.parse(localStorage.getItem('repartition-bookmarks') || '{}');
+    const bookmarks = safeParseLocalStorage('repartition-bookmarks', {});
     bookmarks[name] = {
       date: new Date().toISOString(),
       disposition: exportDisposition(),
@@ -5608,7 +5618,7 @@
   };
 
   window.loadBookmark = function (name) {
-    const bookmarks = JSON.parse(localStorage.getItem('repartition-bookmarks') || '{}');
+    const bookmarks = safeParseLocalStorage('repartition-bookmarks', {});
     const bookmark = bookmarks[name];
 
     if (!bookmark) return;
@@ -5636,7 +5646,7 @@
   window.deleteBookmark = function (name) {
     if (!confirm(`Supprimer le favori "${name}" ?`)) return;
 
-    const bookmarks = JSON.parse(localStorage.getItem('repartition-bookmarks') || '{}');
+    const bookmarks = safeParseLocalStorage('repartition-bookmarks', {});
     delete bookmarks[name];
     localStorage.setItem('repartition-bookmarks', JSON.stringify(bookmarks));
 
@@ -5648,7 +5658,7 @@
     const container = document.getElementById('bookmarksList');
     if (!container) return;
 
-    const bookmarks = JSON.parse(localStorage.getItem('repartition-bookmarks') || '{}');
+    const bookmarks = safeParseLocalStorage('repartition-bookmarks', {});
     container.innerHTML = '';
 
     if (Object.keys(bookmarks).length === 0) {
