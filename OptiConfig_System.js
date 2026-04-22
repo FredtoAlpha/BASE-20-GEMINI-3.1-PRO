@@ -745,7 +745,6 @@ function readQuotasFromStructureV2_() {
  *    - Poids/paramètres depuis _OPTI_CONFIG (historique)
  *
  * IMPORTANT : Cette fonction est utilisée par le SYSTÈME NOUVEAU uniquement
- * Le système legacy utilise buildCtx_() (Orchestration_V14I_Stream.gs)
  *
  * @param {Object} options - Options (sourceFamily, targetFamily)
  * @returns {Object} Contexte complet pour les phases
