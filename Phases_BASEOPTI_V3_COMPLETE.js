@@ -1132,6 +1132,21 @@ function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
   logLine('INFO', `🎯 ${totalStudents} élèves, ${Object.keys(snapshotByClass).length} classes, ratio F=${(globalStats.ratioF*100).toFixed(1)}%`);
   logLine('INFO', `🔁 Multi-restart : ${maxRestarts} seeds`);
 
+  // ===== BASELINE : erreur de la configuration initiale (pré-Phase4) =====
+  // Sert de garde-fou : si aucun restart ne fait mieux, on rollback.
+  let initialError = Infinity;
+  try {
+    const baselineStates = {};
+    for (const cls in snapshotByClass) {
+      const targetSize = (ctx.targets && ctx.targets[cls]) || 0;
+      baselineStates[cls] = new ClassState(cls, snapshotByClass[cls], snapshot, hIdx, targetSize);
+    }
+    initialError = computeTotalError_(baselineStates, globalStats, targetDistribution, weights);
+    logLine('INFO', `📊 Baseline pré-Phase4 : erreur=${initialError.toFixed(2)}`);
+  } catch (e) {
+    logLine('WARN', `⚠️ Calcul baseline impossible (${e && e.message}), rollback désactivé`);
+  }
+
   // ===== MULTI-RESTART LOOP =====
   let bestData = null;
   let bestError = Infinity;
@@ -1190,8 +1205,29 @@ function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
     };
   }
 
+  // GARDE-FOU ROLLBACK : si le meilleur restart dégrade (ou n'améliore pas) la baseline,
+  // on refuse la sortie et on garde la configuration pré-Phase4 telle quelle.
+  if (isFinite(initialError) && bestError >= initialError) {
+    logLine('WARN', `⚠️ ROLLBACK Phase 4 : meilleur restart (${bestError.toFixed(2)}) ≥ baseline (${initialError.toFixed(2)}). Config initiale conservée.`);
+    return {
+      ok: true,
+      swapsApplied: 0,
+      swaps3Way: 0,
+      annealingUsed: 0,
+      seed: 0,
+      restarts: maxRestarts,
+      finalError: initialError,
+      rollback: true,
+      initialError: initialError,
+      candidateError: bestError
+    };
+  }
+
   // Écrire le meilleur résultat
   logLine('INFO', `📊 Meilleur restart : seed=${bestSeed}, erreur=${bestError.toFixed(2)}, swaps=${bestSwaps}+${bestSwaps3Way}(3-way)`);
+  if (isFinite(initialError)) {
+    logLine('INFO', `📉 Gain vs baseline : ${(initialError - bestError).toFixed(2)} (${((1 - bestError/initialError)*100).toFixed(1)}%)`);
+  }
   baseSheet.getRange(1, 1, bestData.length, headers.length).setValues(bestData);
   SpreadsheetApp.flush();
   copyBaseoptiToCache_V3(ctx);
@@ -1206,7 +1242,9 @@ function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
     annealingUsed: bestAnnealing,
     seed: bestSeed,
     restarts: maxRestarts,
-    finalError: bestError
+    finalError: bestError,
+    initialError: initialError,
+    rollback: false
   };
 }
 
