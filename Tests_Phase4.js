@@ -193,6 +193,75 @@ function _testRNG_Range() {
 }
 
 // ===================================================================
+// TESTS : budget adaptatif (règle de calcul)
+// ===================================================================
+
+function _computeAdaptiveBudget(N, defaultMaxRestarts) {
+  return {
+    maxSwaps: Math.max(500, N * 5),
+    maxRestarts: N >= 150 ? Math.max(10, defaultMaxRestarts) : defaultMaxRestarts
+  };
+}
+
+function _testBudget_PetitCohort() {
+  var b = _computeAdaptiveBudget(50, 5);
+  _assertEq(b.maxSwaps, 500, 'petit cohort : plancher 500 swaps');
+  _assertEq(b.maxRestarts, 5, 'petit cohort : pas de bump restarts');
+}
+
+function _testBudget_MoyenCohort() {
+  var b = _computeAdaptiveBudget(120, 5);
+  _assertEq(b.maxSwaps, 600, '120×5=600 swaps');
+  _assertEq(b.maxRestarts, 5, '120 < 150 : pas de bump');
+}
+
+function _testBudget_GrosCohort() {
+  var b = _computeAdaptiveBudget(200, 5);
+  _assertEq(b.maxSwaps, 1000, '200×5=1000 swaps');
+  _assertEq(b.maxRestarts, 10, '200 >= 150 : bump à 10');
+}
+
+function _testBudget_TresGrosCohort() {
+  var b = _computeAdaptiveBudget(400, 5);
+  _assertEq(b.maxSwaps, 2000, '400×5=2000 swaps');
+  _assertEq(b.maxRestarts, 10, 'bump à 10');
+}
+
+// ===================================================================
+// TESTS : qualité absolue (fonction _computeQualityScore)
+// ===================================================================
+
+function _computeQualityScore(errInit, errFinal) {
+  if (!isFinite(errInit) || errInit <= 0) return null;
+  if (errFinal <= 0) return 100;
+  if (errFinal >= errInit) return 0;
+  return Math.max(0, Math.min(100, 100 * (1 - errFinal / errInit)));
+}
+
+function _testQuality_AmeliorationForte() {
+  _assertNear(_computeQualityScore(100, 20), 80, 1e-9, 'erreur divisée par 5 = 80%');
+}
+
+function _testQuality_AmeliorationFaible() {
+  _assertNear(_computeQualityScore(100, 90), 10, 1e-9, 'amélioration 10%');
+}
+
+function _testQuality_OptimumParfait() {
+  _assertEq(_computeQualityScore(100, 0), 100, 'erreur 0 = qualité 100');
+}
+
+function _testQuality_Degradation() {
+  _assertEq(_computeQualityScore(100, 150), 0, 'dégradation → 0');
+  _assertEq(_computeQualityScore(100, 100), 0, 'égalité → 0');
+}
+
+function _testQuality_BaselineInvalide() {
+  _assertEq(_computeQualityScore(0, 10), null, 'baseline 0 → null');
+  _assertEq(_computeQualityScore(-5, 10), null, 'baseline <0 → null');
+  _assertEq(_computeQualityScore(Infinity, 10), null, 'baseline Infinity → null');
+}
+
+// ===================================================================
 // TESTS : logique de rollback Phase 4 (simulation algébrique)
 // ===================================================================
 // On ne peut pas exécuter Phase4_balanceScoresSwaps_BASEOPTI_V3 sans
@@ -264,6 +333,19 @@ function runAllPhase4Tests_() {
   _runTest('dégradation : rollback', _testRollback_Degradation);
   _runTest('égalité : rollback', _testRollback_Egalite);
   _runTest('baseline inconnue : pas de rollback', _testRollback_InitialInfinity);
+
+  Logger.log('\n⚙️ Budget adaptatif :');
+  _runTest('petit cohort (N=50)', _testBudget_PetitCohort);
+  _runTest('moyen cohort (N=120)', _testBudget_MoyenCohort);
+  _runTest('gros cohort (N=200)', _testBudget_GrosCohort);
+  _runTest('très gros cohort (N=400)', _testBudget_TresGrosCohort);
+
+  Logger.log('\n⭐ Score qualité absolu :');
+  _runTest('amélioration forte', _testQuality_AmeliorationForte);
+  _runTest('amélioration faible', _testQuality_AmeliorationFaible);
+  _runTest('optimum parfait', _testQuality_OptimumParfait);
+  _runTest('dégradation / égalité', _testQuality_Degradation);
+  _runTest('baseline invalide', _testQuality_BaselineInvalide);
 
   Logger.log('\n═══════════════════════════════════════════════════════════');
   Logger.log('  RÉSULTAT : ' + _TEST_STATE.passed + '/' + _TEST_STATE.total +

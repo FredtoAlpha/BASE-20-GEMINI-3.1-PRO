@@ -1077,20 +1077,29 @@ function reshuffleWorstClass_V3_(ctx) {
  * - EFF: Pénalité d'effectif dans ClassState.computeError
  */
 function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
+  var _phase4StartMs = Date.now();
   logLine('INFO', '🔧 [engine=OPTI] Phase4_balanceScoresSwaps_BASEOPTI_V3 (SCORE INTERFACE / Prof)');
   logLine('INFO', '='.repeat(80));
   logLine('INFO', '📌 PHASE 4 V3 - MULTI-RESTART NAUTILUS');
   logLine('INFO', '='.repeat(80));
 
   const weights = ctx.weights || { parity: 1.0, com: 1.0, tra: 0.5, part: 0.3, abs: 0.2, profiles: 2.0, effectif: 2.0 };
-  const maxSwaps = ctx.maxSwaps || 500;
   const mrConfig = MULTI_RESTART_CONFIG;
-  const maxRestarts = mrConfig.maxRestarts;
 
   const ss = ctx.ss || SpreadsheetApp.getActive();
   const baseSheet = ss.getSheetByName('_BASEOPTI');
   const snapshot = baseSheet.getDataRange().getValues();
   const headers = snapshot[0];
+
+  // ===== BUDGET ADAPTATIF selon la taille de la cohorte =====
+  // maxSwaps : au moins 500, sinon N×5 (pour laisser le moteur converger
+  // sur les grosses cohortes où 500 est sous-dimensionné).
+  // maxRestarts : 10 au lieu de 5 à partir de 150 élèves (plus de diversité
+  // de seeds pour sortir des optima locaux).
+  const N = Math.max(0, snapshot.length - 1);
+  const maxSwaps = ctx.maxSwaps || Math.max(500, N * 5);
+  const maxRestarts = ctx.maxRestarts || (N >= 150 ? Math.max(10, mrConfig.maxRestarts) : mrConfig.maxRestarts);
+  logLine('INFO', `⚙️ Budget adaptatif : N=${N} → maxSwaps=${maxSwaps}, maxRestarts=${maxRestarts}`);
 
   // Index des colonnes (invariant entre restarts)
   const hIdx = {
@@ -1205,10 +1214,33 @@ function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
     };
   }
 
+  // ===== MÉTRIQUE QUALITÉ ABSOLUE =====
+  // Borne théorique minimum = 0 (équilibre parfait sans contraintes).
+  // Score qualité = 100 × (1 - finalError / initialError), borné [0,100].
+  //   0   = aucune amélioration (ou dégradation avant rollback)
+  //   50  = erreur divisée par 2
+  //   100 = équilibre parfait (borne théorique atteinte)
+  function _computeQualityScore(errInit, errFinal) {
+    if (!isFinite(errInit) || errInit <= 0) return null;
+    if (errFinal <= 0) return 100;
+    if (errFinal >= errInit) return 0;
+    return Math.max(0, Math.min(100, 100 * (1 - errFinal / errInit)));
+  }
+
   // GARDE-FOU ROLLBACK : si le meilleur restart dégrade (ou n'améliore pas) la baseline,
   // on refuse la sortie et on garde la configuration pré-Phase4 telle quelle.
   if (isFinite(initialError) && bestError >= initialError) {
     logLine('WARN', `⚠️ ROLLBACK Phase 4 : meilleur restart (${bestError.toFixed(2)}) ≥ baseline (${initialError.toFixed(2)}). Config initiale conservée.`);
+    var _rollbackDuration = Date.now() - _phase4StartMs;
+    if (typeof RunAudit_appendMetric === 'function') {
+      RunAudit_appendMetric({
+        runId: ctx.runId || '', operation: 'PHASE4', phase: 'balanceScoresSwaps',
+        durationMs: _rollbackDuration, nStudents: N, nClasses: Object.keys(snapshotByClass).length,
+        initialError: initialError, finalError: bestError, qualityScore: 0,
+        swapsApplied: 0, swaps3Way: 0, restarts: maxRestarts,
+        rollback: true, success: true, notes: 'bestError >= baseline, config initiale conservée'
+      });
+    }
     return {
       ok: true,
       swapsApplied: 0,
@@ -1219,21 +1251,39 @@ function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
       finalError: initialError,
       rollback: true,
       initialError: initialError,
-      candidateError: bestError
+      candidateError: bestError,
+      qualityScore: 0,
+      theoreticalMin: 0,
+      durationMs: _rollbackDuration
     };
   }
 
   // Écrire le meilleur résultat
+  const qualityScore = _computeQualityScore(initialError, bestError);
   logLine('INFO', `📊 Meilleur restart : seed=${bestSeed}, erreur=${bestError.toFixed(2)}, swaps=${bestSwaps}+${bestSwaps3Way}(3-way)`);
   if (isFinite(initialError)) {
     logLine('INFO', `📉 Gain vs baseline : ${(initialError - bestError).toFixed(2)} (${((1 - bestError/initialError)*100).toFixed(1)}%)`);
+  }
+  if (qualityScore !== null) {
+    logLine('INFO', `⭐ Score qualité absolu : ${qualityScore.toFixed(1)}/100 (0=baseline, 100=équilibre parfait)`);
   }
   baseSheet.getRange(1, 1, bestData.length, headers.length).setValues(bestData);
   SpreadsheetApp.flush();
   copyBaseoptiToCache_V3(ctx);
   if (typeof computeMobilityFlags_ === 'function') computeMobilityFlags_(ctx);
 
-  logLine('INFO', `✅ PHASE 4 MULTI-RESTART terminée : meilleur sur ${maxRestarts} seeds. Seed gagnant: ${bestSeed}`);
+  var _phase4Duration = Date.now() - _phase4StartMs;
+  logLine('INFO', `✅ PHASE 4 MULTI-RESTART terminée en ${_phase4Duration}ms : meilleur sur ${maxRestarts} seeds. Seed gagnant: ${bestSeed}`);
+
+  if (typeof RunAudit_appendMetric === 'function') {
+    RunAudit_appendMetric({
+      runId: ctx.runId || '', operation: 'PHASE4', phase: 'balanceScoresSwaps',
+      durationMs: _phase4Duration, nStudents: N, nClasses: Object.keys(snapshotByClass).length,
+      initialError: initialError, finalError: bestError, qualityScore: qualityScore,
+      swapsApplied: bestSwaps, swaps3Way: bestSwaps3Way, restarts: maxRestarts,
+      rollback: false, success: true, notes: 'seed=' + bestSeed
+    });
+  }
 
   return {
     ok: true,
@@ -1244,7 +1294,10 @@ function Phase4_balanceScoresSwaps_BASEOPTI_V3(ctx) {
     restarts: maxRestarts,
     finalError: bestError,
     initialError: initialError,
-    rollback: false
+    rollback: false,
+    qualityScore: qualityScore,
+    theoreticalMin: 0,
+    durationMs: _phase4Duration
   };
 }
 

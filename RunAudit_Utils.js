@@ -153,3 +153,73 @@ function RunAudit_buildReport(ctx) {
 
   return report;
 }
+
+// =============================================================================
+// PERSISTANCE DES MÉTRIQUES DANS L'ONGLET _METRICS
+// =============================================================================
+
+var _METRICS_SHEET_NAME = '_METRICS';
+var _METRICS_HEADERS = [
+  'timestamp', 'runId', 'operation', 'phase',
+  'durationMs', 'nStudents', 'nClasses',
+  'initialError', 'finalError', 'qualityScore',
+  'swapsApplied', 'swaps3Way', 'restarts', 'rollback',
+  'success', 'notes'
+];
+
+/**
+ * Retourne (ou crée) l'onglet _METRICS avec ses en-têtes.
+ * @returns {Sheet}
+ */
+function RunAudit_getOrCreateMetricsSheet_() {
+  var ss = SpreadsheetApp.getActive();
+  var sh = ss.getSheetByName(_METRICS_SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(_METRICS_SHEET_NAME);
+    sh.getRange(1, 1, 1, _METRICS_HEADERS.length).setValues([_METRICS_HEADERS]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, _METRICS_HEADERS.length).setFontWeight('bold');
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+/**
+ * Ajoute une ligne de métriques dans l'onglet _METRICS.
+ * Tolère les champs absents (remplacés par '').
+ *
+ * @param {Object} m - { runId, operation, phase, durationMs, nStudents, nClasses,
+ *                       initialError, finalError, qualityScore, swapsApplied,
+ *                       swaps3Way, restarts, rollback, success, notes }
+ * @returns {boolean} true si écrit, false si erreur silencieuse
+ */
+function RunAudit_appendMetric(m) {
+  try {
+    var sh = RunAudit_getOrCreateMetricsSheet_();
+    var row = [
+      new Date().toISOString(),
+      m.runId || '',
+      m.operation || '',
+      m.phase || '',
+      (m.durationMs != null) ? m.durationMs : '',
+      (m.nStudents != null) ? m.nStudents : '',
+      (m.nClasses != null) ? m.nClasses : '',
+      (m.initialError != null && isFinite(m.initialError)) ? Number(m.initialError.toFixed(3)) : '',
+      (m.finalError != null && isFinite(m.finalError)) ? Number(m.finalError.toFixed(3)) : '',
+      (m.qualityScore != null) ? Number(m.qualityScore.toFixed(1)) : '',
+      (m.swapsApplied != null) ? m.swapsApplied : '',
+      (m.swaps3Way != null) ? m.swaps3Way : '',
+      (m.restarts != null) ? m.restarts : '',
+      (m.rollback === true) ? 'YES' : (m.rollback === false ? 'no' : ''),
+      (m.success === true) ? 'YES' : (m.success === false ? 'no' : ''),
+      m.notes || ''
+    ];
+    sh.appendRow(row);
+    return true;
+  } catch (e) {
+    if (typeof logLine === 'function') {
+      logLine('WARN', 'RunAudit_appendMetric a échoué : ' + (e && e.message));
+    }
+    return false;
+  }
+}
